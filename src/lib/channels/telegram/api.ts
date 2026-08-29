@@ -118,3 +118,41 @@ export async function getTelegramWebhookInfo(botToken: string): Promise<{ url: s
     pendingUpdateCount: typeof r?.pending_update_count === 'number' ? r.pending_update_count : 0,
   };
 }
+
+export interface TelegramFileInfo {
+  fileId: string;
+  fileUniqueId?: string;
+  fileSize?: number;
+  filePath: string;
+}
+
+export async function getTelegramFile(botToken: string, fileId: string): Promise<TelegramFileInfo> {
+  const json = await telegramFetch(botToken, 'getFile', { file_id: fileId });
+  const r = json.result as { file_id?: string; file_unique_id?: string; file_size?: number; file_path?: string } | undefined;
+  if (!r?.file_path || typeof r.file_path !== 'string') {
+    throw new TelegramApiError('telegram_error', 'Telegram did not return a file path.', 502);
+  }
+  return {
+    fileId: r.file_id ?? fileId,
+    fileUniqueId: r.file_unique_id,
+    fileSize: typeof r.file_size === 'number' ? r.file_size : undefined,
+    filePath: r.file_path,
+  };
+}
+
+export async function downloadTelegramFile(botToken: string, filePath: string): Promise<{ buffer: Buffer; contentType: string | null }> {
+  const url = `${TELEGRAM_API_BASE}/file/bot${botToken}/${filePath}`;
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new TelegramApiError('network_error', `Could not download Telegram file: ${sanitizeTelegramMessage(msg, 'Network error')}`, 502, true);
+  }
+  if (!res.ok) {
+    throw new TelegramApiError('telegram_error', `Telegram file download failed: ${res.status}`, res.status >= 500 ? 502 : 400, res.status >= 500);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  const ct = res.headers.get('content-type');
+  return { buffer: buf, contentType: ct };
+}

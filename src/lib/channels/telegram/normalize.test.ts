@@ -47,7 +47,7 @@ describe('normalizeTelegramUpdate', () => {
     expect(n!.telegramUserId).toBe(999)
   })
 
-  it('normalizes caption as text', () => {
+  it('normalizes caption-bearing photo as media with caption text', () => {
     const update: TelegramUpdate = {
       update_id: 102,
       message: {
@@ -60,8 +60,63 @@ describe('normalizeTelegramUpdate', () => {
       },
     }
     const n = normalizeTelegramUpdate({ update, accountId, configOwnerUserId })!
-    expect(n.kind).toBe('text')
+    expect(n.kind).toBe('media')
     expect(n.text).toBe('photo caption')
+    expect(n.mediaUrl).toBe('abc')
+    expect(n.mediaType).toBe('image/jpeg')
+  })
+
+  it('normalizes photo without caption as media placeholder', () => {
+    const update: TelegramUpdate = {
+      update_id: 110,
+      message: {
+        message_id: 9,
+        from: { id: 1, first_name: 'A' },
+        chat: { id: 1, type: 'private' },
+        date: 1,
+        photo: [{ file_id: 'fid1' }, { file_id: 'fid2' }],
+      },
+    }
+    const n = normalizeTelegramUpdate({ update, accountId, configOwnerUserId })!
+    expect(n.kind).toBe('media')
+    expect(n.mediaUrl).toBe('fid2') // largest last
+    expect(n.text).toBe('[media]')
+  })
+
+  it('normalizes document as media with mime and filename', () => {
+    const update: TelegramUpdate = {
+      update_id: 111,
+      message: {
+        message_id: 10,
+        from: { id: 5, first_name: 'C' },
+        chat: { id: 5, type: 'private' },
+        date: 1,
+        document: { file_id: 'doc123', file_name: 'invoice.pdf', mime_type: 'application/pdf' },
+      },
+    }
+    const n = normalizeTelegramUpdate({ update, accountId, configOwnerUserId })!
+    expect(n.kind).toBe('media')
+    expect(n.mediaUrl).toBe('doc123')
+    expect(n.mediaType).toBe('application/pdf')
+    expect((n as unknown as { telegramFileName: string }).telegramFileName).toBe('invoice.pdf')
+  })
+
+  it('normalizes document with caption as media preserving caption', () => {
+    const update: TelegramUpdate = {
+      update_id: 112,
+      message: {
+        message_id: 11,
+        from: { id: 6, first_name: 'D' },
+        chat: { id: 6, type: 'private' },
+        date: 12,
+        caption: 'see attached',
+        document: { file_id: 'doc999', file_name: 'a.pdf', mime_type: 'application/pdf' },
+      },
+    }
+    const n = normalizeTelegramUpdate({ update, accountId, configOwnerUserId })!
+    expect(n.kind).toBe('media')
+    expect(n.text).toBe('see attached')
+    expect(n.mediaUrl).toBe('doc999')
   })
 
   it('returns null for unsupported update', () => {

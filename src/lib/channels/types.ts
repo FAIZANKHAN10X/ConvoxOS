@@ -36,10 +36,11 @@ export interface NormalizedInbound {
   raw?: unknown
   /** Whether this is first customer message in this conversation */
   isFirstInboundMessage?: boolean
-  /** For TG: stable identity fields */
+  /** For TG: stable identity fields + media file name (document) */
   telegramUserId?: number
   telegramChatId?: number
   telegramUsername?: string | null
+  telegramFileName?: string | null
   /** Sender phone for WA (digits), display name */
   senderPhone?: string | null
   senderName?: string | null
@@ -54,12 +55,12 @@ export interface TelegramUpdate {
     date: number
     text?: string
     caption?: string
-    photo?: Array<{ file_id: string }>
-    document?: { file_id: string; file_name?: string; mime_type?: string }
-    video?: { file_id: string; mime_type?: string }
-    audio?: { file_id: string }
-    voice?: { file_id: string }
-    sticker?: { file_id: string }
+    photo?: Array<{ file_id: string; file_size?: number }>
+    document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number }
+    video?: { file_id: string; mime_type?: string; file_size?: number }
+    audio?: { file_id: string; mime_type?: string; file_size?: number }
+    voice?: { file_id: string; mime_type?: string; file_size?: number }
+    sticker?: { file_id: string; file_size?: number }
     location?: { latitude: number; longitude: number }
     reply_to_message?: { message_id: number }
   }

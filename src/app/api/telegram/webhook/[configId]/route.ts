@@ -5,6 +5,7 @@ import { normalizeTelegramUpdate } from '@/lib/channels/telegram/normalize'
 import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound'
 import type { NormalizedInbound, TelegramUpdate } from '@/lib/channels/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { contentTypeForTelegramMime, mirrorTelegramMedia } from '@/lib/channels/telegram/mirror'
 
 export const maxDuration = 60
 
@@ -105,7 +106,8 @@ export async function POST(
     return NextResponse.json({ error: 'Configuration error' }, { status: 500 })
   }
 
-  const normalized = normalizeTelegramUpdate({
+  // eslint-disable-next-line prefer-const
+  let normalized = normalizeTelegramUpdate({
     update: body as TelegramUpdate,
     accountId,
     configOwnerUserId,
@@ -116,10 +118,50 @@ export async function POST(
     return NextResponse.json({ status: 'ignored' }, { status: 200 })
   }
 
+  // Media mirroring: Telegram file_id → chat-media/telegram/ public URL (best-effort).
+  // Provider file fetch needs bot token; decrypt only for media path.
+  if (normalized.kind === 'media' && normalized.mediaUrl) {
+    try {
+      const fileId = normalized.mediaUrl
+      const rawMime = normalized.mediaType ?? null
+      const rawFileName = (normalized as { telegramFileName?: string | null }).telegramFileName ?? null
+      const msg = (body as TelegramUpdate).message
+      const ts = msg?.date ? String(msg.date) : null
+      // Decrypt bot token for file fetch (never logged)
+      const botToken = decrypt(config.bot_token_encrypted)
+      const storage = supabaseAdmin().storage as unknown as Parameters<typeof mirrorTelegramMedia>[0]['storage']
+      const mirrored = await mirrorTelegramMedia({
+        storage,
+        accountId,
+        botToken,
+        fileId,
+        providerMessageId: normalized.providerMessageId,
+        mimeType: rawMime,
+        fileName: rawFileName,
+        messageTimestamp: ts,
+      })
+      if (mirrored.publicUrl) {
+        // Replace file_id with durable URL so processNormalizedInbound persists it as media_url
+        normalized.mediaUrl = mirrored.publicUrl
+        normalized.mediaType = mirrored.contentType ?? rawMime
+        // Tell shared pipeline the correct content_type (image/document/video/audio)
+        ;(normalized as unknown as Record<string, unknown>).contentType = contentTypeForTelegramMime(mirrored.contentType ?? rawMime)
+      } else {
+        // Keep placeholder; pipeline will store text [media] without media_url
+        normalized.mediaUrl = null
+        normalized.mediaType = null
+      }
+    } catch (err) {
+      console.warn('[telegram webhook] media mirror failed, keeping placeholder:', err instanceof Error ? err.message : err)
+      normalized.mediaUrl = null
+      normalized.mediaType = null
+    }
+  }
+
   // Preserve WA after() guarantee for serverless
   after(async () => {
     try {
-      await processNormalizedInbound(normalized as NormalizedInbound)
+      await processNormalizedInbound(normalized as NormalizedInbound & { contentType?: string })
     } catch (err) {
       console.error('[telegram webhook] processNormalizedInbound failed:', err)
     }
