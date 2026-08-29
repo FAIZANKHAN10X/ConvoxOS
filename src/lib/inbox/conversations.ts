@@ -1,4 +1,4 @@
-import type { Conversation, Contact, Tag } from "@/types";
+import type { Channel, Conversation, Contact, Message, Tag } from "@/types";
 
 /**
  * Conversation select that embeds the contact plus its tags, so the Inbox
@@ -40,6 +40,55 @@ export function normalizeConversations(
   rows: RawConversation[],
 ): Conversation[] {
   return rows.map(normalizeConversation);
+}
+
+export type InboxChannelFilter = "all" | Channel;
+
+export interface ConversationChannelSummary {
+  channels: Channel[];
+  latestChannel: Channel | null;
+}
+
+const CHANNEL_ORDER: Channel[] = ["whatsapp", "telegram"];
+
+/**
+ * Derive the channels represented by a thread without adding channel state to
+ * the conversation itself. Messages written before channel provenance was
+ * available are intentionally ignored until their provider is known.
+ */
+export function summarizeConversationChannels(
+  messages: Pick<Message, "channel" | "created_at">[],
+): ConversationChannelSummary {
+  const channels = CHANNEL_ORDER.filter((channel) =>
+    messages.some((message) => message.channel === channel),
+  );
+  const latestChannel = [...messages]
+    .reverse()
+    .find((message) => message.channel != null)?.channel ?? null;
+
+  return { channels, latestChannel };
+}
+
+/**
+ * Channel filters match any message in the unified conversation. This keeps a
+ * mixed WhatsApp/Telegram thread visible in both channel views.
+ */
+export function matchesChannelFilter(
+  summary: ConversationChannelSummary,
+  filter: InboxChannelFilter,
+): boolean {
+  return filter === "all" || summary.channels.includes(filter);
+}
+
+/** Return the outbound identities available for a contact. */
+export function getAvailableContactChannels(contact: Contact | null): Channel[] {
+  if (!contact) return [];
+
+  return CHANNEL_ORDER.filter((channel) =>
+    channel === "whatsapp"
+      ? Boolean(contact.phone)
+      : Boolean(contact.telegram_user_id),
+  );
 }
 
 export interface ContactFilters {

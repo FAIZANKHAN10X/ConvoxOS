@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  getAvailableContactChannels,
+  matchesChannelFilter,
   matchesContactFilters,
   normalizeConversation,
+  summarizeConversationChannels,
 } from "./conversations";
-import type { Conversation } from "@/types";
+import type { ConversationChannelSummary } from "./conversations";
+import type { Conversation, Message } from "@/types";
 
 function makeConversation(
   contact: Partial<Conversation["contact"]> | null,
@@ -36,6 +40,23 @@ const tag = (id: string, name = id) => ({
   name,
   color: "#fff",
   created_at: "",
+});
+
+function makeMessage(
+  channel: Message["channel"],
+  created_at: string,
+): Pick<Message, "channel" | "created_at"> {
+  return { channel, created_at };
+}
+
+const contact = (overrides: Partial<NonNullable<Conversation["contact"]>> = {}) => ({
+  id: "ct1",
+  user_id: "u1",
+  account_id: "a1",
+  phone: null,
+  created_at: "",
+  updated_at: "",
+  ...overrides,
 });
 
 describe("matchesContactFilters", () => {
@@ -141,5 +162,83 @@ describe("normalizeConversation", () => {
     };
     // A contactless row passes through untouched (consumers use `?.`).
     expect(normalizeConversation(raw).contact).toBeNull();
+  });
+});
+
+describe("summarizeConversationChannels", () => {
+  it("summarizes a WhatsApp-only conversation", () => {
+    expect(
+      summarizeConversationChannels([
+        makeMessage("whatsapp", "2026-01-01T00:00:00Z"),
+      ]),
+    ).toEqual({ channels: ["whatsapp"], latestChannel: "whatsapp" });
+  });
+
+  it("summarizes a Telegram-only conversation", () => {
+    expect(
+      summarizeConversationChannels([
+        makeMessage("telegram", "2026-01-01T00:00:00Z"),
+      ]),
+    ).toEqual({ channels: ["telegram"], latestChannel: "telegram" });
+  });
+
+  it("keeps both channels for mixed history and tracks the latest known channel", () => {
+    expect(
+      summarizeConversationChannels([
+        makeMessage("whatsapp", "2026-01-01T00:00:00Z"),
+        makeMessage("telegram", "2026-01-02T00:00:00Z"),
+      ]),
+    ).toEqual({
+      channels: ["whatsapp", "telegram"],
+      latestChannel: "telegram",
+    });
+  });
+
+  it("ignores messages without channel provenance", () => {
+    expect(
+      summarizeConversationChannels([
+        makeMessage(undefined, "2026-01-01T00:00:00Z"),
+      ]),
+    ).toEqual({ channels: [], latestChannel: null });
+  });
+});
+
+describe("matchesChannelFilter", () => {
+  const mixed: ConversationChannelSummary = {
+    channels: ["whatsapp", "telegram"],
+    latestChannel: "telegram" as const,
+  };
+
+  it("matches all channels and both channel views for mixed history", () => {
+    expect(matchesChannelFilter(mixed, "all")).toBe(true);
+    expect(matchesChannelFilter(mixed, "whatsapp")).toBe(true);
+    expect(matchesChannelFilter(mixed, "telegram")).toBe(true);
+  });
+
+  it("does not match a channel absent from the conversation", () => {
+    expect(
+      matchesChannelFilter(
+        { channels: ["whatsapp"], latestChannel: "whatsapp" },
+        "telegram",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("getAvailableContactChannels", () => {
+  it("handles WhatsApp-only, Telegram-only, both, and neither", () => {
+    expect(getAvailableContactChannels(contact({ phone: "+1" }))).toEqual([
+      "whatsapp",
+    ]);
+    expect(
+      getAvailableContactChannels(contact({ telegram_user_id: 123 })),
+    ).toEqual(["telegram"]);
+    expect(
+      getAvailableContactChannels(
+        contact({ phone: "+1", telegram_user_id: 123 }),
+      ),
+    ).toEqual(["whatsapp", "telegram"]);
+    expect(getAvailableContactChannels(contact())).toEqual([]);
+    expect(getAvailableContactChannels(null)).toEqual([]);
   });
 });
