@@ -3,15 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
 import type { Contact, Deal, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
-  User,
   Tag as TagIcon,
+  Send,
   DollarSign,
   StickyNote,
   Plus,
@@ -155,20 +154,34 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             )}
           </div>
 
-          {/* Phone */}
+          {/* Channel identities */}
           <div className="mt-4 space-y-2">
-            <button
-              onClick={handleCopyPhone}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
-            >
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone ?? contact.telegram_username ?? '—'}</span>
-              {copied ? (
-                <Check className="h-3 w-3 text-primary" />
-              ) : (
-                <Copy className="h-3 w-3 text-muted-foreground" />
-              )}
-            </button>
+            {contact.phone && (
+              <button
+                type="button"
+                onClick={handleCopyPhone}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <span className="flex-1 text-left">{contact.phone}</span>
+                {copied ? (
+                  <Check className="h-3 w-3 text-primary" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+              </button>
+            )}
+
+            {contact.telegram_user_id && (
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+                <Send className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <span className="flex-1 truncate">
+                  {contact.telegram_username
+                    ? `@${contact.telegram_username}`
+                    : contact.telegram_user_id}
+                </span>
+              </div>
+            )}
 
             {contact.email && (
               <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">

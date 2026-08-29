@@ -188,6 +188,12 @@
       "noCustomerMessages": "No customer messages"
     },
     "composer": {
+      "replyVia": "Reply via",
+      "whatsapp": "WhatsApp",
+      "telegram": "Telegram",
+      "noOutboundChannel": "No outbound channel is available for this contact.",
+      "telegramNotConnected": "Telegram is not connected.",
+      "openTelegramSettings": "Open Telegram settings",
       "draftHint": "Tap the ✨ to draft a reply with AI — you can edit it before sending",
       "sessionExpiredHint": "24-hour session expired. Use a template to re-engage.",
       "templates": "Templates",
@@ -286,6 +292,8 @@
       "send": "Send template"
     },
     "sidebar": {
+      "whatsappIdentity": "WhatsApp identity",
+      "telegramIdentity": "Telegram identity",
       "contactInfo": "Contact info",
       "tags": "Tags",
       "notes": "Notes",

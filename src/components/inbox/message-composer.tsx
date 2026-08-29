@@ -22,6 +22,7 @@ import {
   Plus,
   MessageSquareDashed,
   Zap,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -560,28 +561,55 @@ export function MessageComposer({
           />
         </div>
       )}
-      {/* Channel selector — explicit per Phase 2, not derived latest channel */}
-      {availableChannels.length > 1 && onChannelChange && (
+      {/* Channel context is visible even when there is only one reply route. */}
+      {availableChannels.length > 0 && (
         <div className="mb-2 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Reply via</span>
+          <label
+            htmlFor="inbox-reply-channel"
+            className="text-xs text-muted-foreground"
+          >
+            {t("replyVia")}
+          </label>
+          {availableChannels.length > 1 && onChannelChange ? (
           <select
+            id="inbox-reply-channel"
             value={selectedChannel}
             onChange={(e) => onChannelChange(e.target.value as Channel)}
-            className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
+            aria-label={t("replyVia")}
+            className="h-7 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/30"
           >
-            {availableChannels.includes('whatsapp' as Channel) && <option value="whatsapp">WhatsApp</option>}
-            {availableChannels.includes('telegram' as Channel) && <option value="telegram">Telegram</option>}
+            {availableChannels.includes("whatsapp") && (
+              <option value="whatsapp">{t("whatsapp")}</option>
+            )}
+            {availableChannels.includes("telegram") && (
+              <option value="telegram">{t("telegram")}</option>
+            )}
           </select>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground">
+              {isWhatsApp ? (
+                <MessageCircle className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <Send className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isWhatsApp ? t("whatsapp") : t("telegram")}
+            </span>
+          )}
         </div>
       )}
       {availableChannels.length === 0 && (
         <div className="mb-2 rounded-lg bg-muted px-3 py-2">
-          <p className="text-xs text-muted-foreground">No outbound channel available for this contact</p>
+          <p className="text-xs text-muted-foreground">{t("noOutboundChannel")}</p>
         </div>
       )}
       {isTelegram && telegramConnected === false && (
         <div className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2">
-          <p className="text-xs text-amber-400">Telegram not connected — connect in Settings → Telegram</p>
+          <p className="text-xs text-amber-400">
+            {t("telegramNotConnected")} {" "}
+            <a className="underline underline-offset-2" href="/settings?tab=telegram">
+              {t("openTelegramSettings")}
+            </a>
+          </p>
         </div>
       )}
       {isWhatsApp && sessionExpired && (
@@ -776,9 +804,9 @@ export function MessageComposer({
                 : isWhatsApp && sessionExpired
                   ? t("sessionExpiredPlaceholder")
                   : isTelegram && telegramConnected === false
-                    ? "Telegram not connected"
+                    ? t("telegramNotConnected")
                     : availableChannels.length === 0
-                      ? "No channel available"
+                      ? t("noOutboundChannel")
                       : t("typeMessagePlaceholder")
             }
             disabled={readOnly || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0}
