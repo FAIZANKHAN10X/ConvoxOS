@@ -66,7 +66,12 @@ What that means in the current code:
   `Conversation.channel`, or a factory/registry/bus.
 
 See [ROADMAP.md](./ROADMAP.md) for the product direction and
-[PROGRESS.md](./PROGRESS.md) for what is done.
+[PROGRESS.md](./PROGRESS.md) for what is done. Channel host vs
+WhatsApp core vs external plugs:
+
+- [docs/CHANNEL_ARCHITECTURE.md](./docs/CHANNEL_ARCHITECTURE.md)
+- [docs/CHANNEL_MODULE.md](./docs/CHANNEL_MODULE.md)
+- [docs/CHANNEL_CONNECTIONS.md](./docs/CHANNEL_CONNECTIONS.md)
 
 ## Current Capabilities
 
@@ -105,6 +110,12 @@ Implemented today:
   `POST /api/telegram/send` (agent role, rate-limited)
 - **Inbox channel selection** — `Reply via` WhatsApp or Telegram when
   both identities exist; Telegram send is text-only
+- **Connection management (Phase 4)** — `Settings → Channels`
+  aggregator, `GET/POST/DELETE /api/telegram/config` (validate
+  via `getMe`, encrypted at rest, `setWebhook`/`deleteWebhook`,
+  admin write / viewer read, webhook URL `NEXT_PUBLIC_SITE_URL`
+  + request-origin fallback), hard-delete disconnect preserves
+  history
 
 Not implemented (do not assume they exist):
 

@@ -5,12 +5,12 @@
 ## Current State
 
 - **Branch:** `main`
-- **HEAD:** `86fc94c` `feat(telegram): Step C — Inbox channel selection`
-- **Current completed phase:** Phase 2 — Telegram Manual Outbound (`86fc94c`)
-- **Next phase:** Phase 3 — Channel-Aware Inbox UX (`NEXT`)
-- **Overall status:** Phase 1 inbound + Phase 2 outbound text shipped and verified; Inbox `Reply via` explicit but broader channel-aware UX remains next.
+- **HEAD:** `a28baa7` `feat(settings): wire Telegram connect/manage lifecycle into Channels` (local, ahead of `origin/main` `0046713`)
+- **Current completed phase:** Phase 4 — Channel Connection Management — `COMPLETE` (Steps A `f7c9d96`, B `57974f5`, C `a28baa7`; docs + Graphify pending in this checkpoint)
+- **Next focus:** TBD — Instagram/media/templates not committed
+- **Overall status:** Phases 1–4 shipped. Telegram is now a complete plug: `Settings → Channels` aggregator, `GET/POST/DELETE /api/telegram/config`, `src/lib/channels/telegram/api.ts`, webhook lifecycle with `NEXT_PUBLIC_SITE_URL` + request-origin fallback, hard-delete preserves history, no `channels` table / factory / registry.
 
-*Verified `2026-08-29` against `git log --oneline -1` `86fc94c` and `supabase db push --linked` `040`/`041`/`042` applied to `uxkksrsdyweclnvzoubz`.*
+*Working tree may also contain unrelated local Graphify V2 patch work and `messages/en.json` i18n added in this phase; those are part of the documented milestone.*
 
 ## Completed Phases
 
@@ -36,22 +36,34 @@
 - **Validation:** `send.test.ts` 9 tests, `route.test.ts` 10 tests, `webhook`/`normalize` 10 tests, WA `send` 20 tests — all pass; full `npm test` 2× verified `83 files 854 tests` / `854 tests`; `npm run typecheck` pass (after `phone` nullable fixes); `npm run build` pass (`/api/telegram/send` and `/api/telegram/webhook/[configId]` listed); Graphify `454`→`456 code` `2636`→`2650` nodes `7137`→`7175` edges `151`→`137` communities after `extract --code-only --force` + `cluster-only`; hosted `041`+`042` `messages.channel` `NOT NULL` `DEFAULT whatsapp` `CHECK whatsapp|telegram` `0 NULL`, real Telegram `hello`/`second` reuse still `1 contact` `1 conversation` `3 messages` `channel telegram`.
 - **Graphify:** Updated after Step A (`454/2636/7137/151`) and after Step C (`456/2650/7175/137`); Step B deferred per workflow (2 files below threshold).
 
-## Current Phase — Phase 3 — Channel-Aware Inbox UX — `NEXT`
+### Phase 3 — Channel-Aware Inbox UX — `COMPLETE`
 
-- **Objective:** Evolve Inbox from *WhatsApp CRM with Telegram support* to *genuinely channel-aware CRM Inbox* — provider identity obvious without `Conversation.channel`.
-- **Scope:** Conversation list channel badge/icon, thread header channel pill, message chrome where useful, polished `Reply via` control, `WhatsApp/Telegram/All` filter, availability (`phone` vs `telegram_user_id`), `connected/disconnected` state, `telegram_username` display, unified conversation containing both providers, sensible icons/badges, empty/loading/error states, no clutter.
-- **Non-goals:** No `Conversation.channel`, no `channels` table, no generic `ChannelSender`/registry/bus, no Telegram media/templates/interactive/broadcasts/automations/AI per-channel (stay in `processNormalizedInbound` shared), no microservice rewrite.
-- **Starting point:** `86fc94c` Inbox `Reply via` explicit local state already shipped; `messages.channel` provenance exists; `contacts` tri-modal (`phone`/`telegram_user_id`/both) verified.
-- **Definition of Done**
-  - List shows channel identity per conversation; header shows `Reply via` with correct default (last inbound) and manual override persists per thread
-  - `whatsapp`-only, `telegram`-only, both, mixed, and `neither` states render without overlap
-  - `Telegram not connected` blocks Telegram send with clear CTA, `No channel` blocks all
-  - `sessionExpired` only affects `isWhatsApp` (Telegram text always enabled)
-  - `npm test` `83/854` pass, `typecheck` pass, `build` pass, manual WA+TG click-through, Graphify `message-thread`/`composer` → `telegram/send` edge verified
+- **Summary:** Unified Inbox is visibly channel-aware without `Conversation.channel`. Conversation list filter All/WhatsApp/Telegram (mixed threads in both), thread/message chrome, Reply via local to the thread, WhatsApp 24h window from WhatsApp inbound only (`684eb59`). Checkpoint: `docs/phase-3-channel-aware-inbox.md`.
+- **Important commits:** `27b2d9a` channel conversation filtering, `684eb59` isolate WhatsApp session windows, `66c4bc0` clarify channel reply states, `b032f69` docs checkpoint.
+- **Validation (checkpoint doc):** lint 0 errors / 49 warnings, typecheck pass, `84` files / `869` tests, build pass.
+
+### Graphify repository workflow — `COMPLETE` (as of `0046713`)
+
+- Graphify **0.9.51**, `npm run graphify:update` / `npm run graphify:patch`, topology validation, idempotent HTML patch. See `docs/graphify.md`.
+- This audit **did not regenerate** Graphify. Existing `graphify-out/` was queried for navigation only.
+
+### Phase 4 — Channel Connection Management — `COMPLETE`
+
+- **Summary:**
+  - *Step A* `f7c9d96` — `Settings → Channels` aggregator: replace `whatsapp` tab with `channels` (`settings-sections.ts` `channels`, legacy `?tab=whatsapp` → `channels`), `src/components/settings/channels-panel.tsx` (WhatsApp `● Connected [Manage]` + Telegram `○ Not connected [Connect]` cards), embed `WhatsAppConfig`, placeholder -> real `TelegramConfig` in Step C, Overview `channels` tile, `messages/en.json` + `ko.json` parity, `settings-sections.test.ts` 4 tests.
+  - *Step B* `57974f5` — `src/lib/channels/telegram/api.ts` (`getMe`, `setWebhook`, `deleteWebhook`, sanitized `TelegramApiError`) + `src/app/api/telegram/config/route.ts` `GET` (safe status, decrypt probe + live `getMe`, `NEXT_PUBLIC_SITE_URL` preferred + request-origin fallback, loopback fail clearly) / `POST` (admin only, token shape validate, `getMe` before encrypt, `AES-GCM` `bot_token`+`webhook_secret`, upsert `telegram_config`, `setWebhook` with `secret_token`, sanitized `400`/`502`) / `DELETE` (admin, best-effort `deleteWebhook` then hard-delete row, history preserved). Tests: `api.test.ts` 7, `route.test.ts` 18 (401/403, scoping, missing/invalid/valid, safe no-token, webhook ok/failure, disconnect idempotency, sanitize).
+  - *Step C* `a28baa7` — `src/components/settings/telegram-config.tsx` (masked `password` input, `POST` connect, `GET` test, `DELETE` disconnect with confirm, webhook URL copy, bot identity display, admin-gated), `channels-panel` now hosts real panel, Inbox `message-composer`/`message-thread` CTA + `sidebar`/`header` deep-links → `channels`, `telegram-config.test.ts` 3 static secrets-never-leak, `en` 22 keys.
+- **Important commits:** `f7c9d96` Step A host, `57974f5` Step B API, `a28baa7` Step C UI.
+- **Validation:** `typecheck` pass, `build` pass (`ƒ /api/telegram/config` listed), `npm test` `89/912` (up from `84/869`), `lint` 0 errors / 51 warnings, Telegram existing `send` 9 + `webhook`/`normalize` 10 still pass, WhatsApp `send` 20 still pass, `messages` parity `en ↔ ko` passes, no migration.
+- **Non-goals preserved:** no `channels` table, no `Conversation.channel`, no `ChannelFactory`/`ChannelRegistry`/`ChannelSender`, no Instagram/Messenger/media/templates, no WhatsApp rewrite (only `channels` host + deep-link aliases).
+
+## Next — Post-Phase 4 — `TBD`
 
 ## Validation Baseline
 
-*Verified `2026-08-29` after `86fc94c` on `main`:*
+*Phase 4 checkpoint (this file): lint 0 errors / 51 warnings, typecheck pass, `89/912` tests, build pass. Earlier checkpoints below are historical.*
+
+*Verified `2026-08-29` after `86fc94c` on `main` (Phase 3 baseline):*
 
 - `npm test` → `83 files / 854 tests passing` (7.44s)
 - `npm run typecheck` → `pass` (after 7 nullable-phone patches)
@@ -64,14 +76,17 @@
 
 - **Phase 1 checkpoint:** `f005f27` `feat: add Telegram inbound channel architecture` — `040`/`041`/`042` + `channels/telegram/normalize` + `inbound/processNormalizedInbound` + `whatsapp/webhook` delegation + `phone` nullable — pushed to `origin/main` (`https://github.com/FAIZANKHAN10X/ConvoxOS.git`) via `git push origin main` + tag `phase1-telegram-inbound` (not pushed)
 - **Phase 2 checkpoint:** `cc8c2ac` Step A sender, `1a4afe1` Step B route, `86fc94c` Step C Inbox — all on `main`, pushed as `f005f27..86fc94c` `main -> main` to `ConvoxOS` (no `42` yet at that push, `042` later committed as part of `f005f27` hardening and `86fc94c` includes `042` already)
-- Current `main` `86fc94c` — `git status --short` clean except `?? .opencode/`, `?? graphify-out/`, `?? supabase/.temp/` (generated/runtime, ignored for commit)
+- **Phase 3 checkpoint:** `b032f69` `docs(inbox): record channel-aware UX checkpoint` on `main`
+- **Graphify pipeline:** `0046713` `chore: add smooth Graphify viewer pipeline` — `origin/main` before Phase 4
+- **Phase 4 checkpoint:** `f7c9d96` Step A channels host, `57974f5` Step B provider+config API, `a28baa7` Step C Telegram UI (all on local `main`, not yet pushed; Phase 4 docs + Graphify to follow in this checkpoint)
+- Untracked generated: `?? .opencode/`, `?? graphify-out/`, `?? supabase/.temp/` (do not commit)
 
 ## Working Rules
 
 ### Graphify
 - Use strategically to locate files/dependencies and avoid dumping large source trees into context
 - Don't regenerate after trivial edits; update after meaningful structural/call-graph changes (new files, import changes, Phase complete)
-- Run `graphify extract . --code-only --force` then `graphify cluster-only .`; remove obsolete `graphify-out/.graphify_*` temps, preserve dated `graphify-out/2026-*` backups per `backup_if_protected` (do not leave duplicate `graph.json` outside `graphify-out/`)
+- Canonical refresh: `npm run graphify:update` (Graphify 0.9.51 + viewer patch). Do not regenerate for docs-only work. Do not commit `graphify-out/`.
 - Verify graph after major milestones (`telegram/webhook → processNormalizedInbound`, `message-thread → telegram/send`)
 
 ### Git

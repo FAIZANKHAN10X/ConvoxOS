@@ -1,29 +1,33 @@
 # ConvoxOS Roadmap
 
-> **Living source of truth** — where the product is going, what is done, what is next, and what “done” objectively means. Reconstructs actual project intent from `main` at `86fc94c`, not a generic omnichannel wishlist. See `PROGRESS.md` for execution checkpoints.
+> **Living source of truth** — where the product is going, what is done, what is next, and what “done” objectively means. See `PROGRESS.md` for execution checkpoints. Channel architecture: `docs/CHANNEL_ARCHITECTURE.md`.
 
 ## Product / Architecture Direction
 
-**ConvoxOS is a channel host / socket, not a channel rewrite.**
+**ConvoxOS is the CRM/core and acts like a socket. External channels are plugs. WhatsApp is the native core and is not rewritten into a generic provider.**
 
 ```
-                CONVOXOS CRM
-                     │
-              channel boundary
-         ┌───────────┼───────────┐
-         │           │           │
-     WhatsApp     Telegram     Future
-      existing      module      module
-       core
+                         CONVOXOS CRM
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+       WHATSAPP CORE                    CHANNEL SOCKET
+              │                               │
+       existing system             ┌─────────┼─────────┐
+                                   │         │         │
+                                Telegram  Instagram Messenger
+                                  plug       plug       plug
 ```
 
-- **WhatsApp is the existing/core channel.** Contacts, conversations, messages, Inbox, pipelines, broadcasts, automations, AI, auth were built for WhatsApp. It stays as the stable core.
-- **Other channels are plug-in modules.** A new channel plugs into the CRM through `messages.channel` provenance and `NormalizedInbound` → `processNormalizedInbound`, not by rewriting WhatsApp.
+- **WhatsApp is the existing/native core.** Contacts, conversations, messages, Inbox, pipelines, broadcasts, automations, AI, auth were built for WhatsApp. It stays as the stable core (Settings UI, Meta webhook, send, templates).
+- **External channels are plugs on a socket**, not a rewrite of WhatsApp. Telegram is the first experimental plug (`NormalizedInbound` → `processNormalizedInbound`, `messages.channel` provenance, dedicated sender/route).
 - **CRM remains the common host.** `accounts` is the tenancy boundary; `contacts`/`conversations`/`messages` stay unified where appropriate.
 - **Channel-specific logic stays inside the channel module.** Provider API, token, limits, session rules never leak into a generic `ChannelSender` until proven necessary.
-- **Stay boring.** No `channels` table, no `Conversation.channel`, no registry/factory/bus until a second *proven* channel forces it. Telegram proved inbound; text outbound proved the next boundary.
+- **Stay boring.** No `channels` table, no `Conversation.channel`, no registry/factory/bus until a second *proven* external channel **and** in-product connection UX force it.
 
-**Principle:** *A new channel should plug into the CRM without rewriting the existing WhatsApp system.*
+**Principle:** *A future channel should be installable/configurable without modifying the WhatsApp core or rewriting the CRM.*
+
+Durable docs: [`docs/CHANNEL_ARCHITECTURE.md`](./docs/CHANNEL_ARCHITECTURE.md), [`docs/CHANNEL_MODULE.md`](./docs/CHANNEL_MODULE.md), [`docs/CHANNEL_CONNECTIONS.md`](./docs/CHANNEL_CONNECTIONS.md).
 
 ### Core CRM
 
@@ -93,7 +97,25 @@
 
 ---
 
-## Phase 3 — Channel-Aware Inbox UX — `NEXT`
+## Phase 3 — Channel-Aware Inbox UX — `COMPLETE`
+
+**Shipped** (`27b2d9a` filter, `684eb59` WhatsApp session isolation, `66c4bc0` reply-state clarification, `b032f69` checkpoint). See [`docs/phase-3-channel-aware-inbox.md`](./docs/phase-3-channel-aware-inbox.md).
+
+---
+
+## Phase 4 — Channel Connection Management — `COMPLETE`
+
+**Shipped** (Steps A `f7c9d96` channels host, B `57974f5` provider + config API, C `a28baa7` Telegram Settings UI; E docs + Graphify). See [`docs/CHANNEL_CONNECTIONS.md`](./docs/CHANNEL_CONNECTIONS.md), [`docs/CHANNEL_ARCHITECTURE.md`](./docs/CHANNEL_ARCHITECTURE.md).
+
+**Objective achieved:** Telegram is a complete plug — `Settings → Channels` aggregator (WhatsApp card `Manage`, Telegram card `Connect`/`Manage`), `GET/POST/DELETE /api/telegram/config` (admin write, viewer read, `getMe` validate, encrypted at rest, `setWebhook`/`deleteWebhook` with `NEXT_PUBLIC_SITE_URL` preferred + request-origin fallback, sanitized errors, never returns/logs token, hard-delete preserves history), connection status visible in Settings + Overview, Inbox `Telegram not connected` CTA now points to `channels`.
+
+**Preserved:** no `channels` table, no `Conversation.channel`, no ChannelFactory/Registry/Sender, WhatsApp `whatsapp_config`/webhook/send/templates untouched; `?tab=whatsapp` legacy alias → `channels`.
+
+**Validation:** lint 0 errors, typecheck pass, `89/912` tests, build pass (see `PROGRESS.md`).
+
+---
+
+### Phase 3 shipped scope (historical)
 
 **Objective:** Evolve Inbox from *WhatsApp CRM with Telegram support* to *genuinely channel-aware CRM Inbox* — make provider identity obvious without `Conversation.channel`.
 
@@ -116,7 +138,9 @@
 - `whatsapp`-only, `telegram`-only, both, mixed, and `neither` states all render correctly without overlap
 - `Telegram not connected` blocks Telegram send with clear CTA, `No channel` blocks all
 - WhatsApp 24h `sessionExpired` only affects `isWhatsApp` (Telegram text always enabled)
-- `npm test` 83/854 pass, `typecheck` pass, `build` pass, manual click-through on WA+TG contacts, Graphify `message-thread`/`composer` → `telegram/send` edge verified
+- Checkpoint in `docs/phase-3-channel-aware-inbox.md`: lint 0 errors / 49 warnings, typecheck pass, `84` files / `869` tests, build pass
+
+**Status: COMPLETE**
 
 ---
 
@@ -130,8 +154,8 @@
 ### Additional channel modules (e.g., Instagram, email, SMS) — `TBD`
 *Requires decision:* Telegram proved `NormalizedInbound` + `messages.channel` pattern. Next channel needs `*_config` table design (`bot_token` vs `phone_number_id`), identity column (`telegram_user_id` analogue), and product priority. Do not create `channels` table until second proven channel forces it.
 
-### Channel connection management — `TBD`
-*Requires decision:* Settings UI for `telegram_config` currently manual `INSERT`; WA has `src/components/settings/whatsapp-config.tsx`. Product decision on Settings → Telegram connect flow, `SetWebhook` UX, `bot_username` display.
+### Channel connection management — `COMPLETE` (Phase 4)
+Shipped: `telegram_config` now has `Settings → Channels` UI (`channels-panel.tsx` + `telegram-config.tsx`), `GET/POST/DELETE /api/telegram/config`, and Telegram `setWebhook`/`deleteWebhook` lifecycle via `src/lib/channels/telegram/api.ts`. Instagram/Messenger connect remains TBD.
 
 ### Automations/Flows/AI × channel — `TBD`
 *Requires decision:* `processNormalizedInbound` already channel-aware for contact lookup, but `automations` `trigger_type`/`send` steps and `flows` `send_buttons/list` are WA-specific. Need decision on per-step `channel` field vs separate channel-specific automations.
