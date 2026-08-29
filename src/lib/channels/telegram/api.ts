@@ -156,3 +156,13 @@ export async function downloadTelegramFile(botToken: string, filePath: string): 
   const ct = res.headers.get('content-type');
   return { buffer: buf, contentType: ct };
 }
+
+export async function answerTelegramCallback(botToken: string, callbackQueryId: string): Promise<void> {
+  try {
+    await telegramFetch(botToken, 'answerCallbackQuery', { callback_query_id: callbackQueryId });
+  } catch (err) {
+    // Best-effort — do not fail webhook processing if acknowledgement fails
+    if (err instanceof TelegramApiError && err.status >= 500) return;
+    throw err;
+  }
+}
