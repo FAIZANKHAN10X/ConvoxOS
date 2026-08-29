@@ -9,10 +9,10 @@ that standard.
 ## Reporting
 
 If you witness or experience behaviour that violates the Code, please
-report it privately to the project maintainer:
-
-- Email: **a.donauskas@hostinger.com** with `[CRM template conduct]` in
-  the subject.
+report it privately to the project maintainer via
+[GitHub Security Advisories](https://github.com/FAIZANKHAN10X/ConvoxOS/security/advisories/new)
+(use this for conduct reports that should stay private) or by contacting
+the repository owner on GitHub.
 
 Reports are handled confidentially. Expect an acknowledgement within
 72 hours and a decision on next steps within a week.

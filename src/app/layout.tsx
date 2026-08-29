@@ -22,10 +22,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "ConvoxOS",
+    template: "%s — ConvoxOS",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "CRM/operations platform with a unified Inbox. WhatsApp is the core channel; Telegram is the first external module.",
   robots: {
     index: false,
     follow: false,

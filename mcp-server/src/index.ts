@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // ============================================================
-// wacrm MCP server — entry point.
+// ConvoxOS MCP server — entry point.
 //
-// A stdio Model Context Protocol server that exposes the wacrm
+// A stdio Model Context Protocol server that exposes the ConvoxOS
 // public API (`/api/v1`) as MCP tools, so an MCP client (Claude
-// Desktop, Cursor, etc.) can drive a self-hosted WhatsApp CRM in
+// Desktop, Cursor, etc.) can drive a self-hosted CRM in
 // natural language.
 //
 // Transport is stdio: logs MUST go to stderr, never stdout (stdout
@@ -33,13 +33,13 @@ async function main(): Promise<void> {
 
   // Stderr only — stdout is reserved for the MCP protocol.
   console.error(
-    `wacrm MCP server v${VERSION} ready — instance ${config.baseUrl}, ` +
+    `ConvoxOS MCP server v${VERSION} ready — instance ${config.baseUrl}, ` +
       `tool groups: ${groups.join(', ')}` +
       (config.enableWrites ? '' : ' (read-only; set WACRM_ENABLE_WRITES to allow changes)'),
   );
 }
 
 main().catch((err) => {
-  console.error(`Failed to start wacrm MCP server: ${(err as Error).message}`);
+  console.error(`Failed to start ConvoxOS MCP server: ${(err as Error).message}`);
   process.exit(1);
 });

@@ -1,21 +1,25 @@
-# wacrm MCP server
+# ConvoxOS MCP server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server for
-**[wacrm](https://github.com/ArnasDon/wacrm)** — the self-hostable
-WhatsApp CRM. It lets MCP clients (Claude Desktop, Claude Code, Cursor,
-and others) drive your CRM in natural language:
+**[ConvoxOS](https://github.com/FAIZANKHAN10X/ConvoxOS)**. It lets MCP
+clients (Claude Desktop, Claude Code, Cursor, and others) drive your
+CRM in natural language:
 
 > "How many conversations are still open?"
 > "Find the contact for +1 415 555 0123 and show the last few messages."
 > "Draft and send an order-update template to Jane."
 
-It's a thin wrapper over wacrm's public [`/api/v1`](../docs/public-api.md)
+It's a thin wrapper over ConvoxOS's public [`/api/v1`](../docs/public-api.md)
 REST API. All auth, scoping, and rate limiting are enforced by your
-wacrm instance — this server just exposes the API as MCP tools.
+ConvoxOS instance — this server just exposes the API as MCP tools.
+
+The npm package and binary remain `wacrm-mcp`. Environment variables
+remain `WACRM_*`. API keys still use the `wacrm_live_` prefix. Those
+are technical identifiers, not the product name.
 
 ## Prerequisites
 
-1. A running wacrm instance (your own self-hosted deploy).
+1. A running ConvoxOS instance (your own deploy).
 2. An API key: in the dashboard go to **Settings → API keys → New API
    key** and grant only the scopes you need. The key is shown once.
 
@@ -90,7 +94,7 @@ the server layers three guards:
 1. **Read-only by default.** Write and broadcast tools are not even
    registered — the model can't see them — unless you opt in via
    `WACRM_ENABLE_WRITES` / `WACRM_ENABLE_BROADCASTS`.
-2. **API-key scopes.** Whatever the guards allow, your wacrm instance
+2. **API-key scopes.** Whatever the guards allow, your ConvoxOS instance
    still enforces the key's scopes. A call without the right scope
    returns a clean `forbidden` error. Issue a read-only key for a
    read-only assistant.
@@ -111,4 +115,4 @@ Logs go to **stderr** — stdout is reserved for the MCP protocol.
 
 ## License
 
-MIT — same as wacrm.
+MIT — same as ConvoxOS.

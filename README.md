@@ -1,175 +1,200 @@
-# wacrm — CRM Template for WhatsApp
+# ConvoxOS
 
-> Self-hostable CRM template for WhatsApp® — shared inbox, contacts,
-> sales pipelines, broadcasts, and no-code automations. Fork it, brand
-> it, host it.
+ConvoxOS is a CRM/operations platform with a unified communication Inbox
+designed around a modular channel architecture. Contacts, conversations,
+and messages stay in one CRM core. Channel-specific work lives in
+channel modules.
 
-<p align="center">
-  <a href="https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST">
-    <img src="./.github/assets/hostinger-deploy.png" alt="Ship your Node.js app in one click — Deploy to Hostinger" width="900">
-  </a>
-</p>
+WhatsApp is the existing/core channel. Telegram is the first external
+channel module.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](./LICENSE)
-[![CI](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml/badge.svg)](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml)
+[![CI](https://github.com/FAIZANKHAN10X/ConvoxOS/actions/workflows/ci.yml/badge.svg)](https://github.com/FAIZANKHAN10X/ConvoxOS/actions/workflows/ci.yml)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ecf8e?logo=supabase)](https://supabase.com)
-[![Stars](https://img.shields.io/github/stars/ArnasDon/wacrm?style=social)](https://github.com/ArnasDon/wacrm/stargazers)
 
-The marketing site and self-host docs live in a separate repo:
-[ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)
-([wacrm.tech](https://wacrm.tech)). This repo is the product —
-clone or fork it to run your own CRM.
+## What ConvoxOS Is
 
-## What you get out of the box
+- **CRM core** — accounts, profiles, contacts, conversations, messages,
+  Inbox, pipelines/deals, tags/custom fields, automations, flows,
+  broadcasts, AI reply/knowledge, dashboard, team roles, public API,
+  and MCP.
+- **Unified contacts** — one contact record per person in an account.
+  WhatsApp identity is phone-based; Telegram identity uses
+  `telegram_user_id` / `telegram_chat_id` (phone may be null).
+- **Unified conversations** — one conversation per account+contact.
+  There is no `Conversation.channel`.
+- **Messages with channel provenance** — `messages.channel` records
+  whether a message arrived or was sent on WhatsApp or Telegram.
+- **Channel-aware Inbox** — when a contact has both a phone number and
+  a Telegram identity, the composer can choose **Reply via** WhatsApp
+  or Telegram.
+- **WhatsApp as the existing/core integration** — Meta Cloud API
+  (official WhatsApp Business API). Inbox, templates, broadcasts,
+  media, session windows, and related WhatsApp behavior remain the
+  stable core.
+- **Telegram as the first external channel module** — inbound webhook
+  plus manual text outbound. Provider-specific logic stays in
+  `src/lib/channels/telegram/`.
 
-- **Shared inbox** on the official WhatsApp Business API — multiple
-  agents working one number, per-conversation assignment, status, and
-  notes.
-- **Contacts + tags + custom fields**, CSV import, deduplication.
-- **Sales pipelines** (Kanban) with deals linked to conversations.
-- **Broadcasts** with Meta-approved templates, delivery + read
-  tracking, per-recipient variable substitution.
-- **No-code automations** — triggers on inbound messages, new
-  contacts, keywords, or schedule; conditional branches, waits,
-  tags, webhooks. Visual builder.
-- **AI reply assistant** — bring your own OpenAI or Anthropic key
-  (stored encrypted; no per-seat AI fee, your data stays yours).
-  One-click AI-drafted replies in the inbox, plus an optional
-  auto-reply bot with a per-conversation cap and clean human handoff.
-  Add a **knowledge base** (FAQs, policies, product docs) and it
-  answers from your own content — hybrid retrieval (Postgres full-text,
-  or semantic pgvector when an embeddings key is set).
-- **Real-time dashboard** — response times, daily volume, pipeline
-  value, cross-module activity feed.
-- **Team accounts** — invite teammates by link, role-based access
-  (owner / admin / agent / viewer), ownership transfer. Every install
-  is account-scoped, so one shared inbox can be staffed by a whole
-  team. Solo use stays single-user with zero setup.
-- **Account management** — email, password, avatar, global sign-out.
-- **Public REST API** (`/api/v1`) with scoped, revocable API keys —
-  build your own automations on top of your CRM. See
-  [docs/public-api.md](./docs/public-api.md).
-- **MCP server** — drive your CRM from Claude, Cursor, and other AI
-  assistants over the [Model Context Protocol](https://modelcontextprotocol.io).
-  Read-only by default, opt-in writes. See [docs/mcp.md](./docs/mcp.md)
-  (server in [`mcp-server/`](./mcp-server)).
+## Channel Architecture
 
-## Why fork this?
+This is the architectural **direction**, not a generic plugin framework.
+New channels are intended to plug into the CRM without rewriting the
+existing WhatsApp system.
 
-This is a **template**, not a product. Forking means you get:
+```text
+                 ConvoxOS CRM
+                      │
+               Channel boundary
+          ┌───────────┼───────────┐
+          │           │           │
+      WhatsApp     Telegram    Future
+       existing     module     modules
+        core
+```
 
-- **Full ownership** — your code, your Supabase project, your domain,
-  your data. No SaaS lock-in, no seat pricing, no trust dance.
-- **Full customisation** — add the fields your team needs, remove the
-  modules you don't, redesign anything. The stack is boring on
-  purpose (Next.js + Supabase + Tailwind) so the learning curve is
-  short.
-- **Zero ops to start** — [Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST)
-  Managed Node.js deploys a fork in a few clicks. No Docker, no
-  Kubernetes, no infra team needed.
-  ([See below ↓](#-deploy-on-hostinger-recommended))
-- **Real security primitives** — token encryption (AES-256-GCM), RLS
-  on every table, HMAC-verified webhooks, CSP, rate limiting, CI
-  typecheck/build on every PR.
+What that means in the current code:
 
-Not a framework. Not an SDK. A concrete, working CRM you can stand up
-in an afternoon and make yours.
+- The CRM owns contacts, conversations, Inbox, auth, and account/RLS
+  boundaries.
+- Inbound channel modules normalize to a shared shape and call
+  `processNormalizedInbound`.
+- Telegram outbound is a dedicated sender (`sendTelegramText`) and
+  route (`/api/telegram/send`), not a generic `ChannelSender`.
+- We intentionally do **not** have a `channels` table,
+  `Conversation.channel`, or a factory/registry/bus.
 
-## Quick start
+See [ROADMAP.md](./ROADMAP.md) for the product direction and
+[PROGRESS.md](./PROGRESS.md) for what is done.
+
+## Current Capabilities
+
+### CRM core (implemented)
+
+- Shared Inbox with assignment, status, and notes
+- Contacts, tags, custom fields, CSV import, phone deduplication
+- Sales pipelines (Kanban) and deals
+- Broadcasts with Meta-approved WhatsApp templates
+- No-code automations and a visual flow builder
+- AI reply assistant (bring-your-own OpenAI or Anthropic key) and
+  optional knowledge base
+- Real-time dashboard
+- Team accounts with owner / admin / agent / viewer roles
+- Public REST API (`/api/v1`) with scoped API keys — see
+  [docs/public-api.md](./docs/public-api.md)
+- MCP server in [`mcp-server/`](./mcp-server) — see
+  [docs/mcp.md](./docs/mcp.md)
+
+### WhatsApp (existing core)
+
+- Inbound webhook and outbound send (text, media, templates,
+  interactive) via the Meta Cloud API
+- Session-window handling for customer-care messages
+- WhatsApp-specific config, encryption, and registration
+
+### Telegram (first external module)
+
+Implemented today:
+
+- **Inbound** — `telegram_config` (one bot per account), webhook
+  `POST /api/telegram/webhook/[configId]`, normalization into the
+  shared inbound pipeline, unified contact + conversation, messages
+  stored with `channel = 'telegram'`
+- **Manual text outbound** — `sendTelegramText` and
+  `POST /api/telegram/send` (agent role, rate-limited)
+- **Inbox channel selection** — `Reply via` WhatsApp or Telegram when
+  both identities exist; Telegram send is text-only
+
+Not implemented (do not assume they exist):
+
+- Telegram media, templates, interactive messages, or broadcasts
+- Per-channel Telegram automations/AI (inbound still fans out through
+  the shared pipeline)
+- Additional channel modules
+- A generic plugin/registry framework
+
+## Architecture Principles
+
+- Keep CRM-core behavior separate from channel-specific implementation
+- Keep conversations unified; use `messages.channel` for provenance
+- Leave provider-specific logic inside the provider module
+- Avoid premature abstractions (no channel table, no generic sender)
+- Preserve existing WhatsApp behavior when adding channels
+- Honor account / RLS boundaries (`is_account_member`)
+- Prefer a small, maintainable architecture over enterprise layering
+
+## Tech Stack
+
+From `package.json`:
+
+- **App** — Next.js `16.2.12` (App Router), React `19.2.4`, TypeScript,
+  Tailwind CSS v4, next-intl
+- **Data** — Supabase (Postgres + Auth + Storage + RLS)
+- **WhatsApp** — Meta Cloud API
+- **Telegram** — Telegram Bot API
+- **Tests / lint** — Vitest, ESLint, Prettier
+
+Node `>=20`. Package manager: npm (`packageManager` field
+`npm@10.9.9`).
+
+## Development
 
 ```bash
-# Fork on GitHub first: https://github.com/ArnasDon/wacrm → Fork
-git clone https://github.com/<your-username>/wacrm.git
-cd wacrm
+git clone https://github.com/FAIZANKHAN10X/ConvoxOS.git
+cd ConvoxOS
 npm install
 cp .env.local.example .env.local   # fill in Supabase + Meta creds
 npm run dev
 ```
 
-Open <http://localhost:3000>. You'll be redirected to `/login` (or
-`/dashboard` if already signed in).
+Open <http://localhost:3000>. Unauthenticated visits go to `/login`.
 
-Prefer containers? See [docs/docker.md](./docs/docker.md) for the
-Dockerfile + Docker Compose setup.
+Required env vars are documented in [`.env.local.example`](./.env.local.example).
+Apply database migrations from `supabase/migrations/` to your Supabase
+project (local: Supabase CLI; hosted: `supabase db push` or the SQL
+editor).
 
-## 🚀 Deploy on Hostinger (recommended)
+Docker / Compose: [docs/docker.md](./docs/docker.md).
 
-<p align="center">
-  <a href="https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST">
-    <img src="./.github/assets/hostinger-deploy.png" alt="Ship your Node.js app in one click — Deploy to Hostinger" width="1000">
-  </a>
-</p>
-<p align="center">
-  <a href="https://wacrm.tech/docs/deployment-hostinger">
-    <img src="https://img.shields.io/badge/Step--by--step_guide-wacrm.tech%2Fdocs-111?style=for-the-badge" alt="Step-by-step guide" height="44">
-  </a>
-</p>
+Useful scripts from `package.json`:
 
-**wacrm is built to run on [Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST).**
-It's the path we test, document, and recommend — and the fastest way
-to get a production-grade CRM live without owning a VPS or a
-Kubernetes cluster.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build |
+| `npm start` | Run the production server |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest (one shot) |
+| `npm run test:watch` | Vitest watch |
+| `npm run format` | Prettier write |
+| `npm run format:check` | Prettier check |
 
-### Why Hostinger?
+## Validation
 
-| | |
-|---|---|
-| **One-click Git deploy** | Connect your fork, push to `main`, Hostinger builds and ships it. No SSH, no Docker, no CI to wire up — this repo's own `main` deploys this way. |
-| **Managed Node.js** | Next.js 16 (App Router, server actions, ISR) runs out of the box on [Premium, Business, and Cloud](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST) shared plans. You don't manage Node versions, processes, or reverse proxies. |
-| **Free SSL + free domain** | Automatic Let's Encrypt on your custom domain (or a free one included with annual plans). HTTPS is on by default — required for the WhatsApp Business webhook. |
-| **Global CDN + LiteSpeed** | Static assets cached at the edge, dynamic routes served from LiteSpeed. Snappy dashboards out of the box, no Cloudflare setup required. |
-| **Env vars + logs in hPanel** | Set `SUPABASE_*`, `WHATSAPP_*`, and `ENCRYPTION_KEY` from the panel — no `.env` on the server. Live application logs in the same UI. |
-| **DDoS protection + daily backups** | Built-in, no add-ons. The webhook endpoint is a public target — having protection at the edge matters. |
-| **Cheaper than a VPS** | Plans start at a few dollars a month — order-of-magnitude less than a comparable managed Node.js host, and you don't pay extra for the database (that's Supabase). |
-| **24/7 human support** | Live chat support in 20+ languages — useful when your CRM is the thing your team relies on to talk to customers. |
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
 
-### The 60-second version
+Run these after changes. CI (`.github/workflows/ci.yml`) runs lint,
+typecheck, test, and build on `main`.
 
-1. **Fork** this repo on GitHub.
-2. In **hPanel → Websites → Create**, pick **Node.js** and connect
-   your fork.
-3. Paste your Supabase + Meta env vars into hPanel.
-4. Push to `main`. Hostinger builds and serves it. Done.
+## Project Roadmap
 
-Full walkthrough with screenshots:
-**[wacrm.tech/docs/deployment-hostinger](https://wacrm.tech/docs/deployment-hostinger)**.
+See [ROADMAP.md](./ROADMAP.md).
 
-> _Note: wacrm is MIT-licensed and runs anywhere Node.js does
-> (Vercel, Railway, your own VPS). Hostinger is recommended, not
-> required._
+## Project Progress
 
-## Documentation
-
-Full self-host documentation — Supabase migrations, WhatsApp Business
-API config, and production deploy — lives at
-**[wacrm.tech/docs](https://wacrm.tech/docs)**
-(source: [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)).
-
-Key pages:
-- [Getting started](https://wacrm.tech/docs/getting-started)
-- [Supabase setup](https://wacrm.tech/docs/supabase-setup)
-- [WhatsApp setup](https://wacrm.tech/docs/whatsapp-setup)
-- [Environment variables](https://wacrm.tech/docs/environment-variables)
-- [Deploy on Hostinger](https://wacrm.tech/docs/deployment-hostinger)
-- [Architecture](https://wacrm.tech/docs/architecture)
-- [Troubleshooting](https://wacrm.tech/docs/troubleshooting)
-
-## Stack
-
-- **App** — Next.js 16 (App Router), React 19, TypeScript, Tailwind v4.
-- **Data** — Supabase (Postgres + Auth + Storage + RLS).
-- **WhatsApp** — Meta Cloud API (official WhatsApp Business API).
-
-## Contributing
-
-This is a template, not a collaborative product — the expected flow is
-fork → customise → deploy, **not** upstream contribution. Bug reports
-and security issues are welcome; feature PRs often belong in your fork
-rather than here. Details in
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) and
-[`.github/SECURITY.md`](./.github/SECURITY.md).
+See [PROGRESS.md](./PROGRESS.md).
 
 ## License
 
-[MIT](./LICENSE). Fork it, brand it, host it.
+[MIT](./LICENSE).
+
+## Author
+
+Faizan Khan

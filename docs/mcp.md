@@ -1,6 +1,6 @@
 # MCP server
 
-wacrm ships a [Model Context Protocol](https://modelcontextprotocol.io)
+ConvoxOS ships a [Model Context Protocol](https://modelcontextprotocol.io)
 server so you can drive your CRM from AI assistants — Claude Desktop,
 Claude Code, Cursor, and any other MCP client — in natural language:
 
@@ -8,11 +8,12 @@ Claude Code, Cursor, and any other MCP client — in natural language:
 > "Show the last five messages with +1 415 555 0123."
 > "Send the `order_update` template to that contact."
 
-It lives in [`mcp-server/`](../mcp-server) and is published to npm as
-[`wacrm-mcp`](https://www.npmjs.com/package/wacrm-mcp). Under the hood
-it's a thin wrapper over the [public API](./public-api.md), so every
-request is authenticated and scoped by your instance exactly like any
-other API call.
+It lives in [`mcp-server/`](../mcp-server). The npm package identifier
+is still [`wacrm-mcp`](https://www.npmjs.com/package/wacrm-mcp) (a
+technical identifier — do not rename it in client configs without
+publishing a new package). Under the hood it's a thin wrapper over the
+[public API](./public-api.md), so every request is authenticated and
+scoped by your instance exactly like any other API call.
 
 ## Quick start
 
@@ -35,6 +36,9 @@ other API call.
      }
    }
    ```
+
+`WACRM_*` environment variables and the `wacrm_live_` API key prefix
+are existing technical identifiers and remain required as shown.
 
 That's **read-only** — the safe default. To let the assistant change
 data or send messages, add `"WACRM_ENABLE_WRITES": "true"` (and

@@ -1,6 +1,6 @@
 # Running with Docker
 
-The repo ships a multi-stage `Dockerfile` (Next.js standalone output,
+ConvoxOS ships a multi-stage `Dockerfile` (Next.js standalone output,
 runs as a non-root user) and a `docker-compose.yml` with a single
 `app` service. Supabase is external — point the app at your hosted
 (or self-hosted) Supabase project via env vars; no database container

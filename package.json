@@ -1,28 +1,28 @@
 {
-  "name": "wacrm",
+  "name": "convoxos",
   "version": "0.8.0",
   "private": true,
-  "description": "Self-hostable CRM template for WhatsApp built on Next.js and Supabase — shared inbox, contacts, sales pipelines, broadcasts, and no-code automations.",
+  "description": "ConvoxOS — a CRM/operations platform with a unified Inbox. WhatsApp is the existing core channel; Telegram is the first external channel module.",
   "license": "MIT",
-  "author": "Arnas Donauskas",
-  "homepage": "https://github.com/ArnasDon/wacrm",
+  "author": "Faizan Khan",
+  "homepage": "https://github.com/FAIZANKHAN10X/ConvoxOS",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ArnasDon/wacrm.git"
+    "url": "git+https://github.com/FAIZANKHAN10X/ConvoxOS.git"
   },
   "bugs": {
-    "url": "https://github.com/ArnasDon/wacrm/issues"
+    "url": "https://github.com/FAIZANKHAN10X/ConvoxOS/issues"
   },
   "keywords": [
     "crm",
     "whatsapp",
     "whatsapp-business-api",
+    "telegram",
     "nextjs",
     "supabase",
     "automation",
     "broadcast",
-    "self-hosted",
-    "template"
+    "self-hosted"
   ],
   "engines": {
     "node": ">=20.0.0"

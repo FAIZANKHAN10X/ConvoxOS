@@ -2,13 +2,13 @@
   "name": "wacrm-mcp",
   "version": "0.1.1",
   "mcpName": "io.github.ArnasDon/wacrm-mcp",
-  "description": "Model Context Protocol (MCP) server for wacrm — drive your self-hosted WhatsApp CRM from Claude, Cursor, and other MCP clients.",
+  "description": "Model Context Protocol (MCP) server for ConvoxOS — drive your self-hosted CRM from Claude, Cursor, and other MCP clients.",
   "license": "MIT",
-  "author": "Arnas Donauskas",
-  "homepage": "https://github.com/ArnasDon/wacrm",
+  "author": "Faizan Khan",
+  "homepage": "https://github.com/FAIZANKHAN10X/ConvoxOS",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ArnasDon/wacrm.git",
+    "url": "git+https://github.com/FAIZANKHAN10X/ConvoxOS.git",
     "directory": "mcp-server"
   },
   "keywords": [

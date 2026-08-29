@@ -1,6 +1,8 @@
 # Changelog
 
-User-visible changes in `wacrm`. Self-hosters: when pulling an update,
+The current project name is **ConvoxOS**. Entries below are the
+historical, user-visible changelog for this codebase (originally
+published as `wacrm`). Self-hosters: when pulling an update,
 check this file for any **migration required** notes and apply the
 matching SQL files from `supabase/migrations/` against your Supabase
 project before restarting the app.
