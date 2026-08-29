@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { sendTelegramText, SendTelegramError } from '@/lib/channels/telegram/send'
+import { validateTelegramInlineMarkup } from '@/lib/channels/telegram/keyboard'
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +20,14 @@ export async function POST(request: Request) {
       contact_id,
       content_text,
       reply_to_message_id,
-    } = body
+      reply_markup,
+    } = body as {
+      conversation_id?: string
+      contact_id?: string
+      content_text?: string
+      reply_to_message_id?: string | null
+      reply_markup?: unknown
+    }
 
     if ((!conversationIdInput && !contact_id) || !content_text) {
       return NextResponse.json(
@@ -34,6 +42,22 @@ export async function POST(request: Request) {
     }
     if (content_text.length > 4096) {
       return NextResponse.json({ error: 'Text exceeds 4096 character limit' }, { status: 400 })
+    }
+
+    // Validate reply_markup when present (server-side, not client-trusted)
+    let inlineKeyboard: import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | null = null
+    if (reply_markup !== undefined && reply_markup !== null) {
+      let parsed: unknown = reply_markup
+      if (typeof reply_markup === 'string') {
+        try {
+          parsed = JSON.parse(reply_markup)
+        } catch {
+          return NextResponse.json({ error: 'reply_markup must be valid JSON' }, { status: 400 })
+        }
+      }
+      const v = validateTelegramInlineMarkup(parsed)
+      if (!v.ok) return NextResponse.json({ error: (v as { error: string }).error }, { status: 400 })
+      inlineKeyboard = parsed as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup
     }
 
     let conversationId: string | null = null
@@ -62,7 +86,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
       }
 
-      const resolved = await findOrCreateConversation(supabase, accountId, userId, contact_id)
+      const resolved = await findOrCreateConversation(supabase, accountId, userId, contact_id as string)
       if (!resolved) {
         return NextResponse.json({ error: 'Failed to open a conversation for this contact' }, { status: 500 })
       }
@@ -78,6 +102,7 @@ export async function POST(request: Request) {
         conversationId,
         contentText: content_text,
         replyToMessageId: reply_to_message_id || null,
+        inlineKeyboard,
       })
 
       return NextResponse.json({

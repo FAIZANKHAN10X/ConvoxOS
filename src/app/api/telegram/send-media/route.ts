@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendTelegramMedia } from '@/lib/channels/telegram/send-media';
 import { SendTelegramError } from '@/lib/channels/telegram/send';
+import { validateTelegramInlineMarkup } from '@/lib/channels/telegram/keyboard';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
       filename,
       caption,
       reply_to_message_id: replyToMessageId,
+      reply_markup,
     } = body as {
       conversation_id?: string;
       contact_id?: string;
@@ -28,6 +30,7 @@ export async function POST(request: Request) {
       filename?: string;
       caption?: string;
       reply_to_message_id?: string;
+      reply_markup?: unknown;
     };
 
     const mediaKind = (mediaKindRaw === 'image' || mediaKindRaw === 'document' ? mediaKindRaw : null) as 'image' | 'document' | null;
@@ -36,6 +39,20 @@ export async function POST(request: Request) {
     }
     if (caption && caption.length > 1024) {
       return NextResponse.json({ error: 'Caption exceeds 1024 characters' }, { status: 400 });
+    }
+    let inlineKeyboard: import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | null = null;
+    if (reply_markup !== undefined && reply_markup !== null) {
+      let parsed: unknown = reply_markup;
+      if (typeof reply_markup === 'string') {
+        try {
+          parsed = JSON.parse(reply_markup);
+        } catch {
+          return NextResponse.json({ error: 'reply_markup must be valid JSON' }, { status: 400 });
+        }
+      }
+      const v = validateTelegramInlineMarkup(parsed);
+      if (!v.ok) return NextResponse.json({ error: (v as { error: string }).error }, { status: 400 });
+      inlineKeyboard = parsed as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup;
     }
 
     let conversationIdResolved = conversationId ?? null;
@@ -59,6 +76,7 @@ export async function POST(request: Request) {
       filename: filename ?? null,
       caption: caption ?? null,
       replyToMessageId: replyToMessageId ?? null,
+      inlineKeyboard,
     });
 
     return NextResponse.json({ success: true, message_id: result.messageId, telegram_message_id: result.telegramMessageId });
