@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeTelegramUpdate } from '@/lib/channels/telegram/normalize'
+import type { TelegramUpdate } from '@/lib/channels/types'
 
 describe('normalizeTelegramUpdate', () => {
   const accountId = 'acc-1'
   const configOwnerUserId = 'user-1'
 
   it('normalizes text message', () => {
-    const update: any = {
+    const update: TelegramUpdate = {
       update_id: 100,
       message: {
         message_id: 42,
@@ -29,7 +30,7 @@ describe('normalizeTelegramUpdate', () => {
   })
 
   it('normalizes callback_query to interactive_reply', () => {
-    const update: any = {
+    const update: TelegramUpdate = {
       update_id: 101,
       callback_query: {
         id: 'cb-1',
@@ -47,7 +48,7 @@ describe('normalizeTelegramUpdate', () => {
   })
 
   it('normalizes caption as text', () => {
-    const update: any = {
+    const update: TelegramUpdate = {
       update_id: 102,
       message: {
         message_id: 7,
@@ -64,12 +65,12 @@ describe('normalizeTelegramUpdate', () => {
   })
 
   it('returns null for unsupported update', () => {
-    const update: any = { update_id: 103, edited_message: { message_id: 1 } }
+    const update: TelegramUpdate = { update_id: 103, edited_message: { message_id: 1 } }
     expect(normalizeTelegramUpdate({ update, accountId, configOwnerUserId })).toBeNull()
   })
 
   it('normalizes location', () => {
-    const update: any = {
+    const update: TelegramUpdate = {
       update_id: 104,
       message: {
         message_id: 8,

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
@@ -7,7 +7,7 @@ import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import type { Channel, NormalizedInbound } from '@/lib/channels/types'
 
-let _adminClient: any = null
+let _adminClient: SupabaseClient | null = null
 function supabaseAdmin() {
   if (!_adminClient) {
     _adminClient = createClient(
@@ -93,14 +93,23 @@ async function handleReactionShared(
 }
 
 // channel-aware contact dedupe: WA via phone, TG via telegram_user_id
-async function findOrCreateContactUnified(n: NormalizedInbound & { contactId?: string; conversationId?: string }) {
-  const { accountId, configOwnerUserId, channel } = n as any
+type NormalizedInboundInput = NormalizedInbound & {
+  contentType?: string
+  contentText?: string | null
+  mediaUrl?: string | null
+  mediaType?: string | null
+  replyToProviderId?: string | null
+  targetProviderId?: string | null
+}
+
+async function findOrCreateContactUnified(n: NormalizedInboundInput) {
+  const { accountId, configOwnerUserId, channel } = n
   // Telegram path
   if (channel === 'telegram') {
-    const telegramUserId = (n as any).telegramUserId as number | undefined
-    const telegramChatId = (n as any).telegramChatId as number | undefined
-    const telegramUsername = (n as any).telegramUsername as string | null | undefined
-    const senderName = (n as any).senderName as string | null | undefined
+    const telegramUserId = n.telegramUserId
+    const telegramChatId = n.telegramChatId
+    const telegramUsername = n.telegramUsername
+    const senderName = n.senderName
     if (telegramUserId == null) return null
     // lookup by telegram_user_id
     const { data: existing } = await supabaseAdmin()
@@ -116,7 +125,7 @@ async function findOrCreateContactUnified(n: NormalizedInbound & { contactId?: s
       if (telegramUsername !== existing.telegram_username) updates.telegram_username = telegramUsername
       if (senderName && senderName !== existing.name) updates.name = senderName
       if (Object.keys(updates).length) {
-        ;(updates as any).updated_at = new Date().toISOString()
+        updates.updated_at = new Date().toISOString()
         await supabaseAdmin().from('contacts').update(updates).eq('id', existing.id)
       }
       return { contact: existing, wasCreated: false }
@@ -151,8 +160,8 @@ async function findOrCreateContactUnified(n: NormalizedInbound & { contactId?: s
   }
 
   // WhatsApp path — preserve exact existing behavior (phone NOT NULL before 041, now nullable but WA always has phone)
-  const senderPhone = (n as any).senderPhone as string | undefined
-  const senderName = (n as any).senderName as string | undefined
+  const senderPhone = n.senderPhone
+  const senderName = n.senderName
   if (!senderPhone) return null
   const existingContact = await findExistingContact(supabaseAdmin(), accountId, senderPhone)
   if (existingContact) {
@@ -220,21 +229,14 @@ async function findOrCreateConversationUnified(accountId: string, configOwnerUse
  * Preserves exact WA ordering, idempotency, flow suppression, automation ordering, AI gating, webhook behavior.
  * Provider-specific fields come via NormalizedInbound (channel, providerMessageId, replyId, mediaUrl, etc.)
  */
-export async function processNormalizedInbound(input: NormalizedInbound & {
-  // WA-mirrored fields for media/template context
-  contentType?: string
-  contentText?: string | null
-  mediaUrl?: string | null
-  mediaType?: string | null
-  replyToProviderId?: string | null
-}) {
+export async function processNormalizedInbound(input: NormalizedInboundInput) {
   const channel: Channel = input.channel
   const accountId = input.accountId
   const configOwnerUserId = input.configOwnerUserId
   const providerMessageId = input.providerMessageId
 
   // 1) findOrCreateContact (channel-aware)
-  const contactOutcome = await findOrCreateContactUnified(input as any)
+  const contactOutcome = await findOrCreateContactUnified(input)
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
 
@@ -248,7 +250,7 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
     await dispatchWebhookEvent(supabaseAdmin(), accountId, 'conversation.created', {
       conversation_id: conversation.id,
       contact_id: contactRecord.id,
-    } as any)
+    })
   }
 
   // 4) reaction short-circuit (kind === reaction)
@@ -257,7 +259,7 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
     // NormalizedInbound for reaction: providerMessageId is reaction's own id? Instead handle via raw
     // For WA, we need targetProviderId and emoji — passed via input.replyId (target) and input.text (emoji)
     // For simplicity, if kind reaction, treat replyId as target, text as emoji
-    const targetId = (input as any).targetProviderId ?? input.replyId
+    const targetId = input.targetProviderId ?? input.replyId
     const emoji = input.text
     if (targetId) {
       await handleReactionShared(conversation.id, contactRecord.id, targetId, emoji ?? null)
@@ -267,7 +269,7 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
 
   // Resolve reply context
   let replyToInternalId: string | null = null
-  const replyToProviderId: string | null = (input as any).replyToProviderId ?? null
+  const replyToProviderId: string | null = input.replyToProviderId ?? null
   if (replyToProviderId) {
     replyToInternalId = await lookupInternalIdByMetaId(replyToProviderId, conversation.id)
     if (!replyToInternalId) console.warn('[inbound] reply context parent not found:', replyToProviderId)
@@ -275,11 +277,11 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
 
   // Content type mapping — trust input.contentType if provided, else derive from kind
   const allowed = new Set(['text', 'image', 'document', 'audio', 'video', 'location', 'template', 'interactive'])
-  let contentType: string = (input as any).contentType ?? (input.kind === 'interactive_reply' ? 'interactive' : input.kind === 'media' ? 'image' : input.kind === 'location' ? 'location' : 'text')
+  let contentType: string = input.contentType ?? (input.kind === 'interactive_reply' ? 'interactive' : input.kind === 'media' ? 'image' : input.kind === 'location' ? 'location' : 'text')
   if (!allowed.has(contentType)) contentType = 'text'
-  const contentText: string | null = (input as any).contentText ?? input.text ?? null
-  const mediaUrl: string | null = (input as any).mediaUrl ?? input.mediaUrl ?? null
-  const mediaType: string | null = (input as any).mediaType ?? input.mediaType ?? null
+  const contentText: string | null = input.contentText ?? input.text ?? null
+  const mediaUrl: string | null = input.mediaUrl ?? null
+  const mediaType: string | null = input.mediaType ?? null
   const interactiveReplyId: string | null = input.kind === 'interactive_reply' ? (input.replyId ?? null) : null
 
   // 8) isFirstInboundMessage before insert
@@ -307,7 +309,7 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
         created_at: new Date().toISOString(),
         reply_to_message_id: replyToInternalId,
         interactive_reply_id: interactiveReplyId,
-      } as any,
+      },
       { onConflict: 'conversation_id,message_id', ignoreDuplicates: true }
     )
     .select('id')
@@ -346,8 +348,8 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
       ? { kind: 'interactive_reply', reply_id: interactiveReplyId, reply_title: contentText ?? '', meta_message_id: providerMessageId }
       : { kind: 'text', text: contentText ?? '', meta_message_id: providerMessageId },
     isFirstInboundMessage,
-  } as any)
-  const flowConsumed = (flowResult as any)?.consumed
+  })
+  const flowConsumed = flowResult.consumed
 
   // 14) automations
   const inboundText = contentText ?? ''
@@ -361,14 +363,14 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
   for (const triggerType of automationTriggers) {
     await runAutomationsForTrigger({
       accountId,
-      triggerType: triggerType as any,
+      triggerType,
       contactId: contactRecord.id,
       context: {
         message_text: inboundText,
         conversation_id: conversation.id,
         interactive_reply_id: interactiveReplyId ?? undefined,
       },
-    } as any).catch((err: unknown) => console.error('[automations] dispatch failed:', err))
+    }).catch((err: unknown) => console.error('[automations] dispatch failed:', err))
   }
 
   // 15) AI — preserve !flowConsumed && !interactiveReplyId && trim gate
@@ -378,7 +380,7 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
-    } as any)
+    })
   }
 
   // 16) webhook message.received — additive channel field, WA compat whatsapp_message_id alias
@@ -390,5 +392,5 @@ export async function processNormalizedInbound(input: NormalizedInbound & {
     channel,
     content_type: contentType,
     text: contentText,
-  } as any)
+  })
 }

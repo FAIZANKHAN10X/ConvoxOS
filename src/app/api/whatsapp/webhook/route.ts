@@ -1,10 +1,10 @@
 import { NextResponse, after } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
+import { findExistingContact, isUniqueViolation, type ExistingContact } from '@/lib/contacts/dedupe'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
@@ -24,8 +24,7 @@ import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound
 export const maxDuration = 60
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
+let _adminClient: SupabaseClient | null = null
 function supabaseAdmin() {
   if (!_adminClient) {
     _adminClient = createClient(
@@ -129,8 +128,7 @@ export async function GET(request: Request) {
     // Check if any config's verify_token matches. Also collect the
     // matching row so we can opportunistically upgrade its token to
     // GCM if it was still in the legacy CBC format.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let matchedConfig: any = null
+    let matchedConfig: (typeof configs)[number] | null = null
     for (const config of configs) {
       if (!config.verify_token) continue
       try {
@@ -436,7 +434,8 @@ async function handleStatusUpdate(status: {
     .maybeSingle()
 
   if (msgRow) {
-    const conv = msgRow.conversations as { account_id: string } | null
+    const conversations = msgRow.conversations as unknown as { account_id: string } | { account_id: string }[] | null
+    const conv = Array.isArray(conversations) ? conversations[0] : conversations
     const accountId = conv?.account_id
     if (accountId) {
       await dispatchWebhookEvent(
@@ -594,14 +593,14 @@ async function processMessage(
       accountId,
       configOwnerUserId,
       providerMessageId: message.id,
-      kind: 'reaction' as any,
+      kind: 'reaction',
       text: message.reaction?.emoji ?? null,
       // targetProviderId for shared's handleReactionShared
       targetProviderId: message.reaction?.message_id ?? null,
       senderPhone,
       senderName: contact.profile.name,
       raw: message,
-    } as any)
+    } as Parameters<typeof processNormalizedInbound>[0])
     return
   }
 
@@ -628,7 +627,7 @@ async function processMessage(
     accountId,
     configOwnerUserId,
     providerMessageId: message.id,
-    kind: interactiveReplyId ? ('interactive_reply' as any) : (contentType === 'location' ? 'location' as any : contentType === 'image' || contentType === 'video' || contentType === 'document' || contentType === 'audio' ? 'media' as any : 'text' as any),
+    kind: interactiveReplyId ? 'interactive_reply' : (contentType === 'location' ? 'location' : contentType === 'image' || contentType === 'video' || contentType === 'document' || contentType === 'audio' ? 'media' : 'text'),
     text: contentText,
     replyId: interactiveReplyId ?? null,
     replyTitle: contentText,
@@ -640,7 +639,7 @@ async function processMessage(
     senderPhone,
     senderName: contact.profile.name,
     raw: message,
-  } as any)
+  } as Parameters<typeof processNormalizedInbound>[0])
 }
 
 async function parseMessageContent(
@@ -849,8 +848,7 @@ async function parseMessageContent(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ContactRow = any
+type ContactRow = ExistingContact
 
 interface ContactOutcome {
   contact: ContactRow

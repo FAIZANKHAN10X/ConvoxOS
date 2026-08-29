@@ -57,7 +57,7 @@ function makeSupabaseMock() {
     })
     b.single = vi.fn(terminal)
     b.maybeSingle = vi.fn(terminal)
-    ;(b as any).then = (resolve: (v: unknown) => unknown) => resolve(didInsert ? insertResult() : selectResult())
+    ;(b as Record<string, unknown>).then = (resolve: (v: unknown) => unknown) => resolve(didInsert ? insertResult() : selectResult())
     return b
   }
   return {
@@ -78,18 +78,18 @@ vi.mock('@/lib/flows/admin-client', () => ({
       const b: Record<string, unknown> = {}
       const chain = () => b
       for (const m of ['update', 'eq', 'select']) b[m] = vi.fn(chain)
-      ;(b as any).then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null })
+      ;(b as Record<string, unknown>).then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null })
       return b
     },
   }),
 }))
 
 vi.mock('@/lib/rate-limit', async () => {
-  const actual = await vi.importActual('@/lib/rate-limit') as any
+  const actual = await vi.importActual('@/lib/rate-limit') as Record<string, unknown>
   return {
     ...actual,
     checkRateLimit: vi.fn(() => (rateLimitShouldFail ? { success: false, remaining: 0 } : { success: true, remaining: 10 })),
-    rateLimitResponse: vi.fn(() => ({ status: 429, json: async () => ({ error: 'Rate limited' }) } as any)),
+    rateLimitResponse: vi.fn(() => ({ status: 429, json: async () => ({ error: 'Rate limited' }) })),
     RATE_LIMITS: actual.RATE_LIMITS,
   }
 })
@@ -160,7 +160,7 @@ describe('POST /api/telegram/send — text', () => {
 
   it('sends text to existing conversation', async () => {
     const res = await postTelegram()
-    const json: any = await (res as any).json()
+    const json = await res.json()
     expect(res.status).toBe(200)
     expect(json.success).toBe(true)
     expect(json.telegram_message_id).toBe('tg_123_42')
@@ -233,7 +233,7 @@ describe('POST /api/telegram/send — text', () => {
     sendTelegramText.mockRejectedValueOnce(new SendTelegramError('telegram_error', 'Unauthorized', 502))
     const res = await postTelegram()
     expect(res.status).toBe(502)
-    const json: any = await (res as any).json()
+    const json = await res.json()
     expect(json.error).toMatch(/Unauthorized/)
   })
 })

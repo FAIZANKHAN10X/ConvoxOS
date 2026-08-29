@@ -251,7 +251,7 @@ export function MessageThread({
         .select("account_id")
         .eq("user_id", userId)
         .maybeSingle();
-      const accountId = (profile as any)?.account_id as string | undefined;
+      const accountId = profile?.account_id as string | undefined;
       if (!accountId) {
         if (!cancelled) setTelegramConnected(false);
         return;
@@ -975,7 +975,7 @@ export function MessageThread({
     );
   }
 
-  const displayName = contact.name || contact.phone || (contact as any).telegram_username || 'Unknown';
+  const displayName = contact.name || contact.phone || contact.telegram_username || 'Unknown';
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -1017,7 +1017,7 @@ export function MessageThread({
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone ?? (contact as any).telegram_username ?? '—'}</p>
+            <p className="truncate text-xs text-muted-foreground">{contact.phone ?? contact.telegram_username ?? '—'}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}

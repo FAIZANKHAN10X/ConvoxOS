@@ -62,7 +62,8 @@ export async function sendTelegramText(
     throw new SendTelegramError('not_found', 'Conversation not found', 404);
   }
 
-  const contact = (conversation as any).contact;
+  type TelegramContact = { id: string; telegram_user_id: number | null; telegram_chat_id: number | null };
+  const contact = (conversation as unknown as { contact: TelegramContact | null }).contact;
   if (!contact?.telegram_user_id) {
     throw new SendTelegramError('bad_request', 'Contact does not have a Telegram chat', 400);
   }
@@ -92,7 +93,7 @@ export async function sendTelegramText(
       .from('telegram_config')
       .update({ bot_token_encrypted: encrypt(botToken) })
       .eq('id', config.id)
-      .then(({ error }: { error: any }) => {
+      .then(({ error }: { error: { message: string } | null }) => {
         if (error) console.warn('[telegram-send] bot_token GCM upgrade failed:', error.message);
       });
   }
@@ -129,7 +130,7 @@ export async function sendTelegramText(
     text: contentText!,
   };
   if (replyToTelegramId !== undefined) {
-    (payload as any).reply_to_message_id = replyToTelegramId;
+    payload.reply_to_message_id = replyToTelegramId;
   }
 
   let telegramMessageId: number;
@@ -140,11 +141,12 @@ export async function sendTelegramText(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = (await res.json()) as any;
+    const json = (await res.json()) as { ok?: boolean; description?: string; result?: { message_id?: number } };
     if (!res.ok || !json.ok) {
       const desc = json?.description || `Telegram API error ${res.status}`;
       throw new Error(desc);
     }
+    if (typeof json.result?.message_id !== 'number') throw new Error('Telegram API returned an invalid message id');
     telegramMessageId = json.result.message_id;
     providerMessageId = `tg_${chatId}_${telegramMessageId}`;
   } catch (err) {
@@ -166,7 +168,7 @@ export async function sendTelegramText(
       message_id: providerMessageId,
       status: 'sent',
       reply_to_message_id: replyToInternalId,
-    } as any)
+    })
     .select()
     .single();
 

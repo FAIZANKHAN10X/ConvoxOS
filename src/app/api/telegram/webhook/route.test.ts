@@ -1,21 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { NormalizedInbound } from '@/lib/channels/types'
+import type { TelegramUpdate } from '@/lib/channels/types'
 
 const h = vi.hoisted(() => ({
   state: {
     afterCallbacks: [] as (() => Promise<void>)[]
-    , config: { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' } as any
-    , account: { owner_user_id: 'user-1' } as any
-    , profile: { user_id: 'user-1' } as any
+    , config: { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' }
+    , account: { owner_user_id: 'user-1' }
+    , profile: { user_id: 'user-1' }
     , decrypt: vi.fn((v: string) => v === 'enc-secret' ? 'mysecret' : v)
-    , normalizeResult: null as any
-    , processCalls: [] as any[]
+    , normalizeResult: null as NormalizedInbound | null
+    , processCalls: [] as NormalizedInbound[]
     , fromCalls: [] as string[]
   },
 }))
 
 vi.mock('next/server', () => ({
-  after: (cb: any) => { h.state.afterCallbacks.push(cb) },
-  NextResponse: { json: (body: any, init?: any) => ({ body, init }) },
+  after: (cb: () => Promise<void>) => { h.state.afterCallbacks.push(cb) },
+  NextResponse: { json: (body: unknown, init?: ResponseInit) => ({ body, init }) },
 }))
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -52,7 +54,7 @@ vi.mock('@supabase/supabase-js', () => ({
         }
       }
       // fallback
-      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) } as any
+      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }
     },
   }),
 }))
@@ -63,14 +65,14 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
 }))
 
 vi.mock('@/lib/channels/telegram/normalize', () => ({
-  normalizeTelegramUpdate: (opts: any) => h.state.normalizeResult,
+  normalizeTelegramUpdate: (_opts: { update: TelegramUpdate; accountId: string; configOwnerUserId: string }) => h.state.normalizeResult,
 }))
 
 vi.mock('@/lib/inbound/processNormalizedInbound', () => ({
-  processNormalizedInbound: async (n: any) => { h.state.processCalls.push(n) },
+  processNormalizedInbound: async (n: NormalizedInbound) => { h.state.processCalls.push(n) },
 }))
 
-function makeRequest(body: any, configId: string, secretHeader?: string) {
+function makeRequest(body: unknown, configId: string, secretHeader?: string): Request {
   const headers = new Headers()
   if (secretHeader) headers.set('x-telegram-bot-api-secret-token', secretHeader)
   headers.set('content-type', 'application/json')
@@ -78,7 +80,7 @@ function makeRequest(body: any, configId: string, secretHeader?: string) {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-  }) as any
+  })
 }
 
 describe('POST /api/telegram/webhook/[configId]', () => {
@@ -86,7 +88,7 @@ describe('POST /api/telegram/webhook/[configId]', () => {
     h.state.afterCallbacks = []
     h.state.processCalls = []
     h.state.fromCalls = []
-    h.state.config = { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' } as any
+    h.state.config = { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' }
     h.state.normalizeResult = {
       channel: 'telegram',
       accountId: 'acc-1',
@@ -99,19 +101,19 @@ describe('POST /api/telegram/webhook/[configId]', () => {
 
   it('rejects invalid uuid', async () => {
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
-    const res: any = await POST(makeRequest({ update_id: 1 }, 'not-uuid') as any, { params: Promise.resolve({ configId: 'not-uuid' }) })
+    const res = await POST(makeRequest({ update_id: 1 }, 'not-uuid'), { params: Promise.resolve({ configId: 'not-uuid' }) }) as unknown as { init: ResponseInit }
     expect(res.init.status).toBe(400)
   })
 
   it('rejects invalid secret', async () => {
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
-    const res: any = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'wrong') as any, { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) })
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'wrong'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { init: ResponseInit }
     expect(res.init.status).toBe(401)
   })
 
   it('acks 200 and enqueues after() on valid request', async () => {
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
-    const res: any = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret') as any, { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) })
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { init: ResponseInit }
     expect(res.init.status).toBe(200)
     expect(h.state.afterCallbacks.length).toBe(1)
     await h.state.afterCallbacks[0]()
@@ -122,7 +124,7 @@ describe('POST /api/telegram/webhook/[configId]', () => {
   it('returns 200 ignored for unsupported update (null normalize)', async () => {
     h.state.normalizeResult = null
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
-    const res: any = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret') as any, { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) })
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { body: { status: string }; init: ResponseInit }
     expect(res.body.status).toBe('ignored')
     expect(h.state.afterCallbacks.length).toBe(0)
   })
@@ -130,9 +132,9 @@ describe('POST /api/telegram/webhook/[configId]', () => {
   it('does not decrypt bot_token for routing (only secret)', async () => {
     h.state.decrypt.mockClear()
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
-    await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret') as any, { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) })
+    await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) })
     // decrypt should have been called only for webhook_secret, not bot_token
-    const calls = (h.state.decrypt as any).mock.calls.map((c: any[]) => c[0])
+    const calls = h.state.decrypt.mock.calls.map((c: [string]) => c[0])
     expect(calls).toContain('enc-secret')
     expect(calls).not.toContain('enc-token')
   })

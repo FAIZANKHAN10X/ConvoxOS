@@ -3,10 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { normalizeTelegramUpdate } from '@/lib/channels/telegram/normalize'
 import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound'
+import type { NormalizedInbound, TelegramUpdate } from '@/lib/channels/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const maxDuration = 60
 
-let _adminClient: any = null
+let _adminClient: SupabaseClient | null = null
 function supabaseAdmin() {
   if (!_adminClient) {
     _adminClient = createClient(
@@ -67,7 +69,7 @@ export async function POST(
     console.warn('[telegram webhook] unexpected secret header for config without secret', configId)
   }
 
-  let body: any
+  let body: unknown
   try {
     body = await request.json()
   } catch {
@@ -76,7 +78,7 @@ export async function POST(
 
   // Resolve account tenancy via PK config — no bot_token decrypt
   // telegram_config id → account_id is the locator; bot_token stays encrypted at rest
-  const accountId: string = (config as any).account_id
+  const accountId: string = config.account_id
   // Fetch account owner for audit column (same pattern as whatsapp_config.user_id)
   // Use telegram_config's account owner via accounts table
   let configOwnerUserId: string | null = null
@@ -86,7 +88,7 @@ export async function POST(
       .select('owner_user_id')
       .eq('id', accountId)
       .maybeSingle()
-    configOwnerUserId = (account as any)?.owner_user_id ?? null
+    configOwnerUserId = account?.owner_user_id ?? null
   } catch {}
   if (!configOwnerUserId) {
     // Fallback: use any profile for account (should not happen)
@@ -96,7 +98,7 @@ export async function POST(
       .eq('account_id', accountId)
       .limit(1)
       .maybeSingle()
-    configOwnerUserId = (profile as any)?.user_id ?? null
+    configOwnerUserId = profile?.user_id ?? null
   }
   if (!configOwnerUserId) {
     console.error('[telegram webhook] no owner user_id for account', accountId)
@@ -104,7 +106,7 @@ export async function POST(
   }
 
   const normalized = normalizeTelegramUpdate({
-    update: body,
+    update: body as TelegramUpdate,
     accountId,
     configOwnerUserId,
   })
@@ -117,7 +119,7 @@ export async function POST(
   // Preserve WA after() guarantee for serverless
   after(async () => {
     try {
-      await processNormalizedInbound(normalized as any)
+      await processNormalizedInbound(normalized as NormalizedInbound)
     } catch (err) {
       console.error('[telegram webhook] processNormalizedInbound failed:', err)
     }
