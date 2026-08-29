@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { SendTelegramError } from './send';
+import type { TelegramInlineMarkup } from './keyboard';
+import { validateTelegramInlineMarkup, toTelegramReplyMarkup } from './keyboard';
 
 export interface SendTelegramMediaParams {
   conversationId: string;
@@ -13,6 +15,7 @@ export interface SendTelegramMediaParams {
   filename?: string | null;
   caption?: string | null;
   replyToMessageId?: string | null;
+  inlineKeyboard?: TelegramInlineMarkup | null;
 }
 
 export interface SendTelegramMediaResult {
@@ -51,10 +54,14 @@ export async function sendTelegramMedia(
   accountId: string,
   params: SendTelegramMediaParams,
 ): Promise<SendTelegramMediaResult> {
-  const { conversationId, mediaUrl, mediaKind, filename, caption, replyToMessageId } = params;
+  const { conversationId, mediaUrl, mediaKind, filename, caption, replyToMessageId, inlineKeyboard } = params;
 
   if (!conversationId) throw new SendTelegramError('bad_request', 'conversation_id is required', 400);
   validateMedia(mediaKind, mediaUrl, caption);
+  if (inlineKeyboard) {
+    const v = validateTelegramInlineMarkup(inlineKeyboard);
+    if (!v.ok) throw new SendTelegramError('bad_request', v.error, 400);
+  }
 
   const { data: conversation, error: convError } = await db
     .from('conversations')
@@ -102,6 +109,8 @@ export async function sendTelegramMedia(
 
   const payload: Record<string, unknown> = { chat_id: chatId };
   if (replyToTelegramId !== undefined) payload.reply_to_message_id = replyToTelegramId;
+  const replyMarkup = inlineKeyboard ? toTelegramReplyMarkup(inlineKeyboard) : undefined;
+  if (replyMarkup) payload.reply_markup = replyMarkup;
   let method: string;
   if (mediaKind === 'image') {
     method = 'sendPhoto';
@@ -124,31 +133,31 @@ export async function sendTelegramMedia(
     throw new SendTelegramError('telegram_error', `Telegram API error: ${message}`, 502);
   }
 
-  const contentType = mediaKind === 'image' ? 'image' : 'document';
+  const hasKeyboard = !!inlineKeyboard;
+  const contentType = hasKeyboard ? 'interactive' : mediaKind === 'image' ? 'image' : 'document';
   const mediaType = mediaKind === 'image' ? 'image/jpeg' : 'application/octet-stream';
-  const { data: messageRecord, error: msgError } = await db
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: contentType,
-      content_text: caption ?? filename ?? null,
-      media_url: mediaUrl,
-      media_type: mediaType,
-      channel: 'telegram',
-      message_id: providerMessageId,
-      status: 'sent',
-      reply_to_message_id: replyToInternalId,
-    })
-    .select()
-    .single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mediaInsert: any = {
+    conversation_id: conversationId,
+    sender_type: 'agent',
+    content_type: contentType,
+    content_text: caption ?? filename ?? null,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    channel: 'telegram',
+    message_id: providerMessageId,
+    status: 'sent',
+    reply_to_message_id: replyToInternalId,
+    ...(hasKeyboard ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } } : {}),
+  };
+  const { data: messageRecord, error: msgError } = await db.from('messages').insert(mediaInsert).select().single();
   if (msgError) {
     console.error('[telegram-send-media] insert failed:', msgError);
     throw new SendTelegramError('db_error', `Message sent to Telegram but failed to save to DB: ${msgError.message}`, 500);
   }
 
   await db.from('conversations').update({
-    last_message_text: caption || (mediaKind === 'image' ? '[Image]' : filename || '[Document]'),
+    last_message_text: hasKeyboard ? '[Keyboard]' : caption || (mediaKind === 'image' ? '[Image]' : filename || '[Document]'),
     last_message_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('id', conversationId);

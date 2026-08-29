@@ -16,10 +16,14 @@ export class SendTelegramError extends Error {
   }
 }
 
+import type { TelegramInlineMarkup } from './keyboard';
+import { validateTelegramInlineMarkup, toTelegramReplyMarkup } from './keyboard';
+
 export interface SendTelegramTextParams {
   conversationId: string;
   contentText: string | null;
   replyToMessageId?: string | null;
+  inlineKeyboard?: TelegramInlineMarkup | null;
 }
 
 export interface SendTelegramTextResult {
@@ -43,7 +47,12 @@ export async function sendTelegramText(
   accountId: string,
   params: SendTelegramTextParams
 ): Promise<SendTelegramTextResult> {
-  const { conversationId, contentText, replyToMessageId } = params;
+  const { conversationId, contentText, replyToMessageId, inlineKeyboard } = params;
+
+  if (inlineKeyboard) {
+    const v = validateTelegramInlineMarkup(inlineKeyboard);
+    if (!v.ok) throw new SendTelegramError('bad_request', v.error, 400);
+  }
 
   if (!conversationId) {
     throw new SendTelegramError('bad_request', 'conversation_id is required', 400);
@@ -132,6 +141,8 @@ export async function sendTelegramText(
   if (replyToTelegramId !== undefined) {
     payload.reply_to_message_id = replyToTelegramId;
   }
+  const replyMarkup = inlineKeyboard ? toTelegramReplyMarkup(inlineKeyboard) : undefined;
+  if (replyMarkup) payload.reply_markup = replyMarkup;
 
   let telegramMessageId: number;
   let providerMessageId: string;
@@ -157,20 +168,20 @@ export async function sendTelegramText(
   }
 
   // Persist — distinguish provider success vs DB failure
-  const { data: messageRecord, error: msgError } = await db
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: 'text',
-      content_text: contentText,
-      channel: 'telegram',
-      message_id: providerMessageId,
-      status: 'sent',
-      reply_to_message_id: replyToInternalId,
-    })
-    .select()
-    .single();
+  const hasKeyboard = !!inlineKeyboard;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const msgInsert: any = {
+    conversation_id: conversationId,
+    sender_type: 'agent',
+    content_type: hasKeyboard ? 'interactive' : 'text',
+    content_text: contentText,
+    channel: 'telegram',
+    message_id: providerMessageId,
+    status: 'sent',
+    reply_to_message_id: replyToInternalId,
+    ...(hasKeyboard ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } } : {}),
+  };
+  const { data: messageRecord, error: msgError } = await db.from('messages').insert(msgInsert).select().single();
 
   if (msgError) {
     console.error('[telegram-send] error inserting sent message:', msgError);
