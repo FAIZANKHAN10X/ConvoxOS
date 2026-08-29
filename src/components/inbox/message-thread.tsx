@@ -212,6 +212,8 @@ export function MessageThread({
   // Explicit outbound channel — local/thread state only, not persisted.
   const [selectedChannel, setSelectedChannel] = useState<Channel>('whatsapp');
   const [telegramConnected, setTelegramConnected] = useState<boolean | null>(null);
+  // Telegram inline keyboard — per-thread builder state, cleared after send.
+  const [telegramKeyboard, setTelegramKeyboard] = useState<import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | null>(null);
   // Which attachment the media viewer is showing. Lives here rather than in
   // the bubble so the viewer can page through every image/video in the
   // thread (issue #373). Paired with the conversation it belongs to and read
@@ -566,6 +568,7 @@ export function MessageThread({
         return;
       }
 
+      const isTelegramWithKeyboard = selectedChannel === 'telegram' && !!telegramKeyboard;
       const tempId = `temp-${Date.now()}`;
 
       // Optimistic update — shows the message immediately with "sending" status
@@ -573,13 +576,14 @@ export function MessageThread({
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
-        content_type: "text",
+        content_type: isTelegramWithKeyboard ? "interactive" : "text",
         content_text: text,
         channel: selectedChannel,
         status: "sending",
         created_at: new Date().toISOString(),
         reply_to_message_id: replyToId,
-      };
+        ...(isTelegramWithKeyboard ? { interactive_payload: { kind: 'telegram_inline', markup: telegramKeyboard } } : {}),
+      } as Message;
       onNewMessage(optimisticMsg);
       setReplyTo(null);
 
@@ -594,6 +598,7 @@ export function MessageThread({
                   conversation_id: conversation.id,
                   content_text: text,
                   reply_to_message_id: replyToId,
+                  ...(telegramKeyboard ? { reply_markup: JSON.stringify(telegramKeyboard) } : {}),
                 }
               : {
                   conversation_id: conversation.id,
@@ -619,6 +624,7 @@ export function MessageThread({
         // with the real DB row. If realtime hasn't arrived yet, at least
         // flip status to 'sent' so the UI stops showing "sending".
         onUpdateMessage(tempId, { status: "sent" });
+        if (isTelegramWithKeyboard) setTelegramKeyboard(null);
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : "network error";
@@ -626,7 +632,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, contact, selectedChannel, hasWhatsApp, hasTelegram, telegramConnected, onNewMessage, onUpdateMessage]
+    [conversation, contact, selectedChannel, hasWhatsApp, hasTelegram, telegramConnected, telegramKeyboard, onNewMessage, onUpdateMessage]
   );
 
   const handleSendMedia = useCallback(
@@ -641,18 +647,20 @@ export function MessageThread({
           ? payload.caption || payload.filename || "Document"
           : payload.caption;
 
+      const hasTelegramKb = selectedChannel === 'telegram' && !!telegramKeyboard;
       const tempId = `temp-${Date.now()}`;
       const optimisticMsg: Message = {
         id: tempId,
         conversation_id: conversation.id,
         sender_type: "agent",
-        content_type: payload.kind,
+        content_type: hasTelegramKb ? "interactive" : payload.kind,
         content_text: contentText,
         media_url: payload.mediaUrl,
         status: "sending",
         created_at: new Date().toISOString(),
         reply_to_message_id: payload.replyToId,
-      };
+        ...(hasTelegramKb ? { interactive_payload: { kind: 'telegram_inline', markup: telegramKeyboard } } : {}),
+      } as Message;
       onNewMessage(optimisticMsg);
       setReplyTo(null);
 
@@ -682,6 +690,7 @@ export function MessageThread({
                   filename: payload.filename,
                   caption: contentText,
                   reply_to_message_id: payload.replyToId,
+                  ...(telegramKeyboard ? { reply_markup: JSON.stringify(telegramKeyboard) } : {}),
                 }
               : {
                   conversation_id: conversation.id,
@@ -708,6 +717,7 @@ export function MessageThread({
         }
 
         onUpdateMessage(tempId, { status: "sent" });
+        if (selectedChannel === 'telegram' && telegramKeyboard) setTelegramKeyboard(null);
       } catch (err) {
         console.error("Failed to send media:", err);
         const reason = err instanceof Error ? err.message : "network error";
@@ -716,7 +726,7 @@ export function MessageThread({
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
-    [conversation, onNewMessage, onUpdateMessage, selectedChannel, telegramConnected],
+    [conversation, onNewMessage, onUpdateMessage, selectedChannel, telegramConnected, telegramKeyboard],
   );
 
   const handleSendInteractive = useCallback(
@@ -1370,6 +1380,8 @@ export function MessageThread({
         availableChannels={availableChannels}
         onChannelChange={setSelectedChannel}
         telegramConnected={telegramConnected}
+        telegramKeyboard={telegramKeyboard}
+        onTelegramKeyboardChange={setTelegramKeyboard}
       />
 
       <TemplatePicker

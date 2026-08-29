@@ -23,6 +23,7 @@ import {
   MessageSquareDashed,
   Zap,
   MessageCircle,
+  Grid2X2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -55,6 +56,8 @@ import {
 } from "@/components/interactive/interactive-builder";
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
 import type { InteractiveMessagePayload, QuickReply, Channel } from "@/types";
+import type { TelegramInlineMarkup } from "@/lib/channels/telegram/keyboard";
+import { TelegramInlineBuilder } from "./telegram-inline-builder";
 import { QuickReplyPicker } from "./quick-reply-picker";
 
 /** Media content types an agent can send from the composer. */
@@ -123,6 +126,8 @@ interface MessageComposerProps {
   availableChannels?: Channel[];
   onChannelChange?: (c: Channel) => void;
   telegramConnected?: boolean | null;
+  telegramKeyboard?: TelegramInlineMarkup | null;
+  onTelegramKeyboardChange?: (kb: TelegramInlineMarkup | null) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -149,6 +154,8 @@ export function MessageComposer({
   availableChannels = ['whatsapp'],
   onChannelChange,
   telegramConnected = null,
+  telegramKeyboard = null,
+  onTelegramKeyboardChange,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
   const isTelegram = selectedChannel === 'telegram';
@@ -165,6 +172,7 @@ export function MessageComposer({
     useState<InteractiveMessagePayload>(blankButtonsPayload);
   const [savingQuickReply, setSavingQuickReply] = useState(false);
   const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+  const [telegramKeyboardOpen, setTelegramKeyboardOpen] = useState(false);
 
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
   // attachment; `busy` covers the upload/transcode window.
@@ -797,6 +805,21 @@ export function MessageComposer({
             )}
           </GatedButton>
 
+          {isTelegram && onTelegramKeyboardChange ? (
+            <GatedButton
+              variant="ghost"
+              size="sm"
+              canAct={!readOnly}
+              gateReason="send messages"
+              title={telegramKeyboard ? `${telegramKeyboard.inline_keyboard.flat().length} buttons` : "Inline keyboard"}
+              className={cn("h-9 w-9 shrink-0 p-0", telegramKeyboard ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+              onClick={() => setTelegramKeyboardOpen(true)}
+              disabled={readOnly || telegramBlocked}
+            >
+              <Grid2X2 className="h-4 w-4" />
+            </GatedButton>
+          ) : null}
+
           <textarea
             ref={textareaRef}
             value={text}
@@ -886,6 +909,33 @@ export function MessageComposer({
         onOpenChange={setQuickReplyOpen}
         onPick={handlePickQuickReply}
       />
+
+      {/* Telegram inline keyboard builder. */}
+      {onTelegramKeyboardChange ? (
+        <Dialog open={telegramKeyboardOpen} onOpenChange={setTelegramKeyboardOpen}>
+          <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Telegram inline keyboard</DialogTitle>
+            </DialogHeader>
+            <TelegramInlineBuilder value={telegramKeyboard} onChange={onTelegramKeyboardChange} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTelegramKeyboardOpen(false)}>
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {telegramKeyboard ? (
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Grid2X2 className="size-3" />
+          <span>{telegramKeyboard.inline_keyboard.flat().length} buttons — will send with next message</span>
+          <button type="button" onClick={() => onTelegramKeyboardChange?.(null)} className="underline">
+            Clear
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

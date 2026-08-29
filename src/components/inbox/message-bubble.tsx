@@ -184,6 +184,25 @@ function MessageContent({
       //    migration 035 backfilled the column): show the body text plainly —
       //    it is our own message, NOT a customer tap.
       if (message.interactive_payload) {
+        const p = message.interactive_payload as unknown as { kind?: string; markup?: { inline_keyboard?: Array<Array<{ text: string; url?: string; disabled?: boolean }>> } };
+        if (p.kind === 'telegram_inline' && p.markup?.inline_keyboard) {
+          return (
+            <div className="space-y-2">
+              {message.content_text && <p className="whitespace-pre-wrap break-words text-sm">{message.content_text}</p>}
+              <div className="space-y-1">
+                {p.markup.inline_keyboard.map((row, ri) => (
+                  <div key={ri} className="flex gap-1">
+                    {row.map((btn, ci) => (
+                      <span key={ci} className={`flex-1 rounded border px-2 py-1 text-center text-xs ${btn.disabled ? 'opacity-50 bg-muted' : isAgent ? 'bg-primary-foreground/20 text-primary-foreground border-primary-foreground/20' : 'bg-primary/10 border-primary/20'}`}>
+                        {btn.text} {btn.url ? '↗' : ''}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
         return <InteractivePreview payload={message.interactive_payload} />;
       }
       if (message.sender_type === "customer") {

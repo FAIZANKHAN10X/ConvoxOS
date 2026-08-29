@@ -6,6 +6,7 @@ import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound
 import type { NormalizedInbound, TelegramUpdate } from '@/lib/channels/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { contentTypeForTelegramMime, mirrorTelegramMedia } from '@/lib/channels/telegram/mirror'
+import { answerTelegramCallback } from '@/lib/channels/telegram/api'
 
 export const maxDuration = 60
 
@@ -158,12 +159,23 @@ export async function POST(
     }
   }
 
+  // Best-effort callback acknowledgement (clear spinner) — must not affect CRM processing
+  const callbackQueryId = (body as TelegramUpdate)?.callback_query?.id ?? null
+
   // Preserve WA after() guarantee for serverless
   after(async () => {
     try {
       await processNormalizedInbound(normalized as NormalizedInbound & { contentType?: string })
     } catch (err) {
       console.error('[telegram webhook] processNormalizedInbound failed:', err)
+    }
+    if (callbackQueryId) {
+      try {
+        const botToken = decrypt(config.bot_token_encrypted)
+        await answerTelegramCallback(botToken, callbackQueryId)
+      } catch {
+        // Swallow — CRM processing already succeeded
+      }
     }
   })
 
