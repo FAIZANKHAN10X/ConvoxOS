@@ -177,7 +177,9 @@
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "channelWhatsApp": "WhatsApp",
+      "channelTelegram": "Telegram"
     },
     "sessionTimer": {
       "expired": "Expired",

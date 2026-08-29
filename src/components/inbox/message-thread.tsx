@@ -19,6 +19,14 @@ import type {
   Channel,
 } from "@/types";
 import {
+  getAvailableContactChannels,
+  summarizeConversationChannels,
+} from "@/lib/inbox/conversations";
+import {
+  findLatestWhatsAppCustomerMessage,
+  isWhatsAppSessionExpired,
+} from "@/lib/whatsapp/session";
+import {
   MessageSquare,
   ChevronDown,
   UserPlus,
@@ -28,6 +36,8 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -275,13 +285,15 @@ export function MessageThread({
 
   // Derive available channels from contact
   const hasWhatsApp = !!contact?.phone;
-  const hasTelegram = !!contact?.telegram_user_id;
-  const availableChannels = useMemo(() => {
-    const chans: Channel[] = [];
-    if (hasWhatsApp) chans.push('whatsapp');
-    if (hasTelegram) chans.push('telegram');
-    return chans;
-  }, [hasWhatsApp, hasTelegram]);
+  const availableChannels = useMemo(
+    () => getAvailableContactChannels(contact),
+    [contact],
+  );
+  const hasTelegram = availableChannels.includes("telegram");
+  const channelSummary = useMemo(
+    () => summarizeConversationChannels(messages),
+    [messages],
+  );
 
   // Default to most recent inbound channel when possible, else available fallback
   useEffect(() => {
@@ -305,17 +317,18 @@ export function MessageThread({
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
-    if (!messages.length) return { expired: false, remaining: "" };
+    if (!hasWhatsApp || !messages.length) {
+      return { expired: false, remaining: "" };
+    }
 
-    // Find last customer message
-    const lastCustomerMsg = [...messages]
-      .reverse()
-      .find((m) => m.sender_type === "customer");
+    // WhatsApp's session window is channel-specific. Telegram activity must
+    // never extend or alter the WhatsApp 24-hour window.
+    const lastCustomerMsg = findLatestWhatsAppCustomerMessage(messages);
 
     if (!lastCustomerMsg) return { expired: true, remaining: "No customer messages" };
 
     const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
-    const expired = hoursSince >= 24;
+    const expired = isWhatsAppSessionExpired(messages);
 
     if (expired) {
       return { expired: true, remaining: tTimer("expired") };
@@ -328,7 +341,7 @@ export function MessageThread({
         : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
 
     return { expired, remaining };
-  }, [messages, tTimer]);
+  }, [hasWhatsApp, messages, tTimer]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1017,10 +1030,38 @@ export function MessageThread({
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone ?? contact.telegram_username ?? '—'}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-xs text-muted-foreground">
+                {contact.phone ?? contact.telegram_username ?? '—'}
+              </p>
+              {channelSummary.channels.length > 0 && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+                  aria-label={channelSummary.channels
+                    .map((channel) =>
+                      t(`channel${channel === "whatsapp" ? "WhatsApp" : "Telegram"}`),
+                    )
+                    .join(" + ")}
+                >
+                  {channelSummary.channels.map((channel) => (
+                    <span key={channel} className="inline-flex items-center gap-0.5">
+                      {channel === "whatsapp" ? (
+                        <MessageCircle className="h-3 w-3" aria-hidden="true" />
+                      ) : (
+                        <Send className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      <span className="hidden md:inline">
+                        {t(`channel${channel === "whatsapp" ? "WhatsApp" : "Telegram"}`)}
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
+          {hasWhatsApp && sessionInfo.remaining && (
           <Badge
             variant="outline"
             className={cn(
@@ -1031,6 +1072,7 @@ export function MessageThread({
             <Clock className="h-3 w-3" />
             {sessionInfo.remaining}
           </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1200,7 +1242,10 @@ export function MessageThread({
                 </div>
                 {/* Messages */}
                 <div className="space-y-2">
-                  {group.messages.map((msg) => {
+                  {group.messages.map((msg, index) => {
+                    const previousMessage = group.messages[index - 1];
+                    const channelChanged =
+                      msg.channel != null && msg.channel !== previousMessage?.channel;
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;
@@ -1226,23 +1271,42 @@ export function MessageThread({
                       void postReaction(msg.id, next);
                     };
                     return (
-                      <MessageActions
-                        key={msg.id}
-                        message={msg}
-                        onReply={() => handleStartReply(msg)}
-                        onReact={(emoji) => {
-                          if (emoji) void postReaction(msg.id, emoji);
-                        }}
-                      >
-                        <MessageBubble
+                      <div key={msg.id}>
+                        {channelChanged && (
+                          <div
+                            className="mb-2 flex items-center justify-center gap-1 text-[10px] font-medium text-muted-foreground"
+                            role="separator"
+                            aria-label={t(
+                              `channel${msg.channel === "whatsapp" ? "WhatsApp" : "Telegram"}`,
+                            )}
+                          >
+                            {msg.channel === "whatsapp" ? (
+                              <MessageCircle className="h-3 w-3" aria-hidden="true" />
+                            ) : (
+                              <Send className="h-3 w-3" aria-hidden="true" />
+                            )}
+                            {t(
+                              `channel${msg.channel === "whatsapp" ? "WhatsApp" : "Telegram"}`,
+                            )}
+                          </div>
+                        )}
+                        <MessageActions
                           message={msg}
-                          reply={reply}
-                          reactions={msgReactions}
-                          currentUserId={user?.id}
-                          onToggleReaction={handlePillToggle}
-                          onOpenMedia={handleMediaChange}
-                        />
-                      </MessageActions>
+                          onReply={() => handleStartReply(msg)}
+                          onReact={(emoji) => {
+                            if (emoji) void postReaction(msg.id, emoji);
+                          }}
+                        >
+                          <MessageBubble
+                            message={msg}
+                            reply={reply}
+                            reactions={msgReactions}
+                            currentUserId={user?.id}
+                            onToggleReaction={handlePillToggle}
+                            onOpenMedia={handleMediaChange}
+                          />
+                        </MessageActions>
+                      </div>
                     );
                   })}
                 </div>
