@@ -158,6 +158,11 @@ Pure mapper, no DB/decrypt.
 | Inbound caption preserved as `content_text` | IMPLEMENTED | `normalize` `caption ?? [media]` |
 | Inbound video/audio/voice/sticker → image/document/audio | PARTIALLY IMPLEMENTED | Normalized + mirrored, but `message-bubble` will show; outbound for these deferred |
 | Text outbound | IMPLEMENTED | `send.ts:139` |
+| Text + inline keyboard (callback/url) | IMPLEMENTED | `send.ts:128 reply_markup inline_keyboard` via `keyboard.ts` validation |
+| Image + inline keyboard | IMPLEMENTED | `send-media:103 sendPhoto + reply_markup` |
+| Document + inline keyboard | IMPLEMENTED | `send-media:103 sendDocument + reply_markup` |
+| Inline keyboard outbound (callback_data 1-64B, url https, disabled) | IMPLEMENTED | `keyboard.ts:117 validate + toTelegramReplyMarkup` + `send*/route.ts` `reply_markup` JSON validation |
+| Callback acknowledgement `answerCallbackQuery` | IMPLEMENTED | `api.ts:answerTelegramCallback` best-effort in `webhook:162` after `processNormalizedInbound` |
 | Image outbound | IMPLEMENTED | `send-media:169 sendPhoto via chat-media URL` |
 | Document outbound | IMPLEMENTED | `send-media:169 sendDocument` |
 | Reply/quote outbound | IMPLEMENTED | `send.ts:102` + `send-media:102` |
@@ -177,8 +182,9 @@ Pure mapper, no DB/decrypt.
 | Inbound reactions (`message_reaction`) | NOT IMPLEMENTED | Telegram `message_reaction` update not handled |
 | Outbound video | NOT IMPLEMENTED | Deferred after image/document proven; `send-media` rejects `video` |
 | Outbound audio/voice | NOT IMPLEMENTED | Deferred; composer `voice` disabled for Telegram |
-| Outbound location/interactive/templates/broadcasts/reactions/typing/edit/delete | NOT IMPLEMENTED | No `api.ts` method; composer explicitly disables |
-| Inline keyboards beyond `callback_query` data | PARTIALLY (callback only) | `data` treated as `interactive_reply`, not rich keyboard |
+| Outbound location/templates/broadcasts/reactions/typing/edit/delete | NOT IMPLEMENTED | No `api.ts` method; composer explicitly disables |
+| Inline keyboards `web_app/login_url/switch_inline_query/copy_text/pay` variants | NOT IMPLEMENTED | Explicitly rejected — `web_app` etc. would need Web App/Payments surface (deferred) |
+| Outbound interactive beyond inline `callback/url` | NOT IMPLEMENTED | Future: `sendContact/sendLocation` as inline? Not needed |
 | Public API `/api/v1` for Telegram | NOT IMPLEMENTED | Only private `/api/telegram/send` + `/send-media` |
 | MCP `send_message` for Telegram | NOT IMPLEMENTED | WA-only |
 | Read receipts / status sync | NOT IMPLEMENTED | Inbound `delivered`, outbound `sent` only |
@@ -195,16 +201,16 @@ Pure mapper, no DB/decrypt.
 
 | Route | Verb | Auth | Behavior | File |
 |---|---|---|---|---|
-| `POST /api/telegram/webhook/[configId]` | POST | `X-Telegram-Bot-Api-Secret-Token` vs `decrypt(webhook_secret)` PK lookup | `normalize → mirror file_id→chat-media/telegram/ if kind:media → processNormalizedInbound` via `after()` | `webhook/[configId]/route.ts:170` |
-| `POST /api/telegram/send` | POST | `requireRole(agent)` + `checkRateLimit` before decrypt | `conversation_id|contact_id + content_text + reply_to_message_id` → `sendTelegramText` → `200 {messageId}` | `send/route.ts:129` |
-| `POST /api/telegram/send-media` | POST | `requireRole(agent)` + `checkRateLimit` | `conversation_id|contact_id + media_url (public chat-media) + media_kind image|document (+ caption/filename)` → `sendTelegramMedia` (sendPhoto/sendDocument) | `send-media/route.ts:80` |
+| `POST /api/telegram/webhook/[configId]` | POST | `X-Telegram-Bot-Api-Secret-Token` vs `decrypt(webhook_secret)` PK lookup | `normalize → mirror file_id→chat-media/telegram/ if kind:media → processNormalizedInbound + best-effort answerCallbackQuery` via `after()` | `webhook/[configId]/route.ts:182` |
+| `POST /api/telegram/send` | POST | `requireRole(agent)` + `checkRateLimit` before decrypt | `conversation_id|contact_id + content_text + reply_to_message_id + reply_markup? (inline_keyboard JSON)` → `sendTelegramText` → `200 {messageId}` (`interactive` when `reply_markup` present) | `send/route.ts:154` |
+| `POST /api/telegram/send-media` | POST | `requireRole(agent)` + `checkRateLimit` | `conversation_id|contact_id + media_url + media_kind image|document (+ caption/filename) + reply_markup?` → `sendTelegramMedia` (sendPhoto/sendDocument + reply_markup) | `send-media/route.ts:98` |
 | `GET /api/telegram/config` | GET | `viewer` | safe status `connected/has_token/reason/bot_username/bot_id/webhook_url` never token | `config/route.ts:348` |
 | `POST /api/telegram/config` | POST | `admin` | shape validate → `getMe` → encrypt → upsert → `setWebhook` → sanitized `200` | `config/route.ts:348` |
 | `DELETE /api/telegram/config` | DELETE | `admin` | best-effort `deleteWebhook` → hard-delete row | `config/route.ts:348` |
 
 ## Provider API Surface
 
-`src/lib/channels/telegram/api.ts:158` + `src/lib/channels/telegram/mirror.ts:111` + `send.ts/send-media.ts`:
+`src/lib/channels/telegram/api.ts:168` + `src/lib/channels/telegram/mirror.ts:111` + `send.ts/send-media.ts` + `keyboard.ts:117`:
 
 - `getTelegramMe(botToken) → {id, username, firstName}` `api:84` `GET getMe` validate
 - `setTelegramWebhook({botToken,url,secretToken})` `93` `POST setWebhook`
@@ -212,11 +218,14 @@ Pure mapper, no DB/decrypt.
 - `getTelegramWebhookInfo(botToken)` `112` `GET getWebhookInfo`
 - `getTelegramFile(botToken,fileId)` `122` `POST getFile` + `TelegramFileInfo`
 - `downloadTelegramFile(botToken,filePath)` `142` `GET file/bot<token>/<file_path>` + sanitize
-- `sendTelegramText` (inline `send.ts:139` `sendMessage`) + `sendTelegramMedia` (`send-media.ts:169` `sendPhoto`/`sendDocument` via public URL)
+- `answerTelegramCallback(botToken,callbackQueryId)` `answerCallbackQuery` best-effort (webhook after)
+- `sendTelegramText` (inline `send.ts:139` `sendMessage` + `reply_markup` inline_keyboard)
+- `sendTelegramMedia` (`send-media.ts:103` `sendPhoto`/`sendDocument` + `reply_markup`)
+- `keyboard.ts: validateTelegramInlineMarkup (Telegram 1-64b + ConvoxOS 8x8/64 safety), toTelegramReplyMarkup, TelegramInlineMarkup with callback_data/url/disabled`
 - `sanitizeTelegramMessage + lowerDesc` `api:24/80`, `telegramFetch` `42` handles `401/404→400 invalid_token, 429→rate_limited retryable, 5xx→502`
 - `mirrorTelegramMedia` `mirror:49` `chat-media/telegram/` with `MEDIA_MAX_BYTES` guard, `telegramMirrorObjectName` deterministic
 
-**Not exposed:** `sendVideo/sendAudio/sendVoice/getFile→download` for video/voice (deferred), `editMessageText/deleteMessage/sendChatAction/setMessageReaction/answerCallbackQuery`. WhatsApp `meta-api.ts:1057` has 16 methods by contrast.
+**Not exposed:** `sendVideo/sendAudio/sendVoice` (deferred), `editMessageText/deleteMessage/sendChatAction/setMessageReaction`. WhatsApp `meta-api.ts:1057` has 16 methods by contrast.
 
 ## Tests
 
