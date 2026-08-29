@@ -103,7 +103,7 @@ export async function sendTelegramText(
   if (replyToMessageId) {
     const { data: parent, error: parentError } = await db
       .from('messages')
-      .select('message_id, conversation_id')
+      .select('id, message_id, conversation_id')
       .eq('id', replyToMessageId)
       .eq('conversation_id', conversationId)
       .maybeSingle();

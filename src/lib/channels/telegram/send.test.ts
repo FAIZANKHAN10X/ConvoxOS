@@ -102,9 +102,6 @@ function makeDb(overrides: any = {}) {
           })),
         } as any;
       }
-      if (table === 'conversations' && table === 'messages') {
-        // fallback
-      }
       return {
         select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }),
         insert: vi.fn(() => ({ select: () => ({ single: async () => ({ data: { id: 'msg-1' }, error: null }) }) })),

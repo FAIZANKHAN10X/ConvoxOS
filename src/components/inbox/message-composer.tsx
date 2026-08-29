@@ -53,7 +53,7 @@ import {
   blankButtonsPayload,
 } from "@/components/interactive/interactive-builder";
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
-import type { InteractiveMessagePayload, QuickReply } from "@/types";
+import type { InteractiveMessagePayload, QuickReply, Channel } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
 
 /** Media content types an agent can send from the composer. */
@@ -118,6 +118,10 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  selectedChannel?: Channel;
+  availableChannels?: Channel[];
+  onChannelChange?: (c: Channel) => void;
+  telegramConnected?: boolean | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -140,8 +144,14 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  selectedChannel = 'whatsapp',
+  availableChannels = ['whatsapp'],
+  onChannelChange,
+  telegramConnected = null,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
+  const isTelegram = selectedChannel === 'telegram';
+  const isWhatsApp = selectedChannel === 'whatsapp';
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -189,8 +199,11 @@ export function MessageComposer({
   // every capability — so the disabled branch is a no-op there.
   const canSend = useCan("send-messages");
   const readOnly = !canSend;
-  // Media (like free-form text) is only allowed inside the 24h window.
-  const inputsDisabled = readOnly || sessionExpired;
+  // WhatsApp 24h window only blocks WhatsApp free-form; Telegram text is never blocked.
+  const whatsappBlocked = isWhatsApp && sessionExpired;
+  const telegramBlocked = isTelegram && telegramConnected === false;
+  const inputsDisabled = readOnly || whatsappBlocked || telegramBlocked;
+  const whatsappOnlyDisabled = isTelegram; // media/interactive/template are WhatsApp-only in Phase 2
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -222,7 +235,8 @@ export function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending || sessionExpired) return;
+    if (!trimmed || sending || whatsappBlocked) return;
+    if (isTelegram && telegramBlocked) return;
 
     setSending(true);
     try {
@@ -234,7 +248,7 @@ export function MessageComposer({
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, whatsappBlocked, telegramBlocked, isTelegram, onSend, replyTo?.id]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -546,7 +560,31 @@ export function MessageComposer({
           />
         </div>
       )}
-      {sessionExpired && (
+      {/* Channel selector — explicit per Phase 2, not derived latest channel */}
+      {availableChannels.length > 1 && onChannelChange && (
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Reply via</span>
+          <select
+            value={selectedChannel}
+            onChange={(e) => onChannelChange(e.target.value as Channel)}
+            className="rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground"
+          >
+            {availableChannels.includes('whatsapp' as Channel) && <option value="whatsapp">WhatsApp</option>}
+            {availableChannels.includes('telegram' as Channel) && <option value="telegram">Telegram</option>}
+          </select>
+        </div>
+      )}
+      {availableChannels.length === 0 && (
+        <div className="mb-2 rounded-lg bg-muted px-3 py-2">
+          <p className="text-xs text-muted-foreground">No outbound channel available for this contact</p>
+        </div>
+      )}
+      {isTelegram && telegramConnected === false && (
+        <div className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2">
+          <p className="text-xs text-amber-400">Telegram not connected — connect in Settings → Telegram</p>
+        </div>
+      )}
+      {isWhatsApp && sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
             {t("sessionExpiredHint")}
@@ -630,14 +668,14 @@ export function MessageComposer({
         </div>
       ) : (
         <div className="flex items-end gap-2">
-          {/* Attach menu — photo / video / document / voice. */}
+          {/* Attach menu — photo / video / document / voice. WhatsApp-only in Phase 2. */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              disabled={inputsDisabled || busy}
+              disabled={inputsDisabled || busy || whatsappOnlyDisabled}
               title={
                 readOnly
                   ? t("readOnlyTitle")
-                  : inputsDisabled
+                  : inputsDisabled || whatsappOnlyDisabled
                     ? undefined
                     : t("attachMedia")
               }
@@ -686,7 +724,7 @@ export function MessageComposer({
               <Plus className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="border-border bg-popover">
-              <DropdownMenuItem onClick={() => openInteractiveBuilder()}>
+              <DropdownMenuItem onClick={() => openInteractiveBuilder()} disabled={whatsappOnlyDisabled}>
                 <MessageSquareDashed className="mr-2 h-4 w-4" />
                 {t("interactiveMessage")}
               </DropdownMenuItem>
@@ -705,6 +743,7 @@ export function MessageComposer({
             title={readOnly ? undefined : t("sendTemplate")}
             className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
             onClick={onOpenTemplates}
+            disabled={whatsappOnlyDisabled}
           >
             <LayoutTemplate className="h-4 w-4" />
           </GatedButton>
@@ -734,11 +773,15 @@ export function MessageComposer({
             placeholder={
               readOnly
                 ? t("readOnlyPlaceholder")
-                : sessionExpired
+                : isWhatsApp && sessionExpired
                   ? t("sessionExpiredPlaceholder")
-                  : t("typeMessagePlaceholder")
+                  : isTelegram && telegramConnected === false
+                    ? "Telegram not connected"
+                    : availableChannels.length === 0
+                      ? "No channel available"
+                      : t("typeMessagePlaceholder")
             }
-            disabled={sessionExpired || readOnly}
+            disabled={readOnly || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0}
             rows={1}
             // Textarea keeps its own inline title — the GatedButton
             // wrapping pattern doesn't apply to non-button inputs.
@@ -746,7 +789,7 @@ export function MessageComposer({
             title={readOnly ? t("readOnlyTitle") : undefined}
             className={cn(
               "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+              (readOnly || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0) && "cursor-not-allowed opacity-50"
             )}
           />
 
@@ -754,7 +797,7 @@ export function MessageComposer({
             size="sm"
             canAct={!readOnly}
             gateReason="send messages"
-            disabled={!text.trim() || sessionExpired || sending}
+            disabled={!text.trim() || sending || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0}
             onClick={handleSend}
             className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
           >

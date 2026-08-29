@@ -16,6 +16,7 @@ import type {
   MessageTemplate,
   Profile,
   InteractiveMessagePayload,
+  Channel,
 } from "@/types";
 import {
   MessageSquare,
@@ -198,6 +199,9 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  // Explicit outbound channel — local/thread state only, not persisted.
+  const [selectedChannel, setSelectedChannel] = useState<Channel>('whatsapp');
+  const [telegramConnected, setTelegramConnected] = useState<boolean | null>(null);
   // Which attachment the media viewer is showing. Lives here rather than in
   // the bubble so the viewer can page through every image/video in the
   // thread (issue #373). Paired with the conversation it belongs to and read
@@ -230,6 +234,74 @@ export function MessageThread({
       cancelled = true;
     };
   }, []);
+
+  // Telegram connection — account-wide, mirrors WhatsAppConnected in inbox/page.tsx
+  // Explicit account_id filter (consistent with existing architecture) rather than RLS-only maybeSingle.
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const userId = user?.id;
+      if (!userId) {
+        if (!cancelled) setTelegramConnected(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("account_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const accountId = (profile as any)?.account_id as string | undefined;
+      if (!accountId) {
+        if (!cancelled) setTelegramConnected(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("telegram_config")
+        .select("status")
+        .eq("account_id", accountId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        setTelegramConnected(false);
+        return;
+      }
+      setTelegramConnected(data?.status === "connected");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.id, user?.id]);
+
+  // Derive available channels from contact
+  const hasWhatsApp = !!contact?.phone;
+  const hasTelegram = !!contact?.telegram_user_id;
+  const availableChannels = useMemo(() => {
+    const chans: Channel[] = [];
+    if (hasWhatsApp) chans.push('whatsapp');
+    if (hasTelegram) chans.push('telegram');
+    return chans;
+  }, [hasWhatsApp, hasTelegram]);
+
+  // Default to most recent inbound channel when possible, else available fallback
+  useEffect(() => {
+    if (!contact) return;
+    if (availableChannels.length === 0) return;
+    if (availableChannels.length === 1) {
+      setSelectedChannel(availableChannels[0]);
+      return;
+    }
+    // Both available — prefer last inbound message channel
+    const lastInbound = [...messages].reverse().find((m) => m.sender_type === 'customer' && m.channel);
+    if (lastInbound?.channel && availableChannels.includes(lastInbound.channel as Channel)) {
+      setSelectedChannel(lastInbound.channel as Channel);
+      return;
+    }
+    // Fallback: keep current if still available, else first available
+    if (!availableChannels.includes(selectedChannel)) {
+      setSelectedChannel(availableChannels[0]);
+    }
+  }, [contact?.id, messages, availableChannels]);
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
@@ -465,7 +537,21 @@ export function MessageThread({
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
-      if (!conversation) return;
+      if (!conversation || !contact) return;
+
+      // Channel-aware validation
+      if (selectedChannel === 'whatsapp' && !hasWhatsApp) {
+        toast.error('No phone number for WhatsApp');
+        return;
+      }
+      if (selectedChannel === 'telegram' && !hasTelegram) {
+        toast.error('No Telegram chat for this contact');
+        return;
+      }
+      if (selectedChannel === 'telegram' && telegramConnected === false) {
+        toast.error('Telegram not connected — connect in Settings → Telegram');
+        return;
+      }
 
       const tempId = `temp-${Date.now()}`;
 
@@ -476,6 +562,7 @@ export function MessageThread({
         sender_type: "agent",
         content_type: "text",
         content_text: text,
+        channel: selectedChannel,
         status: "sending",
         created_at: new Date().toISOString(),
         reply_to_message_id: replyToId,
@@ -484,15 +571,24 @@ export function MessageThread({
       setReplyTo(null);
 
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const isTelegram = selectedChannel === 'telegram';
+        const res = await fetch(isTelegram ? "/api/telegram/send" : "/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation_id: conversation.id,
-            message_type: "text",
-            content_text: text,
-            reply_to_message_id: replyToId,
-          }),
+          body: JSON.stringify(
+            isTelegram
+              ? {
+                  conversation_id: conversation.id,
+                  content_text: text,
+                  reply_to_message_id: replyToId,
+                }
+              : {
+                  conversation_id: conversation.id,
+                  message_type: "text",
+                  content_text: text,
+                  reply_to_message_id: replyToId,
+                }
+          ),
         });
 
         const payload = await res.json().catch(() => ({}));
@@ -517,7 +613,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, contact, selectedChannel, hasWhatsApp, hasTelegram, telegramConnected, onNewMessage, onUpdateMessage]
   );
 
   const handleSendMedia = useCallback(
@@ -1172,7 +1268,7 @@ export function MessageThread({
         }}
       />
 
-      {/* Composer */}
+      {/* Composer — channel-aware */}
       <MessageComposer
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
@@ -1182,6 +1278,10 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        selectedChannel={selectedChannel}
+        availableChannels={availableChannels}
+        onChannelChange={setSelectedChannel}
+        telegramConnected={telegramConnected}
       />
 
       <TemplatePicker
