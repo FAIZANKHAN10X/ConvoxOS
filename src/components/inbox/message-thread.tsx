@@ -656,18 +656,42 @@ export function MessageThread({
       onNewMessage(optimisticMsg);
       setReplyTo(null);
 
+      const isTelegramSend = selectedChannel === 'telegram';
+      if (isTelegramSend) {
+        if (telegramConnected === false) {
+          toast.error('Telegram not connected — connect in Settings → Channels');
+          onUpdateMessage(tempId, { status: 'failed' });
+          return;
+        }
+        if (payload.kind === 'video' || payload.kind === 'audio') {
+          toast.error('Video and voice messages are not yet available for Telegram. Image and documents only.');
+          onUpdateMessage(tempId, { status: 'failed' });
+          return;
+        }
+      }
       try {
-        const res = await fetch("/api/whatsapp/send", {
+        const res = await fetch(isTelegramSend ? "/api/telegram/send-media" : "/api/whatsapp/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation_id: conversation.id,
-            message_type: payload.kind,
-            media_url: payload.mediaUrl,
-            content_text: contentText,
-            filename: payload.filename,
-            reply_to_message_id: payload.replyToId,
-          }),
+          body: JSON.stringify(
+            isTelegramSend
+              ? {
+                  conversation_id: conversation.id,
+                  media_url: payload.mediaUrl,
+                  media_kind: payload.kind,
+                  filename: payload.filename,
+                  caption: contentText,
+                  reply_to_message_id: payload.replyToId,
+                }
+              : {
+                  conversation_id: conversation.id,
+                  message_type: payload.kind,
+                  media_url: payload.mediaUrl,
+                  content_text: contentText,
+                  filename: payload.filename,
+                  reply_to_message_id: payload.replyToId,
+                }
+          ),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -692,7 +716,7 @@ export function MessageThread({
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, selectedChannel, telegramConnected],
   );
 
   const handleSendInteractive = useCallback(

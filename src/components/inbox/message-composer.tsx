@@ -204,7 +204,7 @@ export function MessageComposer({
   const whatsappBlocked = isWhatsApp && sessionExpired;
   const telegramBlocked = isTelegram && telegramConnected === false;
   const inputsDisabled = readOnly || whatsappBlocked || telegramBlocked;
-  const whatsappOnlyDisabled = isTelegram; // media/interactive/template are WhatsApp-only in Phase 2
+  const whatsappOnlyDisabled = isTelegram; // interactive/template remain WhatsApp-only; media: image+document now allowed for Telegram, video/voice still blocked
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -696,14 +696,14 @@ export function MessageComposer({
         </div>
       ) : (
         <div className="flex items-end gap-2">
-          {/* Attach menu — photo / video / document / voice. WhatsApp-only in Phase 2. */}
+          {/* Attach menu — photo/document now supported for Telegram (image+document); video/voice still WhatsApp-only. */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              disabled={inputsDisabled || busy || whatsappOnlyDisabled}
+              disabled={inputsDisabled || busy}
               title={
                 readOnly
                   ? t("readOnlyTitle")
-                  : inputsDisabled || whatsappOnlyDisabled
+                  : inputsDisabled
                     ? undefined
                     : t("attachMedia")
               }
@@ -720,7 +720,11 @@ export function MessageComposer({
                 <ImageIcon className="mr-2 h-4 w-4" />
                 {t("photo")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
+              <DropdownMenuItem
+                onClick={() => videoInputRef.current?.click()}
+                disabled={whatsappOnlyDisabled}
+                title={whatsappOnlyDisabled ? t("telegramNotConnected") : undefined}
+              >
                 <Video className="mr-2 h-4 w-4" />
                 {t("video")}
               </DropdownMenuItem>
@@ -728,7 +732,7 @@ export function MessageComposer({
                 <FileText className="mr-2 h-4 w-4" />
                 {t("document")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void startRecording()}>
+              <DropdownMenuItem onClick={() => void startRecording()} disabled={whatsappOnlyDisabled}>
                 <Mic className="mr-2 h-4 w-4" />
                 {t("voiceNote")}
               </DropdownMenuItem>
