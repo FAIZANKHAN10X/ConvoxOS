@@ -606,7 +606,7 @@ export function MessageComposer({
         <div className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
             {t("telegramNotConnected")} {" "}
-            <a className="underline underline-offset-2" href="/settings?tab=telegram">
+            <a className="underline underline-offset-2" href="/settings?tab=channels">
               {t("openTelegramSettings")}
             </a>
           </p>

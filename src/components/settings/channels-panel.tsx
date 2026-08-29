@@ -9,7 +9,7 @@ import { useTranslations } from 'next-intl';
 
 import { SettingsPanelHead } from './settings-panel-head';
 import { WhatsAppConfig } from './whatsapp-config';
-import { TelegramConfigPlaceholder } from './telegram-config-placeholder';
+import { TelegramConfig } from './telegram-config';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -153,12 +153,13 @@ export function ChannelsPanel() {
           onAction={() => setExpanded((cur) => (cur === 'telegram' ? null : 'telegram'))}
         />
         {expanded === 'telegram' ? (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <TelegramConfigPlaceholder
-              connected={telegramState === 'connected'}
-              onConnected={() => setTelegramState('connected')}
-              onDisconnected={() => setTelegramState('not_connected')}
-            />
+          <div className="rounded-xl border border-border bg-card p-0">
+            <div className="p-4">
+              <TelegramConfig
+                onConnected={() => setTelegramState('connected')}
+                onDisconnected={() => setTelegramState('not_connected')}
+              />
+            </div>
           </div>
         ) : null}
       </div>

@@ -562,7 +562,7 @@ export function MessageThread({
         return;
       }
       if (selectedChannel === 'telegram' && telegramConnected === false) {
-        toast.error('Telegram not connected — connect in Settings → Telegram');
+        toast.error('Telegram not connected — connect in Settings → Channels');
         return;
       }
 
