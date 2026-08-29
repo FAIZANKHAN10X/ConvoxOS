@@ -102,7 +102,6 @@ describe('sendTelegramMedia', () => {
   it('rejects unsupported kind', async () => {
     const { sendTelegramMedia } = await import('./send-media');
     const fakeDb = { from: vi.fn() } as unknown as import('@supabase/supabase-js').SupabaseClient;
-    // @ts-expect-error testing invalid kind
-    await expect(sendTelegramMedia(fakeDb, 'acct-1', { conversationId: 'c', mediaUrl: 'https://x', mediaKind: 'video' as never })).rejects.toThrow(/Unsupported/);
+    await expect(sendTelegramMedia(fakeDb, 'acct-1', { conversationId: 'c', mediaUrl: 'https://x', mediaKind: 'video' as unknown as 'document' })).rejects.toThrow(/Unsupported/);
   });
 });
