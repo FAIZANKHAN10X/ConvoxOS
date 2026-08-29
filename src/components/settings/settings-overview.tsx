@@ -26,7 +26,7 @@ interface OverviewCounts {
   customFields: number | null;
 }
 
-interface WhatsAppStatus {
+interface ChannelStatus {
   configured: boolean;
   connected: boolean;
 }
@@ -49,8 +49,10 @@ export function SettingsOverview({
   // token and pings Meta, which is far slower than the cheap count
   // queries. Gating it independently keeps a slow/flaky Meta round-trip
   // from blanking the rest of the landing.
-  const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
+  const [whatsapp, setWhatsapp] = useState<ChannelStatus | null>(null);
   const [whatsappLoading, setWhatsappLoading] = useState(true);
+  const [telegram, setTelegram] = useState<ChannelStatus | null>(null);
+  const [telegramLoading, setTelegramLoading] = useState(true);
 
   useEffect(() => {
     if (!user || !accountId) return;
@@ -117,7 +119,7 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // Channel connection status — slower, independent.
     (async () => {
       setWhatsappLoading(true);
       const [row, health] = await Promise.allSettled([
@@ -134,6 +136,25 @@ export function SettingsOverview({
         connected: health.status === 'fulfilled' && !!health.value?.connected,
       });
       setWhatsappLoading(false);
+    })();
+
+    (async () => {
+      setTelegramLoading(true);
+      const [row, health] = await Promise.allSettled([
+        supabase.from('telegram_config').select('status').eq('account_id', acctId).maybeSingle(),
+        fetch('/api/telegram/config', { cache: 'no-store' }).then((r) => r.json()),
+      ]);
+      if (cancelled) return;
+      const configured = row.status === 'fulfilled' && !!row.value.data;
+      const connected =
+        health.status === 'fulfilled' && !!health.value?.connected && !!health.value?.has_token;
+      // health endpoint may 401/403 when not admin; fall back to row status
+      const rowConnected = row.status === 'fulfilled' && row.value.data?.status === 'connected';
+      setTelegram({
+        configured,
+        connected: connected || rowConnected,
+      });
+      setTelegramLoading(false);
     })();
 
     return () => {
@@ -153,25 +174,38 @@ export function SettingsOverview({
 
   // Per-tile loading + subtitle. `null` counts render as a graceful
   // fallback so a single failed query never blanks a tile.
+  const channelsSubtitle = (() => {
+    const waConnected = whatsapp?.connected;
+    const waConfigured = whatsapp?.configured;
+    const tgConnected = telegram?.connected;
+    const tgConfigured = telegram?.configured;
+    const loading = whatsappLoading || telegramLoading;
+    if (loading) return null;
+    const parts: string[] = [];
+    if (waConfigured) parts.push(waConnected ? 'WhatsApp ●' : 'WhatsApp ○');
+    if (tgConfigured) parts.push(tgConnected ? 'Telegram ●' : 'Telegram ○');
+    if (parts.length === 0) return t('notSetup');
+    if (parts.length === 2) {
+      if (waConnected && tgConnected) return <><StatusDot tone="ok" /> {t('connected')}</>;
+      return <><StatusDot tone="muted" /> {parts.join(' · ')}</>;
+    }
+    const only = parts[0].includes('●') ? (
+      <><StatusDot tone="ok" /> {t('connected')}</>
+    ) : (
+      <><StatusDot tone="muted" /> {t('needsReconnecting')}</>
+    );
+    return only;
+  })();
+
   const tiles: {
     section: SettingsSection;
     loading: boolean;
     subtitle: ReactNode;
   }[] = [
     {
-      section: 'whatsapp',
-      loading: whatsappLoading,
-      subtitle: !whatsapp?.configured ? (
-        t('notSetup')
-      ) : whatsapp.connected ? (
-        <>
-          <StatusDot tone="ok" /> {t('connected')}
-        </>
-      ) : (
-        <>
-          <StatusDot tone="muted" /> {t('needsReconnecting')}
-        </>
-      ),
+      section: 'channels',
+      loading: whatsappLoading || telegramLoading,
+      subtitle: channelsSubtitle ?? t('notSetup'),
     },
     {
       section: 'members',

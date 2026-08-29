@@ -26,7 +26,7 @@ export const SETTINGS_SECTIONS = [
   'profile',
   'security',
   'appearance',
-  'whatsapp',
+  'channels',
   'templates',
   'quick-replies',
   'fields',
@@ -52,7 +52,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   profile: { id: 'profile', label: 'Your profile', icon: User, group: 'account' },
   security: { id: 'security', label: 'Login & security', icon: Shield, group: 'account' },
   appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
-  whatsapp: { id: 'whatsapp', label: 'WhatsApp', icon: PlugZap, group: 'workspace' },
+  channels: { id: 'channels', label: 'Channels', icon: PlugZap, group: 'workspace' },
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   'quick-replies': { id: 'quick-replies', label: 'Quick replies', icon: Zap, group: 'workspace' },
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
@@ -79,6 +79,8 @@ function isSection(value: string | null): value is SettingsSection {
  */
 export function resolveSection(raw: string | null): SettingsSection {
   if (raw === 'tags' || raw === 'custom-fields') return 'fields';
+  // whatsapp was the former top-level channel section — now hosted under channels
+  if (raw === 'whatsapp') return 'channels';
   if (isSection(raw)) return raw;
   return DEFAULT_SECTION;
 }
