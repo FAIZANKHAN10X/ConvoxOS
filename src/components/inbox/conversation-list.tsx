@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CONVERSATION_SELECT,
+  type ConversationChannelSummary,
+  type InboxChannelFilter,
+  summarizeConversationChannels,
   matchesContactFilters,
   normalizeConversations,
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import type { Conversation, ConversationStatus, Message, Tag } from "@/types";
+import { Search, ChevronDown, MessageCircle, Send, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -42,9 +45,8 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-muted-foreground",
 };
 
-
-
 type InboxFilter = ConversationStatus | "all" | "unread";
+type ChannelMessageRow = Pick<Message, "conversation_id" | "channel" | "created_at">;
 
 export function ConversationList({
   activeConversationId,
@@ -72,6 +74,10 @@ export function ConversationList({
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<InboxChannelFilter>("all");
+  const [channelSummaries, setChannelSummaries] = useState<
+    Map<string, ConversationChannelSummary>
+  >(new Map());
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -95,26 +101,59 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select(CONVERSATION_SELECT)
-        .order("last_message_at", { ascending: false });
+      const [conversationsResult, messagesResult] = await Promise.all([
+        supabase
+          .from("conversations")
+          .select(CONVERSATION_SELECT)
+          .order("last_message_at", { ascending: false }),
+        supabase
+          .from("messages")
+          .select("conversation_id, channel, created_at")
+          .order("created_at", { ascending: true }),
+      ]);
 
       if (cancelled) return;
 
-      if (error) {
+      if (conversationsResult.error) {
         // Supabase errors have non-enumerable properties — log fields explicitly
         console.error("Failed to fetch conversations:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
+          message: conversationsResult.error.message,
+          details: conversationsResult.error.details,
+          hint: conversationsResult.error.hint,
+          code: conversationsResult.error.code,
         });
         setLoading(false);
         return;
       }
 
-      onConversationsLoadedRef.current(normalizeConversations(data ?? []));
+      if (messagesResult.error) {
+        console.error("Failed to fetch conversation channels:", {
+          message: messagesResult.error.message,
+          details: messagesResult.error.details,
+          hint: messagesResult.error.hint,
+          code: messagesResult.error.code,
+        });
+      }
+
+      const messagesByConversation = new Map<string, ChannelMessageRow[]>();
+      for (const message of (messagesResult.data ?? []) as ChannelMessageRow[]) {
+        const conversationMessages = messagesByConversation.get(message.conversation_id) ?? [];
+        conversationMessages.push(message);
+        messagesByConversation.set(message.conversation_id, conversationMessages);
+      }
+
+      const nextSummaries = new Map<string, ConversationChannelSummary>();
+      for (const [conversationId, conversationMessages] of messagesByConversation) {
+        nextSummaries.set(
+          conversationId,
+          summarizeConversationChannels(conversationMessages),
+        );
+      }
+
+      setChannelSummaries(nextSummaries);
+      onConversationsLoadedRef.current(
+        normalizeConversations(conversationsResult.data ?? []),
+      );
       setLoading(false);
     })();
 
@@ -177,18 +216,39 @@ export function ConversationList({
       );
     }
 
+    if (channelFilter !== "all") {
+      result = result.filter((conversation) => {
+        const summary = channelSummaries.get(conversation.id);
+        return summary != null && summary.channels.includes(channelFilter);
+      });
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
         const name = c.contact?.name?.toLowerCase() ?? "";
         const phone = c.contact?.phone?.toLowerCase() ?? "";
+        const telegramUsername = c.contact?.telegram_username?.toLowerCase() ?? "";
         const lastMsg = c.last_message_text?.toLowerCase() ?? "";
-        return name.includes(q) || phone.includes(q) || lastMsg.includes(q);
+        return (
+          name.includes(q) ||
+          phone.includes(q) ||
+          telegramUsername.includes(q) ||
+          lastMsg.includes(q)
+        );
       });
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [
+    channelFilter,
+    channelSummaries,
+    conversations,
+    filter,
+    search,
+    selectedTagIds,
+    selectedCompany,
+  ]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -305,6 +365,37 @@ export function ConversationList({
             </DropdownMenu>
           )}
 
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+              {channelFilter === "all"
+                ? t("channelAll")
+                : t(`channel${channelFilter === "whatsapp" ? "WhatsApp" : "Telegram"}`)}
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="border-border bg-popover">
+              {(["all", "whatsapp", "telegram"] as const).map((channel) => {
+                const label =
+                  channel === "all"
+                    ? t("channelAll")
+                    : t(`channel${channel === "whatsapp" ? "WhatsApp" : "Telegram"}`);
+                return (
+                  <DropdownMenuItem
+                    key={channel}
+                    onClick={() => setChannelFilter(channel)}
+                    className={cn(
+                      "text-sm",
+                      channelFilter === channel
+                        ? "text-primary"
+                        : "text-popover-foreground",
+                    )}
+                  >
+                    {label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {companies.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -403,7 +494,15 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">{t("noConversations")}</p>
+            <p className="text-sm text-muted-foreground">
+              {channelFilter === "all"
+                ? t("noConversations")
+                : t("noChannelConversations", {
+                    channel: t(
+                      `channel${channelFilter === "whatsapp" ? "WhatsApp" : "Telegram"}`,
+                    ),
+                  })}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -413,6 +512,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                channelSummary={channelSummaries.get(conv.id)}
                 t={t}
               />
             ))}
@@ -427,6 +527,7 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  channelSummary?: ConversationChannelSummary;
   t: ReturnType<typeof useTranslations>;
 }
 
@@ -434,10 +535,15 @@ function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  channelSummary,
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || t("unknown");
+  const displayName =
+    contact?.name ||
+    contact?.phone ||
+    contact?.telegram_username ||
+    t("unknown");
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -480,9 +586,15 @@ function ConversationItem({
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
-            {conversation.last_message_text || t("noMessagesYet")}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <ChannelIndicator
+              summary={channelSummary}
+              t={t}
+            />
+            <p className="truncate text-xs text-muted-foreground">
+              {conversation.last_message_text || t("noMessagesYet")}
+            </p>
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -500,5 +612,37 @@ function ConversationItem({
         </div>
       </div>
     </button>
+  );
+}
+
+function ChannelIndicator({
+  summary,
+  t,
+}: {
+  summary?: ConversationChannelSummary;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  if (!summary || summary.channels.length === 0) return null;
+
+  const label = summary.channels
+    .map((channel) =>
+      t(`channel${channel === "whatsapp" ? "WhatsApp" : "Telegram"}`),
+    )
+    .join(" + ");
+
+  return (
+    <span
+      className="inline-flex shrink-0 items-center text-muted-foreground"
+      aria-label={label}
+      title={label}
+    >
+      {summary.channels.map((channel) =>
+        channel === "whatsapp" ? (
+          <MessageCircle key={channel} className="h-3 w-3" aria-hidden="true" />
+        ) : (
+          <Send key={channel} className="h-3 w-3" aria-hidden="true" />
+        ),
+      )}
+    </span>
   );
 }
