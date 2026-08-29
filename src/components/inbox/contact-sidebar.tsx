@@ -127,8 +127,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.phone;
-  const initials = displayName.charAt(0).toUpperCase();
+  const displayName = contact.name || contact.phone || contact.telegram_username || 'Unknown';
+  const initials = (displayName || 'U').charAt(0).toUpperCase();
 
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
@@ -162,7 +162,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left">{contact.phone ?? contact.telegram_username ?? '—'}</span>
               {copied ? (
                 <Check className="h-3 w-3 text-primary" />
               ) : (

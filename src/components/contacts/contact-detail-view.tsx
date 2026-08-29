@@ -192,7 +192,7 @@ export function ContactDetailView({
 
   async function copyPhone() {
     if (!contact) return;
-    await navigator.clipboard.writeText(contact.phone);
+    await navigator.clipboard.writeText(contact.phone ?? '');
     setCopiedPhone(true);
     setTimeout(() => setCopiedPhone(false), 2000);
   }

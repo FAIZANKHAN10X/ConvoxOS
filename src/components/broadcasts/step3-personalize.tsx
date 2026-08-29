@@ -208,10 +208,10 @@ export function Step3Personalize({
           replacement = mapping.value;
         } else if (mapping.type === 'field' && mapping.value) {
           const fieldMap: Record<string, string | undefined> = {
-            name: contact.name,
-            phone: contact.phone,
-            email: contact.email,
-            company: contact.company,
+            name: contact.name ?? undefined,
+            phone: contact.phone ?? undefined,
+            email: contact.email ?? undefined,
+            company: contact.company ?? undefined,
           };
           replacement = fieldMap[mapping.value] ?? placeholder;
         } else if (mapping.type === 'custom_field' && mapping.value) {
