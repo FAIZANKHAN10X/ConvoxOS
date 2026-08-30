@@ -97,11 +97,12 @@ interface ReplyDraft {
 // the file picker so unsupported files are rejected before upload rather
 // than failing with a confusing Storage error. Audio has no picker — it's
 // captured via the recorder.
-const PICKER_ACCEPT: Record<"image" | "video" | "document", string> = {
+const PICKER_ACCEPT: Record<"image" | "video" | "document" | "audio", string> = {
   image: "image/png,image/jpeg,image/webp",
   video: "video/mp4,video/3gpp",
   document:
     "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain",
+  audio: "audio/mpeg,audio/mp4,audio/ogg,audio/x-m4a,audio/mp3",
 };
 
 interface MediaDraft {
@@ -181,6 +182,7 @@ export function MessageComposer({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   // Mirror of `draft` for the unmount cleanup, which can't read render
   // state. Kept in sync below so navigating away with a staged-but-unsent
   // attachment GCs the orphaned object.
@@ -212,7 +214,7 @@ export function MessageComposer({
   const whatsappBlocked = isWhatsApp && sessionExpired;
   const telegramBlocked = isTelegram && telegramConnected === false;
   const inputsDisabled = readOnly || whatsappBlocked || telegramBlocked;
-  const whatsappOnlyDisabled = isTelegram; // interactive/template remain WhatsApp-only; media: image+document now allowed for Telegram, video/voice still blocked
+  const whatsappOnlyDisabled = isTelegram; // interactive/template remain WhatsApp-only; media: image+document+video+audio now allowed for Telegram, voice-recording still WhatsApp-only
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -435,8 +437,14 @@ export function MessageComposer({
   );
 
   const handlePicked = useCallback(
-    (kind: "image" | "video" | "document", file: File | undefined) => {
-      if (file) void stageUpload(kind, file);
+    (kind: ComposerMediaKind, file: File | undefined) => {
+      if (file) {
+        // Derive Telegram mediaKind for voice vs audio file upload:
+        // .ogg/.oga → voice (sendVoice), other audio → audio (sendAudio).
+        // Keep Composer draft kind as 'audio' for audio/voice (bubble renders same),
+        // but the thread will map filename extension to voice vs audio for Telegram.
+        void stageUpload(kind, file);
+      }
     },
     [stageUpload],
   );
@@ -668,6 +676,16 @@ export function MessageComposer({
           e.target.value = "";
         }}
       />
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept={PICKER_ACCEPT.audio}
+        className="hidden"
+        onChange={(e) => {
+          handlePicked("audio", e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
 
       {draft ? (
         <MediaDraftPreview
@@ -728,17 +746,17 @@ export function MessageComposer({
                 <ImageIcon className="mr-2 h-4 w-4" />
                 {t("photo")}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => videoInputRef.current?.click()}
-                disabled={whatsappOnlyDisabled}
-                title={whatsappOnlyDisabled ? t("telegramNotConnected") : undefined}
-              >
+              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
                 <Video className="mr-2 h-4 w-4" />
                 {t("video")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
                 <FileText className="mr-2 h-4 w-4" />
                 {t("document")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => audioInputRef.current?.click()}>
+                <FileText className="mr-2 h-4 w-4" />
+                Audio
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void startRecording()} disabled={whatsappOnlyDisabled}>
                 <Mic className="mr-2 h-4 w-4" />

@@ -671,11 +671,7 @@ export function MessageThread({
           onUpdateMessage(tempId, { status: 'failed' });
           return;
         }
-        if (payload.kind === 'video' || payload.kind === 'audio') {
-          toast.error('Video and voice messages are not yet available for Telegram. Image and documents only.');
-          onUpdateMessage(tempId, { status: 'failed' });
-          return;
-        }
+        // video/audio/voice file upload now supported for Telegram; map audio .ogg → voice
       }
       try {
         const res = await fetch(isTelegramSend ? "/api/telegram/send-media" : "/api/whatsapp/send", {
@@ -683,15 +679,21 @@ export function MessageThread({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             isTelegramSend
-              ? {
-                  conversation_id: conversation.id,
-                  media_url: payload.mediaUrl,
-                  media_kind: payload.kind,
-                  filename: payload.filename,
-                  caption: contentText,
-                  reply_to_message_id: payload.replyToId,
-                  ...(telegramKeyboard ? { reply_markup: JSON.stringify(telegramKeyboard) } : {}),
-                }
+              ? (() => {
+                  // Telegram voice file upload: .ogg/.oga → voice (sendVoice), other audio → audio (sendAudio)
+                  const ext = (payload.filename ?? payload.mediaUrl).toLowerCase().split('?')[0].split('.').pop() ?? '';
+                  const telegramKind =
+                    payload.kind === 'audio' && (ext === 'ogg' || ext === 'oga') ? 'voice' : payload.kind;
+                  return {
+                    conversation_id: conversation.id,
+                    media_url: payload.mediaUrl,
+                    media_kind: telegramKind,
+                    filename: payload.filename,
+                    caption: contentText,
+                    reply_to_message_id: payload.replyToId,
+                    ...(telegramKeyboard ? { reply_markup: JSON.stringify(telegramKeyboard) } : {}),
+                  };
+                })()
               : {
                   conversation_id: conversation.id,
                   message_type: payload.kind,
