@@ -80,9 +80,9 @@ export function EditorHeader() {
         <input
           value={state.name}
           onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
-          placeholder="Flow name"
+          placeholder="Automation name"
           spellCheck={false}
-          aria-label="Flow name"
+          aria-label="Automation name"
           className="min-w-[120px] max-w-[340px] rounded-lg border border-transparent bg-transparent px-2 py-1 text-lg font-bold leading-tight tracking-tight text-foreground outline-none transition-colors hover:bg-muted focus:border-primary focus:bg-transparent focus:shadow-[0_0_0_3px_var(--primary-soft)]"
         />
         <StatusChip status={state.status} />
@@ -169,13 +169,13 @@ export function EditorHeader() {
       </div>
 
       {/* ---- description note (subtle, inline-editable) ---- */}
-      <input
+        <input
         value={state.description}
         onChange={(e) =>
           setState((s) => ({ ...s, description: e.target.value }))
         }
         placeholder="Add a short description (internal — customers don't see this)"
-        aria-label="Flow description"
+        aria-label="Automation description"
         className="w-full max-w-[78ch] rounded-md border border-transparent bg-transparent px-2 py-1 text-[13px] text-muted-foreground outline-none transition-colors placeholder:text-muted-foreground/60 hover:bg-muted/50 focus:border-primary focus:bg-transparent focus:text-foreground"
       />
     </div>

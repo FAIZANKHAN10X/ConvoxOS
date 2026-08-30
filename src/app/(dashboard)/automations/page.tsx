@@ -329,7 +329,7 @@ export default function AutomationsPage() {
       const j = (await res.json()) as { automation: { id: string } }
       setCreateOpen(false)
       setNewName("")
-      router.push(`/automations/${j.automation.id}/edit`)
+      router.push(`/automations/${j.automation.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Create failed")
     } finally {
@@ -351,7 +351,7 @@ export default function AutomationsPage() {
       }
       const j = (await res.json()) as { flow: { id: string } }
       setCreateOpen(false)
-      router.push(`/flows/${j.flow.id}`)
+      router.push(`/automations/${j.flow.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Clone failed")
     } finally {
@@ -473,15 +473,9 @@ export default function AutomationsPage() {
               key={`${row.kind}:${row.id}`}
               row={row}
               onToggle={(next) => toggleActive(row, next)}
-              onEdit={() => {
-                if (row.kind === "automation") router.push(`/automations/${row.id}/edit`)
-                else router.push(`/flows/${row.id}`)
-              }}
+              onEdit={() => router.push(`/automations/${row.id}`)}
               onDuplicate={() => duplicate(row)}
-              onLogs={() => {
-                if (row.kind === "automation") router.push(`/automations/${row.id}/logs`)
-                else router.push(`/flows/${row.id}/runs`)
-              }}
+              onLogs={() => router.push(`/automations/${row.id}/runs`)}
               onDelete={() => setPendingDelete(row)}
             />
           ))}
@@ -492,12 +486,12 @@ export default function AutomationsPage() {
         <DialogContent className="sm:max-w-3xl bg-popover text-popover-foreground">
           <DialogHeader>
             <DialogTitle>Create automation</DialogTitle>
-            <DialogDescription>Start from a template or blank. Flows and automations are now automations — templates work on either engine compatibly.</DialogDescription>
+            <DialogDescription>Start from a template or blank.</DialogDescription>
           </DialogHeader>
 
           {flowTemplates.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Flow templates</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Templates</p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {flowTemplates.map((tpl) => {
                   const Icon = FLOW_ICON[tpl.icon] ?? FileText
