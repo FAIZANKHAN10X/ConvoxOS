@@ -22,6 +22,8 @@ import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
+import { dispatchText as dispatchChannelText, dispatchMedia as dispatchChannelMedia, dispatchInteractive as dispatchChannelInteractive } from '@/lib/channels/socket'
+import type { AutomationChannelTarget } from '@/types'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 
@@ -34,6 +36,8 @@ export interface AutomationContext {
   message_text?: string
   /** Conversation the event belongs to, if any. */
   conversation_id?: string
+  /** Channel that triggered this automation, if conversational. */
+  trigger_channel?: 'whatsapp' | 'telegram' | null
   /** Arbitrary variables accumulated during execution. */
   vars?: Record<string, unknown>
   /** The tag id that was added, for tag_added trigger. */
@@ -54,6 +58,20 @@ export interface DispatchInput {
   triggerType: AutomationTriggerType
   contactId?: string | null
   context?: AutomationContext
+}
+
+export function resolveAutomationChannelTarget(
+  rawTarget: string | null | undefined,
+  triggerChannel: string | null | undefined,
+): 'whatsapp' | 'telegram' | null {
+  const target = (rawTarget ?? null) as AutomationChannelTarget | null;
+  if (target == null) return 'whatsapp'; // legacy → whatsapp
+  if (target === 'current') {
+    if (triggerChannel === 'whatsapp' || triggerChannel === 'telegram') return triggerChannel;
+    return null;
+  }
+  if (target === 'whatsapp' || target === 'telegram') return target;
+  return null;
 }
 
 /**
@@ -365,40 +383,62 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
-      const { whatsapp_message_id } = await engineSendText({
+      const channel = resolveAutomationChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (args.context as unknown as { trigger_channel?: string | null })?.trigger_channel ?? null,
+      )
+      if (!channel) throw new Error('Current requires inbound channel — choose WhatsApp or Telegram explicitly')
+      const { providerMessageId } = await dispatchChannelText({
+        db,
         accountId: args.automation.account_id,
-        userId: args.automation.user_id,
         conversationId,
-        contactId: args.contactId,
+        channel,
         text,
       })
-      return `sent via Meta (${whatsapp_message_id})`
+      return `sent via ${channel} (${providerMessageId})`
     }
 
     case 'send_buttons':
     case 'send_list': {
       const payload = step.step_config as SendButtonsStepConfig | SendListStepConfig
       if (!args.contactId) throw new Error(`${step.step_type} needs a contact`)
-      // Validate against Meta's limits before the network call so a bad
-      // payload surfaces as a clear failed-step detail rather than a raw
-      // Meta 400 mid-conversation.
-      const check = validateInteractivePayload(payload)
-      if (!check.ok) throw new Error(check.error)
+      const channel = resolveAutomationChannelTarget(
+        (payload as unknown as { channel_target?: string }).channel_target,
+        (args.context as unknown as { trigger_channel?: string | null })?.trigger_channel ?? null,
+      )
+      if (!channel) throw new Error('Current requires inbound channel — choose WhatsApp or Telegram explicitly')
+      // Validate per-channel before network
+      if (channel === 'whatsapp') {
+        const check = validateInteractivePayload(payload)
+        if (!check.ok) throw new Error(check.error)
+      } else {
+        // Telegram inline keyboard validation will happen inside dispatch (via keyboard.ts)
+        // For Telegram, map WhatsApp buttons/list payload to inline keyboard if needed
+        // Keep payload as-is for socket dispatchInteractive which handles both
+      }
       const conversationId = await resolveConversationId(args)
-      const { whatsapp_message_id } = await engineSendInteractive({
+      const { providerMessageId } = await dispatchChannelInteractive({
+        db,
         accountId: args.automation.account_id,
-        userId: args.automation.user_id,
         conversationId,
-        contactId: args.contactId,
-        payload,
+        channel,
+        payload: payload as unknown as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | import('@/lib/whatsapp/interactive').InteractiveMessagePayload,
       })
-      return `interactive sent via Meta (${whatsapp_message_id})`
+      return `interactive sent via ${channel} (${providerMessageId})`
     }
 
     case 'send_template': {
       const cfg = step.step_config as SendTemplateStepConfig
       if (!args.contactId) throw new Error('send_template needs a contact')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
+      const channel = resolveAutomationChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (args.context as unknown as { trigger_channel?: string | null })?.trigger_channel ?? null,
+      )
+      if (channel && channel !== 'whatsapp') {
+        throw new Error('Templates are only supported for WhatsApp')
+      }
+      // Legacy missing channel_target → whatsapp (handled by resolve), explicit telegram should have thrown above
       const conversationId = await resolveConversationId(args)
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
@@ -697,6 +737,11 @@ export function matchesWholeWord(
 export function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
   if (automation.trigger_type === 'keyword_match') {
     const cfg = automation.trigger_config as KeywordMatchTriggerConfig
+    // Channel filter for message-related triggers
+    const cfgChannel = (cfg as unknown as { channel?: string }).channel
+    const ctxChannel = (ctx as unknown as { trigger_channel?: string | null })?.trigger_channel
+    if (cfgChannel && cfgChannel !== 'any' && ctxChannel && cfgChannel !== ctxChannel) return false
+    if (cfgChannel && cfgChannel !== 'any' && !ctxChannel) return false
     if (!cfg?.keywords || cfg.keywords.length === 0) return false
     const text = (ctx?.message_text ?? '').toString()
     if (!text) return false
@@ -717,6 +762,10 @@ export function triggerMatches(automation: Automation, ctx: AutomationContext | 
   // the reply id and sends the next step.
   if (automation.trigger_type === 'interactive_reply') {
     const cfg = automation.trigger_config as InteractiveReplyTriggerConfig
+    const cfgChannel = (cfg as unknown as { channel?: string }).channel
+    const ctxChannel = (ctx as unknown as { trigger_channel?: string | null })?.trigger_channel
+    if (cfgChannel && cfgChannel !== 'any' && ctxChannel && cfgChannel !== ctxChannel) return false
+    if (cfgChannel && cfgChannel !== 'any' && !ctxChannel) return false
     const replyId = ctx?.interactive_reply_id
     if (!replyId || !Array.isArray(cfg?.reply_ids) || cfg.reply_ids.length === 0) {
       return false

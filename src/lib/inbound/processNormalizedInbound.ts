@@ -370,6 +370,7 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
         message_text: inboundText,
         conversation_id: conversation.id,
         interactive_reply_id: interactiveReplyId ?? undefined,
+        trigger_channel: channel as 'whatsapp' | 'telegram' | null,
       },
     }).catch((err: unknown) => console.error('[automations] dispatch failed:', err))
   }
