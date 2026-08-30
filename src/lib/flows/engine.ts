@@ -156,6 +156,12 @@ export function isSuspending(node_type: string): boolean {
   );
 }
 
+export function waitMsForFlow(cfg: { amount?: number; unit?: string }): number {
+  const unit = cfg.unit === "days" ? 86_400_000 : cfg.unit === "minutes" ? 60_000 : 3_600_000
+  const amount = typeof cfg.amount === "number" && cfg.amount >= 1 ? cfg.amount : 1
+  return Math.max(1_000, amount * unit)
+}
+
 /** Nodes that end the run. */
 export function isTerminal(node_type: string): boolean {
   return node_type === "handoff" || node_type === "end";
@@ -874,7 +880,7 @@ async function advanceFromNodeKey(
       });
       continue;
     }
-    if (node.node_type === "set_tag") {
+     if (node.node_type === "set_tag") {
       const cfg = node.config as unknown as SetTagNodeConfig;
       try {
         if (cfg.mode === "add") {
@@ -905,6 +911,45 @@ async function advanceFromNodeKey(
       }
       currentKey = cfg.next_node_key;
       continue;
+    }
+    if (node.node_type === "wait") {
+      const cfg = node.config as unknown as { amount?: number; unit?: string; next_node_key?: string };
+      const ms = waitMsForFlow(cfg as { amount?: number; unit?: string });
+      const nextKey = (cfg.next_node_key ?? "") as string
+      // Persist timed suspension (reuses automation_pending_executions)
+      const runAt = new Date(Date.now() + ms).toISOString();
+      const pendingRow: Record<string, unknown> = {
+        automation_id: null,
+        flow_run_id: run.id,
+        account_id: run.account_id,
+        user_id: run.user_id,
+        contact_id: run.contact_id,
+        log_id: null,
+        parent_step_id: null,
+        branch: null,
+        next_step_position: 0,
+        context: {
+          next_node_key: nextKey,
+          vars: run.vars,
+          trigger_channel: (run as unknown as { trigger_channel?: string | null }).trigger_channel ?? null,
+          conversation_id: run.conversation_id,
+          flow_id: run.flow_id,
+        },
+        run_at: runAt,
+        status: "pending",
+      };
+      const { error: insErr } = await (db as unknown as { from: (t: string) => { insert: (r: unknown) => Promise<{ error: unknown }> } }).from("automation_pending_executions").insert(pendingRow);
+      if (insErr) {
+        await logEvent(db, run.id, "error", node.node_key, { reason: "wait_enqueue_failed", detail: String(insErr) });
+        await endRun(db, run.id, "failed", "wait_enqueue_failed");
+        return { outcome: "completed" };
+      }
+      await logEvent(db, run.id, "node_entered", node.node_key, { wait_amount: cfg.amount, wait_unit: cfg.unit, run_at: runAt, next_node_key: nextKey });
+      const advanced = await advanceCurrentNodeKey(db, run.id, run.current_node_key, node.node_key);
+      if (!advanced) {
+        await logEvent(db, run.id, "error", node.node_key, { reason: "lost_race_during_advance" });
+      }
+      return { outcome: "advanced" };
     }
     if (node.node_type === "send_buttons") {
       await sendButtonsAndSuspend(db, run, node);
@@ -1333,4 +1378,45 @@ async function startNewRun(
     flow_run_id: run.id,
     outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
   };
+}
+
+export async function resumeFlowWait(pending: {
+  id: string
+  flow_run_id: string
+  account_id: string
+  user_id: string
+  contact_id: string | null
+  context: Record<string, unknown>
+}): Promise<void> {
+  const db = supabaseAdmin()
+  const nextNodeKey = (pending.context as { next_node_key?: string })?.next_node_key
+  if (!nextNodeKey) {
+    await db.from("automation_pending_executions").update({ status: "failed" }).eq("id", pending.id)
+    return
+  }
+  // Load run to preserve vars + channel snapshot stored in pending.context
+  const { data: runData } = await db.from("flow_runs").select("*").eq("id", pending.flow_run_id).maybeSingle()
+  if (!runData) {
+    await db.from("automation_pending_executions").update({ status: "failed" }).eq("id", pending.id)
+    return
+  }
+  const run = runData as FlowRunRow
+  // Merge vars from pending (flow vars may have been updated before wait)
+  const pendingVars = (pending.context as { vars?: Record<string, unknown> })?.vars
+  if (pendingVars && typeof pendingVars === "object") {
+    // Keep pending's snapshot as truth for resume (vars preserved at suspend)
+    ;(run as unknown as { vars: Record<string, unknown> }).vars = { ...run.vars, ...pendingVars }
+  }
+  // Restore vars to DB before advancing so interpolation seeslatest
+  const mergedVars = (run as unknown as { vars: Record<string, unknown> }).vars
+  await db.from("flow_runs").update({ vars: mergedVars }).eq("id", run.id)
+
+  const nodes = await loadAllNodes(db, run.flow_id)
+  try {
+    await advanceFromNodeKey(db, run, nextNodeKey, nodes)
+    await db.from("automation_pending_executions").update({ status: "done" }).eq("id", pending.id)
+  } catch (err) {
+    console.error("[flows] resumeFlowWait failed:", err)
+    await db.from("automation_pending_executions").update({ status: "failed" }).eq("id", pending.id)
+  }
 }

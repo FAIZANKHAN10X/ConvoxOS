@@ -179,6 +179,12 @@ export interface SetTagNodeConfig {
   next_node_key: string;
 }
 
+export interface WaitNodeConfig {
+  amount: number;
+  unit: "minutes" | "hours" | "days";
+  next_node_key: string;
+}
+
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
@@ -201,6 +207,7 @@ export type FlowNodeConfig =
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
+  | { node_type: "wait"; config: WaitNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

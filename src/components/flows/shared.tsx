@@ -19,6 +19,7 @@
 import {
   Flag,
   GitFork,
+  Hourglass,
   Inbox,
   ListChecks,
   ListPlus,
@@ -49,6 +50,7 @@ export type NodeType =
   | 'collect_input'
   | 'condition'
   | 'set_tag'
+  | 'wait'
   | 'handoff'
   | 'end';
 
@@ -77,12 +79,13 @@ export interface BuilderNode {
 // the canvas, so `start` is just the entry point under Flow control.
 // ------------------------------------------------------------
 
-export type NodeCategory = 'messaging' | 'logic' | 'flow';
+export type NodeCategory = 'messaging' | 'logic' | 'timing' | 'flow';
 
 /** Category labels + the order they render in the add-step menu. */
 export const NODE_CATEGORIES: { id: NodeCategory; label: string }[] = [
   { id: 'messaging', label: 'Messaging' },
   { id: 'logic', label: 'Logic & data' },
+  { id: 'timing', label: 'Timing' },
   { id: 'flow', label: 'Flow control' },
 ];
 
@@ -152,6 +155,13 @@ export const NODE_META: Record<
     blurb: 'Adds or removes a contact tag',
     category: 'logic',
   },
+  wait: {
+    label: 'Wait',
+    icon: Hourglass,
+    color: 'text-amber-400',
+    blurb: 'Pauses minutes / hours / days',
+    category: 'timing',
+  },
   handoff: {
     label: 'Handoff to agent',
     icon: UserPlus,
@@ -205,6 +215,7 @@ const NODE_HUE: Record<NodeType, { l: number; c: number; h: number }> = {
   collect_input: { l: 0.65, c: 0.1, h: 185 }, // teal — capture
   condition: { l: 0.72, c: 0.15, h: 65 }, // amber — a fork in the road
   set_tag: { l: 0.65, c: 0.15, h: 350 }, // pink
+  wait: { l: 0.6, c: 0.12, h: 45 }, // amber-gold for wait
   handoff: { l: 0.65, c: 0.17, h: 16 }, // rose — hands off
   end: { l: 0.55, c: 0.01, h: 260 }, // neutral grey — terminal
 };
@@ -410,7 +421,7 @@ export function summarizeNode(
           : '';
       return subject === 'tag' ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
-    case 'set_tag': {
+  case 'set_tag': {
       const mode = cfg.mode === 'remove' ? (t ? t('modeRemove') : 'Remove') : (t ? t('modeAdd') : 'Add');
       const tagId = typeof cfg.tag_id === 'string' ? cfg.tag_id : '';
       // No tag name available without an async lookup here; show a
@@ -420,7 +431,13 @@ export function summarizeNode(
         ? t ? t('tagPicked', { mode, tag: tagId.slice(0, 8) }) : `${mode} tag ${tagId.slice(0, 8)}…`
         : t ? t('tagNone', { mode }) : `${mode} tag (none picked)`;
     }
-    case 'handoff': {
+  case 'wait': {
+      const amount = typeof cfg.amount === 'number' ? cfg.amount : null;
+      const unit = typeof cfg.unit === 'string' ? cfg.unit : '';
+      if (amount == null || !unit) return null;
+      return `${amount} ${unit}`;
+    }
+  case 'handoff': {
       const note = typeof cfg.note === 'string' ? cfg.note : '';
       return note.length > 0 ? truncate(note) : null;
     }

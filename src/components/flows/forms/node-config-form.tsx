@@ -242,6 +242,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "wait":
+      return (
+        <WaitForm
+          cfg={cfg as WaitCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "handoff":
       return (
         <TextRow
@@ -888,6 +898,65 @@ function SetTagForm({
 }
 
 
+
+// ============================================================
+// wait
+// ============================================================
+
+interface WaitCfg {
+  amount?: number;
+  unit?: "minutes" | "hours" | "days";
+  next_node_key?: string;
+}
+
+function WaitForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: WaitCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">Amount</label>
+          <Input
+            type="number"
+            min={1}
+            value={cfg.amount ?? 1}
+            onChange={(e) => onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })}
+            className="bg-muted"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">Unit</label>
+          <Select value={cfg.unit ?? "hours"} onValueChange={(v) => onUpdateConfig({ unit: v as WaitCfg["unit"] })}>
+            <SelectTrigger className="bg-muted">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">Minutes</SelectItem>
+              <SelectItem value="hours">Hours</SelectItem>
+              <SelectItem value="days">Days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label="Then advance to"
+      />
+    </>
+  );
+}
 
 // ============================================================
 // send_media

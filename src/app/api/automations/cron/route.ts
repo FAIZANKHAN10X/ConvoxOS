@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
+import { resumeFlowWait } from '@/lib/flows/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 
 /**
@@ -53,20 +54,30 @@ export async function GET(request: Request) {
       .maybeSingle()
     if (!claim) continue
 
-    await resumePendingExecution({
-      id: row.id as string,
-      automation_id: row.automation_id as string,
-      // account_id is NOT NULL on automation_pending_executions
-      // post-017; the engine uses it for tenant-scoped lookups.
-      account_id: row.account_id as string,
-      user_id: row.user_id as string,
-      contact_id: (row.contact_id as string | null) ?? null,
-      log_id: (row.log_id as string | null) ?? null,
-      parent_step_id: (row.parent_step_id as string | null) ?? null,
-      branch: (row.branch as 'yes' | 'no' | null) ?? null,
-      next_step_position: row.next_step_position as number,
-      context: (row.context as AutomationContext) ?? {},
-    })
+    // Flow waits reuse same table via flow_run_id
+    if ((row as unknown as { flow_run_id?: string | null }).flow_run_id) {
+      await resumeFlowWait({
+        id: row.id as string,
+        flow_run_id: (row as unknown as { flow_run_id: string }).flow_run_id as string,
+        account_id: row.account_id as string,
+        user_id: row.user_id as string,
+        contact_id: (row.contact_id as string | null) ?? null,
+        context: (row.context as Record<string, unknown>) ?? {},
+      })
+    } else {
+      await resumePendingExecution({
+        id: row.id as string,
+        automation_id: row.automation_id as string,
+        account_id: row.account_id as string,
+        user_id: row.user_id as string,
+        contact_id: (row.contact_id as string | null) ?? null,
+        log_id: (row.log_id as string | null) ?? null,
+        parent_step_id: (row.parent_step_id as string | null) ?? null,
+        branch: (row.branch as 'yes' | 'no' | null) ?? null,
+        next_step_position: row.next_step_position as number,
+        context: (row.context as AutomationContext) ?? {},
+      })
+    }
     processed++
   }
 
