@@ -82,6 +82,9 @@ vi.mock("./admin-client", () => {
 });
 
 const engineSendText = vi.fn(async () => ({ whatsapp_message_id: "wamid.1" }));
+const dispatchText = vi.fn(async () => ({ providerMessageId: "wamid.1", messageId: "msg-1" }));
+const dispatchMedia = vi.fn(async () => ({ providerMessageId: "wamid.2", messageId: "msg-2" }));
+const dispatchInteractive = vi.fn(async () => ({ providerMessageId: "wamid.3", messageId: "msg-3" }));
 
 vi.mock("./meta-send", () => ({
   engineSendText: (...a: unknown[]) =>
@@ -93,6 +96,18 @@ vi.mock("./meta-send", () => ({
   engineSendInteractiveList: vi.fn(async () => ({
     whatsapp_message_id: "wamid.4",
   })),
+}));
+
+vi.mock("@/lib/channels/socket", () => ({
+  dispatchText: (...a: unknown[]) => (dispatchText as unknown as (...x: unknown[]) => unknown)(...a),
+  dispatchMedia: (...a: unknown[]) => (dispatchMedia as unknown as (...x: unknown[]) => unknown)(...a),
+  dispatchInteractive: (...a: unknown[]) => (dispatchInteractive as unknown as (...x: unknown[]) => unknown)(...a),
+  resolveChannelTarget: (raw: string | null | undefined, trigger: string | null | undefined) => {
+    if (raw == null) return "whatsapp";
+    if (raw === "current") return trigger ?? null;
+    if (raw === "whatsapp" || raw === "telegram") return raw;
+    return null;
+  },
 }));
 
 import { dispatchInboundToFlows, entryTriggerTexts } from "./engine";
@@ -221,8 +236,12 @@ describe("dispatchInboundToFlows — entry triggers (#490)", () => {
       h.state.inserted.filter((i) => i.table === "flow_runs"),
     ).toHaveLength(1);
     expect(h.state.rpcCalls).toContain("increment_flow_execution_count");
-    // The flow really ran, not just got created.
-    expect(engineSendText).toHaveBeenCalledTimes(1);
+    // The flow really ran, not just got created — now via Channel Socket for WhatsApp
+    expect(dispatchText).toHaveBeenCalledTimes(1);
+    const call = (dispatchText as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0] as {
+      channel: string;
+    };
+    expect(call.channel).toBe("whatsapp");
   });
 
   it("matches on the reply id when the visible title does not", async () => {

@@ -139,6 +139,7 @@ export interface CollectInputNodeConfig {
   regex?: string;
   /** Node to advance to after capture. */
   next_node_key: string;
+  channel_target?: ChannelTarget;
 }
 
 export type ConditionOperator =
@@ -340,6 +341,8 @@ export type ParsedInbound =
       meta_message_id: string;
     };
 
+export type FlowChannel = "whatsapp" | "telegram";
+
 export interface DispatchInboundInput {
   /** Account tenancy key. Drives the lookup of active flows and the
    *  idempotency check for previously-seen inbound message_ids. */
@@ -350,6 +353,8 @@ export interface DispatchInboundInput {
   contactId: string;
   conversationId: string;
   message: ParsedInbound;
+  /** Channel of the inbound NormalizedInbound that triggered this dispatch. Snapshot for Current. */
+  channel?: FlowChannel | null;
 }
 
 export interface DispatchInboundResult {

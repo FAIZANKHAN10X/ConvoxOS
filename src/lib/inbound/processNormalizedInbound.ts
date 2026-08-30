@@ -338,7 +338,7 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
     await flagBroadcastReplyIfAny(accountId, contactRecord.id)
   }
 
-  // 13) flows
+  // 13) flows — channel-aware trigger snapshot
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
@@ -348,6 +348,7 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
       ? { kind: 'interactive_reply', reply_id: interactiveReplyId, reply_title: contentText ?? '', meta_message_id: providerMessageId }
       : { kind: 'text', text: contentText ?? '', meta_message_id: providerMessageId },
     isFirstInboundMessage,
+    channel: channel as import('@/lib/flows/types').FlowChannel,
   })
   const flowConsumed = flowResult.consumed
 

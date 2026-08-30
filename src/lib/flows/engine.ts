@@ -39,6 +39,12 @@ import {
   engineSendMedia,
   engineSendText,
 } from "./meta-send";
+import {
+  dispatchMedia as dispatchChannelMedia,
+  dispatchText as dispatchChannelText,
+  dispatchInteractive as dispatchChannelInteractive,
+} from "@/lib/channels/socket";
+import type { ChannelTarget, FlowChannel } from "./types";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { addContactTagAndDispatch } from "@/lib/contacts/tag-events";
 import { removeContactTag } from "@/lib/contacts/tag-write";
@@ -156,6 +162,37 @@ export function isSuspending(node_type: string): boolean {
 /** Nodes that end the run. */
 export function isTerminal(node_type: string): boolean {
   return node_type === "handoff" || node_type === "end";
+}
+
+/**
+ * Resolve `channel_target` for a send node — legacy nodes without the
+ * field must stay WhatsApp (frozen compat), new nodes default to
+ * `current` which snapshots FlowRun.trigger_channel.
+ */
+export function resolveChannelTarget(
+  rawTarget: string | null | undefined,
+  triggerChannel: FlowChannel | null | undefined,
+): FlowChannel | null {
+  const target = (rawTarget ?? null) as ChannelTarget | null;
+  // Legacy: no field → whatsapp (preserve WhatsApp flows)
+  if (target == null) return "whatsapp";
+  if (target === "current") {
+    if (!triggerChannel) return null;
+    return triggerChannel;
+  }
+  if (target === "whatsapp" || target === "telegram") return target as FlowChannel;
+  return null;
+}
+
+export function triggerChannelMatches(
+  triggerConfig: Record<string, unknown> | null | undefined,
+  inboundChannel: FlowChannel | null | undefined,
+): boolean {
+  if (!triggerConfig || typeof triggerConfig !== "object") return true;
+  const cfgChannel = (triggerConfig as { channel?: string }).channel;
+  if (!cfgChannel || cfgChannel === "any") return true;
+  if (!inboundChannel) return true; // non-conversational trigger has no channel to filter
+  return cfgChannel === inboundChannel;
 }
 
 /**
@@ -337,6 +374,7 @@ async function findEntryFlow(
   accountId: string,
   message: ParsedInbound,
   isFirstInbound: boolean,
+  inboundChannel: FlowChannel | null | undefined,
 ): Promise<FlowRow | null> {
   // A tap used to be rejected outright here, on the reasoning that
   // interactive replies are responses to existing prompts. That holds
@@ -361,6 +399,7 @@ async function findEntryFlow(
 
   const typed = flows as FlowRow[];
   for (const flow of typed) {
+    if (!triggerChannelMatches(flow.trigger_config as Record<string, unknown>, inboundChannel)) continue;
     if (flow.trigger_type === "keyword") {
       const cfg = flow.trigger_config as KeywordTriggerConfig;
       if (candidates.some((text) => matchesKeywordTrigger(text, cfg))) {
@@ -392,26 +431,55 @@ async function sendButtonsAndSuspend(
   node: FlowNodeRow,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
-  const { whatsapp_message_id } = await engineSendInteractiveButtons({
-    accountId: run.account_id,
-    userId: run.user_id,
-    conversationId: run.conversation_id!,
-    contactId: run.contact_id!,
-    bodyText: cfg.text,
-    headerText: cfg.header_text,
-    footerText: cfg.footer_text,
-    buttons: cfg.buttons.map((b) => ({ id: b.reply_id, title: b.title })),
-  });
+  const channel = resolveChannelTarget(
+    (cfg as unknown as { channel_target?: string }).channel_target,
+    (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+  );
+  if (!channel) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "channel_target_missing",
+      detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
+    });
+    throw new Error("channel_target_missing");
+  }
+  let providerMessageId: string;
+  if (channel === "telegram") {
+    const markup = {
+      inline_keyboard: cfg.buttons.map((b) => [{ text: b.title, callback_data: b.reply_id }]),
+    };
+    const { providerMessageId: pm } = await dispatchChannelText({
+      db: supabaseAdmin(),
+      accountId: run.account_id,
+      conversationId: run.conversation_id!,
+      channel: "telegram",
+      text: cfg.text,
+      inlineKeyboard: markup as unknown as import("@/lib/channels/telegram/keyboard").TelegramInlineMarkup,
+    });
+    providerMessageId = pm;
+  } else {
+    const { whatsapp_message_id } = await engineSendInteractiveButtons({
+      accountId: run.account_id,
+      userId: run.user_id,
+      conversationId: run.conversation_id!,
+      contactId: run.contact_id!,
+      bodyText: cfg.text,
+      headerText: cfg.header_text,
+      footerText: cfg.footer_text,
+      buttons: cfg.buttons.map((b) => ({ id: b.reply_id, title: b.title })),
+    });
+    providerMessageId = whatsapp_message_id;
+  }
   await logEvent(db, run.id, "message_sent", node.node_key, {
     node_type: "send_buttons",
-    whatsapp_message_id,
+    whatsapp_message_id: providerMessageId,
+    channel,
   });
   // Look up our internal message id so we can stash it on the run.
   // Cheap — indexed on `messages.message_id`.
   const { data: msg } = await db
     .from("messages")
     .select("id")
-    .eq("message_id", whatsapp_message_id)
+    .eq("message_id", providerMessageId)
     .maybeSingle();
   await db
     .from("flow_runs")
@@ -428,32 +496,63 @@ async function sendListAndSuspend(
   node: FlowNodeRow,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendListNodeConfig;
-  const { whatsapp_message_id } = await engineSendInteractiveList({
-    accountId: run.account_id,
-    userId: run.user_id,
-    conversationId: run.conversation_id!,
-    contactId: run.contact_id!,
-    bodyText: cfg.text,
-    buttonLabel: cfg.button_label,
-    headerText: cfg.header_text,
-    footerText: cfg.footer_text,
-    sections: cfg.sections.map((s) => ({
-      title: s.title,
-      rows: s.rows.map((r) => ({
-        id: r.reply_id,
-        title: r.title,
-        description: r.description,
+  const channel = resolveChannelTarget(
+    (cfg as unknown as { channel_target?: string }).channel_target,
+    (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+  );
+  if (!channel) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "channel_target_missing",
+      detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
+    });
+    throw new Error("channel_target_missing");
+  }
+  let providerMessageId: string;
+  if (channel === "telegram") {
+    // Map list sections/rows to inline keyboard rows (each row is a button)
+    const markup = {
+      inline_keyboard: cfg.sections.flatMap((s) => s.rows.map((r) => [{ text: r.title, callback_data: r.reply_id }])),
+    };
+    // For Telegram, list text becomes message text with inline keyboard
+    const { providerMessageId: pm } = await dispatchChannelText({
+      db: supabaseAdmin(),
+      accountId: run.account_id,
+      conversationId: run.conversation_id!,
+      channel: "telegram",
+      text: cfg.text,
+      inlineKeyboard: markup as unknown as import("@/lib/channels/telegram/keyboard").TelegramInlineMarkup,
+    });
+    providerMessageId = pm;
+  } else {
+    const { whatsapp_message_id } = await engineSendInteractiveList({
+      accountId: run.account_id,
+      userId: run.user_id,
+      conversationId: run.conversation_id!,
+      contactId: run.contact_id!,
+      bodyText: cfg.text,
+      buttonLabel: cfg.button_label,
+      headerText: cfg.header_text,
+      footerText: cfg.footer_text,
+      sections: cfg.sections.map((s) => ({
+        title: s.title,
+        rows: s.rows.map((r) => ({
+          id: r.reply_id,
+          title: r.title,
+          description: r.description,
+        })),
       })),
-    })),
-  });
+    });
+    providerMessageId = whatsapp_message_id;
+  }
   await logEvent(db, run.id, "message_sent", node.node_key, {
     node_type: "send_list",
-    whatsapp_message_id,
+    whatsapp_message_id: providerMessageId,
+    channel,
   });
   const { data: msg } = await db
     .from("messages")
     .select("id")
-    .eq("message_id", whatsapp_message_id)
+    .eq("message_id", providerMessageId)
     .maybeSingle();
   await db
     .from("flow_runs")
@@ -613,17 +712,30 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
+      const channel = resolveChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+      );
+      if (!channel) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "channel_target_missing",
+          detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
+        });
+        await endRun(db, run.id, "failed", "channel_target_missing");
+        return { outcome: "completed" };
+      }
       try {
-        const { whatsapp_message_id } = await engineSendText({
+        const { providerMessageId } = await dispatchChannelText({
+          db: supabaseAdmin(),
           accountId: run.account_id,
-    userId: run.user_id,
           conversationId: run.conversation_id!,
-          contactId: run.contact_id!,
+          channel,
           text: interpolateVars(cfg.text, run.vars),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",
-          whatsapp_message_id,
+          whatsapp_message_id: providerMessageId,
+          channel,
         });
       } catch (err) {
         await logEvent(db, run.id, "error", node.node_key, {
@@ -638,23 +750,35 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_media") {
       const cfg = node.config as unknown as SendMediaNodeConfig;
+      const channel = resolveChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+      );
+      if (!channel) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "channel_target_missing",
+          detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
+        });
+        await endRun(db, run.id, "failed", "channel_target_missing");
+        return { outcome: "completed" };
+      }
       try {
-        const { whatsapp_message_id } = await engineSendMedia({
+        const mediaKind = cfg.media_type as "image" | "video" | "document" | "audio" | "voice";
+        const { providerMessageId } = await dispatchChannelMedia({
+          db: supabaseAdmin(),
           accountId: run.account_id,
-    userId: run.user_id,
           conversationId: run.conversation_id!,
-          contactId: run.contact_id!,
-          kind: cfg.media_type,
-          link: cfg.media_url,
-          caption: cfg.caption
-            ? interpolateVars(cfg.caption, run.vars)
-            : undefined,
+          channel,
+          mediaKind,
+          mediaUrl: cfg.media_url,
+          caption: cfg.caption ? interpolateVars(cfg.caption, run.vars) : undefined,
           filename: cfg.filename,
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_media",
           media_type: cfg.media_type,
-          whatsapp_message_id,
+          whatsapp_message_id: providerMessageId,
+          channel,
         });
       } catch (err) {
         await logEvent(db, run.id, "error", node.node_key, {
@@ -671,22 +795,35 @@ async function advanceFromNodeKey(
       // Send the prompt and suspend. Customer's next TEXT reply will
       // wake us up via handleReplyForActiveRun's collect_input branch.
       const cfg = node.config as unknown as CollectInputNodeConfig;
+      const channel = resolveChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+      );
+      if (!channel) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "channel_target_missing",
+          detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
+        });
+        await endRun(db, run.id, "failed", "channel_target_missing");
+        return { outcome: "completed" };
+      }
       try {
-        const { whatsapp_message_id } = await engineSendText({
+        const { providerMessageId } = await dispatchChannelText({
+          db: supabaseAdmin(),
           accountId: run.account_id,
-    userId: run.user_id,
           conversationId: run.conversation_id!,
-          contactId: run.contact_id!,
+          channel,
           text: interpolateVars(cfg.prompt_text, run.vars),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "collect_input",
-          whatsapp_message_id,
+          whatsapp_message_id: providerMessageId,
+          channel,
         });
         const { data: msg } = await db
           .from("messages")
           .select("id")
-          .eq("message_id", whatsapp_message_id)
+          .eq("message_id", providerMessageId)
           .maybeSingle();
         await db
           .from("flow_runs")
@@ -904,6 +1041,7 @@ export async function dispatchInboundToFlows(
       input.accountId,
       input.message,
       input.isFirstInboundMessage,
+      (input.channel as FlowChannel | null) ?? null,
     );
     if (!flow || !flow.entry_node_id) {
       return { consumed: false, outcome: "no_match" };
@@ -1051,19 +1189,30 @@ async function handleReplyForActiveRun(
       // Customer typed something we couldn't accept (empty after trim,
       // or var_key missing — rare). Re-send the prompt so they try again.
       const cfg = currentNode.config as unknown as CollectInputNodeConfig;
-      try {
-        await engineSendText({
-          accountId: run.account_id,
-    userId: run.user_id,
-          conversationId: run.conversation_id!,
-          contactId: run.contact_id!,
-          text: interpolateVars(cfg.prompt_text, run.vars),
-        });
-      } catch (err) {
+      const channel = resolveChannelTarget(
+        (cfg as unknown as { channel_target?: string }).channel_target,
+        (run as unknown as { trigger_channel?: FlowChannel | null }).trigger_channel ?? null,
+      );
+      if (!channel) {
         await logEvent(db, run.id, "error", currentNode.node_key, {
-          reason: "reprompt_send_failed",
-          detail: err instanceof Error ? err.message : String(err),
+          reason: "channel_target_missing",
+          detail: "Current requires inbound channel — choose WhatsApp or Telegram explicitly",
         });
+      } else {
+        try {
+          await dispatchChannelText({
+            db: supabaseAdmin(),
+            accountId: run.account_id,
+            conversationId: run.conversation_id!,
+            channel,
+            text: interpolateVars(cfg.prompt_text, run.vars),
+          });
+        } catch (err) {
+          await logEvent(db, run.id, "error", currentNode.node_key, {
+            reason: "reprompt_send_failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
     return { consumed: true, flow_run_id: run.id, outcome: "fallback_fired" };
@@ -1111,7 +1260,8 @@ async function startNewRun(
       conversation_id: input.conversationId,
       status: "active",
       current_node_key: flow.entry_node_id,
-    })
+      trigger_channel: (input.channel as FlowChannel | null) ?? null,
+    } as unknown as Record<string, unknown>)
     .select("*")
     .maybeSingle();
   if (insErr) {
