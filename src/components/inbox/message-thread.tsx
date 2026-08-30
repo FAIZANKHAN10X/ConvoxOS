@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useChannelStatus } from "@/hooks/use-channel-status";
 import { usePresence } from "@/hooks/use-presence";
 import { PresenceDot } from "@/components/presence/presence-dot";
 import { presenceLabel } from "@/lib/presence";
@@ -211,7 +212,7 @@ export function MessageThread({
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   // Explicit outbound channel — local/thread state only, not persisted.
   const [selectedChannel, setSelectedChannel] = useState<Channel>('whatsapp');
-  const [telegramConnected, setTelegramConnected] = useState<boolean | null>(null);
+  const { telegramConnected } = useChannelStatus();
   // Telegram inline keyboard — per-thread builder state, cleared after send.
   const [telegramKeyboard, setTelegramKeyboard] = useState<import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | null>(null);
   // Which attachment the media viewer is showing. Lives here rather than in
@@ -247,43 +248,7 @@ export function MessageThread({
     };
   }, []);
 
-  // Telegram connection — account-wide, mirrors WhatsAppConnected in inbox/page.tsx
-  // Explicit account_id filter (consistent with existing architecture) rather than RLS-only maybeSingle.
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = createClient();
-    (async () => {
-      const userId = user?.id;
-      if (!userId) {
-        if (!cancelled) setTelegramConnected(false);
-        return;
-      }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      const accountId = profile?.account_id as string | undefined;
-      if (!accountId) {
-        if (!cancelled) setTelegramConnected(false);
-        return;
-      }
-      const { data, error } = await supabase
-        .from("telegram_config")
-        .select("status")
-        .eq("account_id", accountId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error) {
-        setTelegramConnected(false);
-        return;
-      }
-      setTelegramConnected(data?.status === "connected");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [conversation?.id, user?.id]);
+  // telegramConnected now hoisted via useChannelStatus (account-wide, not per-thread)
 
   // Derive available channels from contact
   const hasWhatsApp = !!contact?.phone;
@@ -390,7 +355,8 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .range(0, 199);
 
       if (cancelled) return;
 
@@ -428,7 +394,8 @@ export function MessageThread({
       const { data, error } = await supabase
         .from("message_reactions")
         .select("*")
-        .eq("conversation_id", conversationId);
+        .eq("conversation_id", conversationId)
+        .limit(200);
       if (cancelled) return;
       if (error) {
         console.error("Failed to fetch reactions:", error);
