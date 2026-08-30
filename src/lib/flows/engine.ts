@@ -232,33 +232,35 @@ export function evaluateConditionPredicate(args: {
 
 type AdminClient = ReturnType<typeof supabaseAdmin>;
 
-async function loadActiveRunForContact(
+async function loadActiveRunsForContact(
   db: AdminClient,
   accountId: string,
   contactId: string,
-): Promise<FlowRunRow | null> {
-  // The partial unique index `idx_one_active_run_per_contact` was
-  // rebuilt in migration 017 over `(account_id, contact_id)` — so
-  // "two active runs for one contact in one account" is impossible
-  // by design. But a future migration glitch or manual SQL could
-  // create one, and .maybeSingle() throws on >1 row — which would
-  // kill dispatch for that contact's webhook entirely. .limit(1) is
-  // forgiving: pick the newest, let the cron sweep clean up the
-  // stale one.
+): Promise<FlowRunRow[]> {
+  // Per-flow uniqueness (044): one active run per (account,contact,flow) —
+  // so Telegram Flow A + WhatsApp Flow B can both wait for same contact.
   const { data, error } = await db
     .from("flow_runs")
     .select("*")
     .eq("account_id", accountId)
     .eq("contact_id", contactId)
     .eq("status", "active")
-    .order("started_at", { ascending: false })
-    .limit(1);
+    .order("started_at", { ascending: false });
   if (error) {
-    console.error("[flows] loadActiveRunForContact error:", error.message);
-    return null;
+    console.error("[flows] loadActiveRunsForContact error:", error.message);
+    return [];
   }
-  const rows = (data as FlowRunRow[] | null) ?? [];
-  return rows[0] ?? null;
+  return (data as FlowRunRow[] | null) ?? [];
+}
+
+// Backward compat single-run helper (kept for tests that mock it)
+async function loadActiveRunForContact(
+  db: AdminClient,
+  accountId: string,
+  contactId: string,
+): Promise<FlowRunRow | null> {
+  const runs = await loadActiveRunsForContact(db, accountId, contactId);
+  return runs[0] ?? null;
 }
 
 async function loadFlow(
@@ -1006,16 +1008,12 @@ export async function dispatchInboundToFlows(
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   try {
-    const activeRun = await loadActiveRunForContact(
-      db,
-      input.accountId,
-      input.contactId,
-    );
+    const activeRuns = await loadActiveRunsForContact(db, input.accountId, input.contactId);
 
     // Idempotency — only matters if there's already a run for this
-    // contact. For new runs, the partial unique index catches duplicate
+    // contact. For new runs, the partial unique index (per-flow) catches duplicate
     // starts at INSERT time.
-    if (activeRun) {
+    if (activeRuns.length > 0) {
       const dupe = await isDuplicateInbound(
         db,
         input.accountId,
@@ -1025,14 +1023,50 @@ export async function dispatchInboundToFlows(
       if (dupe) {
         return {
           consumed: true,
-          flow_run_id: activeRun.id,
+          flow_run_id: activeRuns[0].id,
           outcome: "duplicate_inbound_ignored",
         };
       }
-      // One SELECT for the whole flow's nodes — advance loop is now
-      // in-memory. See loadAllNodes.
-      const nodes = await loadAllNodes(db, activeRun.flow_id);
-      return handleReplyForActiveRun(db, activeRun, input.message, nodes);
+      // Channel-aware resume: try each active run in started_at desc order
+      const inboundChannel = (input.channel as string | null) ?? null;
+      let matchedRun: FlowRunRow | null = null;
+      let matchedNodes: Map<string, FlowNodeRow> | null = null;
+      for (const run of activeRuns) {
+        const runChannel = (run as unknown as { trigger_channel?: string | null }).trigger_channel ?? null;
+        if (runChannel && inboundChannel && runChannel !== inboundChannel) continue;
+        const nodes = await loadAllNodes(db, run.flow_id);
+        const currentNode = run.current_node_key ? nodes.get(run.current_node_key) ?? null : null;
+        if (!currentNode) continue;
+        let matches = false;
+        if (
+          input.message.kind === "interactive_reply" &&
+          (currentNode.node_type === "send_buttons" || currentNode.node_type === "send_list")
+        ) {
+          if (input.message.reply_id && matchReplyId(currentNode, input.message.reply_id)) matches = true;
+        } else if (input.message.kind === "text" && currentNode.node_type === "collect_input") {
+          if (input.message.text.trim().length > 0) matches = true;
+        } else {
+          // Non-matching kind for this node — will go through fallback path, still a candidate
+          matches = true;
+        }
+        if (matches) {
+          if (matchedRun) {
+            console.warn("[flows] ambiguous resume: multiple runs match inbound", {
+              contactId: input.contactId,
+              inboundChannel,
+              candidates: [matchedRun.id, run.id],
+            });
+            continue;
+          }
+          matchedRun = run;
+          matchedNodes = nodes;
+        }
+      }
+      if (matchedRun && matchedNodes) {
+        return handleReplyForActiveRun(db, matchedRun, input.message, matchedNodes);
+      }
+      // No active run matched this inbound's channel/reply — fall through to entry trigger
+      // (do not consume; let findEntryFlow or automations handle)
     }
 
     // No active run → look for a flow whose entry trigger matches.
