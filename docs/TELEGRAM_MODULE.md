@@ -1,6 +1,6 @@
 # Telegram Module
 
-Source of truth for Telegram as the first external channel plug. Based on actual repository code at `main:5cacc35` (media milestone). Every capability is classified `IMPLEMENTED / PARTIALLY IMPLEMENTED / NOT IMPLEMENTED / NOT APPLICABLE / UNKNOWN` — `UNKNOWN` is never silently guessed.
+Source of truth for Telegram as the first external channel plug. Based on actual repository code at `main:c156bb8` (final gap: video/audio/voice). Every capability is classified `IMPLEMENTED / PARTIALLY IMPLEMENTED / NOT IMPLEMENTED / NOT APPLICABLE / UNKNOWN` — `UNKNOWN` is never silently guessed.
 
 Related: `docs/CHANNEL_ARCHITECTURE.md`, `docs/CHANNEL_MODULE.md`, `docs/CHANNEL_CONNECTIONS.md`, `ROADMAP.md`, `PROGRESS.md`.
 
@@ -10,7 +10,7 @@ Prove the **channel socket** boundary without rewriting WhatsApp. Telegram valid
 
 ## Current Status
 
-Phase 4 `COMPLETE`; media milestone (inbound + outbound images/documents) shipped. General media placeholder `[media]` now only for audio/voice/video/sticker (deferred).
+Phase 4 `COMPLETE`; media milestone (photo/document) + inline keyboards + final gap (video/audio/voice file upload) shipped. Only animation/video_note/sticker and Telegram-only reactions remain deferred by design.
 
 | Area | Status since |
 |---|---|
@@ -20,7 +20,8 @@ Phase 4 `COMPLETE`; media milestone (inbound + outbound images/documents) shippe
 | Text outbound + replies | Phase 2 |
 | Channel-aware Inbox (`Reply via`) | Phase 2 + Phase 3 |
 | Connection lifecycle (connect/validate/webhook/disconnect) | Phase 4 |
-| Inbound media mirror (photo/document) + outbound image/document | Media milestone (this update) |
+| Inbound media mirror (photo/document/video/audio/voice) + outbound image/document/video/audio/voice | Media milestones (photo/doc → video/audio/voice) |
+| Inline keyboards (callback/url + answerCallbackQuery) | Inline milestone |
 
 ## Architecture
 
@@ -31,13 +32,13 @@ Telegram Bot API
    ├── X-Telegram-Bot-Api-Secret-Token header verification
    ├── POST /api/telegram/webhook/[configId]  (PK lookup, never scans bot_token)
    ├── normalizeTelegramUpdate → NormalizedInbound{channel:'telegram'}
-   │      + telegram/mirror.ts → chat-media/telegram/ (photo/document)
+   │      + telegram/mirror.ts → chat-media/telegram/ (photo/document/video/audio/voice)
    ├── processNormalizedInbound (shared: findOrCreateContactUnified → conversation → message → bump → reopen → flows/automations/AI → webhooks)
-   ├── sendTelegramText → POST bot<token>/sendMessage
-   ├── sendTelegramMedia → POST bot<token>/sendPhoto|sendDocument via public chat-media URL
+   ├── sendTelegramText → POST bot<token>/sendMessage (+ reply_markup)
+   ├── sendTelegramMedia → POST bot<token>/sendPhoto|sendDocument|sendVideo|sendAudio|sendVoice via public chat-media URL (+ reply_markup)
    ├── GET/POST/DELETE /api/telegram/config (admin write, viewer read)
-   ├── POST /api/telegram/send + POST /api/telegram/send-media (agent)
-   ├── src/lib/channels/telegram/api.ts + mirror.ts helpers
+   ├── POST /api/telegram/send + POST /api/telegram/send-media (agent, reply_markup validated)
+   ├── src/lib/channels/telegram/api.ts + mirror.ts + keyboard.ts helpers
    └── Settings → Channels → Telegram card (telegram-config.tsx + channels-panel.tsx)
 ```
 
@@ -121,21 +122,21 @@ Pure mapper, no DB/decrypt.
 
 ## Outbound Pipeline
 
-### Text (`src/lib/channels/telegram/send.ts:204` + `src/app/api/telegram/send/route.ts:129`)
+### Text (`src/lib/channels/telegram/send.ts:215` + `src/app/api/telegram/send/route.ts:154`)
 
-- `sendTelegramText` — decrypt token (self-heal), `chat_id = telegram_chat_id ?? telegram_user_id`, `POST bot<token>/sendMessage {chat_id,text,reply_to_message_id?}`, `4096` limit `30`, `messages{channel:'telegram', content_type:'text', message_id:tg_<chat>_<id>, status:'sent', reply_to_message_id}`, `conversations.last_message_*`, `flow_runs paused_by_agent` via `supabaseAdmin`.
-- Route — thin, validates `conversation_id|contact_id + content_text` before `findOrCreateConversation`, `requireRole('agent')` before decrypt, `checkRateLimit`.
-- **IMPLEMENTED.** Graceful reply degrade if parent `tg_…` missing.
+- `sendTelegramText` — decrypt token (self-heal), `chat_id = telegram_chat_id ?? telegram_user_id`, `POST bot<token>/sendMessage {chat_id,text,reply_to_message_id?, reply_markup?}`, `4096` limit `30`, `messages{channel:'telegram', content_type: interactive|text, interactive_payload telegram_inline when reply_markup, message_id:tg_<chat>_<id>}`, `flow_runs paused_by_agent`.
+- Route — validates `content_text` + `reply_markup` (JSON `inline_keyboard` via `keyboard.ts:117` before decrypt), `requireRole('agent')` + account scoping.
+- **IMPLEMENTED.** Graceful reply degrade.
 
-### Images + Documents (`src/lib/channels/telegram/send-media.ts:169` + `POST /api/telegram/send-media:80`)
+### Images + Documents + Video + Audio + Voice (`src/lib/channels/telegram/send-media.ts:178` + `POST /api/telegram/send-media:98`)
 
-- `sendTelegramMedia` — same tenancy/decrypt/legacy handling as text, validates `mediaUrl` + `1024` caption, resolves `reply_to_message_id` same as text, `POST bot<token>/sendPhoto {photo:mediaUrl, caption?}` for `image` vs `sendDocument {document:mediaUrl, caption?}` for `document` via public `chat-media` URL (`api.ts` not needed; direct fetch), persists `messages{channel:'telegram', content_type:image|document, media_url, media_type, content_text:caption|filename}`.
-- Route — `requireRole('agent')` + `checkRateLimit`, `media_url + media_kind image|document` required, `contact_id→findOrCreateConversation` same as text.
-- **IMPLEMENTED** for `image` + `document`. **NOT IMPLEMENTED** `video/audio/voice` (deferred).
+- `sendTelegramMedia` — same tenancy/decrypt/legacy as text, validates `mediaUrl` + `1024` caption + audio/voice MIME (`audio .MP3/.M4A`, `voice .OGG/.MP3/.M4A`) before Telegram, `POST bot<token>/sendPhoto {photo} | sendDocument {document} | sendVideo {video} | sendAudio {audio} | sendVoice {voice}` via `chat-media` public URL + `reply_markup` inline keyboard (all five support `reply_markup` per Bot API). Persists `messages{channel:'telegram', content_type: interactive|image|video|audio|document, media_url, media_type: image/jpeg|video/mp4|audio/mpeg|audio/ogg|application/octet-stream, content_text: caption|filename, interactive_payload when keyboard}`.
+- Route — `requireRole('agent')` + `checkRateLimit`, `media_url + media_kind image|document|video|audio|voice` + `reply_markup?` (validated), `contact_id→findOrCreateConversation`.
+- **IMPLEMENTED** for `image|document|video|audio|voice` (voice file upload — `audio .ogg` mapped to `voice` `sendVoice`, caption `0-1024` supported per `#sendvoice`; no `opus-recorder`, no new `voice` ContentType — persisted as `audio`).
 
 ### Other outbound types
 
-- Video / audio / voice / location / interactive / templates / broadcasts / reactions / typing / edit / delete — **NOT IMPLEMENTED**. `api.ts:120` only `getMe/setWebhook/deleteWebhook/getWebhookInfo/getFile/download`; composer now allows image+document for Telegram, video/voice still blocked.
+- Location / templates / broadcasts / reactions / typing / edit / delete / `sendVideoNote` — **NOT IMPLEMENTED**. `api.ts:168` now has `answerCallbackQuery` + `getFile/download`; `video_note` deferred (no `ContentType voice` needed).
 
 ## Inbox Integration
 
@@ -143,7 +144,7 @@ Pure mapper, no DB/decrypt.
 - **Summary/filter:** `summarizeConversationChannels(messages)` derives `channels[]/latestChannel` from `messages.channel`; `matchesChannelFilter` mixed appears in both. IMPLEMENTED (`phase-3` `27b2d9a`).
 - **Reply via:** `message-thread:212 selectedChannel` per-thread state, default last inbound `channel` when both `307`, `telegramConnected` via `telegram_config status` `248`, branching `fetch /api/telegram/send vs /api/telegram/send-media vs /api/whatsapp/send` (`587` + `660` media branch). IMPLEMENTED.
 - **Blocked states:** `message-composer:204 telegramBlocked=isTelegram&&!telegramConnected` banner `605`, `whatsappBlocked=isWhatsApp&&sessionExpired` (`session.ts:684eb59` isolation — Telegram never extends WA 24h). IMPLEMENTED.
-- **Media:** composer `message-composer:207` image+document enabled for Telegram, video/voice still `disabled` (deferred); template/interactive remain WhatsApp-only `774`. `message-bubble.tsx:76` generic `media_url` already handles `image/document` for any `channel`.
+- **Media:** composer `message-composer:207` `image|document|video|audio` enabled for Telegram (audio picker `audio/mpeg|mp4|ogg`, video `mp4/3gpp`), voice `.ogg` file upload mapped to `voice` `sendVoice` (no recorder); `Mic` recorder + `video_note`/`animation` remain WhatsApp/deferred. `message-bubble MediaVideo/Audio` generic.
 - **Chrome:** thread/message badges `whatsapp` green / `telegram` sky, bubble footer `tg_` not exposed.
 
 ## Supported Capabilities
@@ -155,22 +156,26 @@ Pure mapper, no DB/decrypt.
 | Inbound `callback_query` → `interactive_reply` | IMPLEMENTED | `normalize:28` `tg_cb_<id>` |
 | Inbound photo → image | IMPLEMENTED | `normalize` largest `photo` + `mirror:111` → `chat-media/telegram/` |
 | Inbound document → document | IMPLEMENTED | `normalize document.file_id + file_name` + `mirror` |
+| Inbound video → video | IMPLEMENTED | `normalize:93 video/mp4` + `mirror video` → `content_type video` |
+| Inbound audio/voice → audio | IMPLEMENTED | `normalize audio mpeg / voice ogg` + `mirror audio` → `content_type audio` |
 | Inbound caption preserved as `content_text` | IMPLEMENTED | `normalize` `caption ?? [media]` |
-| Inbound video/audio/voice/sticker → image/document/audio | PARTIALLY IMPLEMENTED | Normalized + mirrored, but `message-bubble` will show; outbound for these deferred |
+| Inbound sticker → image | PARTIALLY IMPLEMENTED | `sticker image/webp` → `image` (display as image) |
 | Text outbound | IMPLEMENTED | `send.ts:139` |
-| Text + inline keyboard (callback/url) | IMPLEMENTED | `send.ts:128 reply_markup inline_keyboard` via `keyboard.ts` validation |
-| Image + inline keyboard | IMPLEMENTED | `send-media:103 sendPhoto + reply_markup` |
-| Document + inline keyboard | IMPLEMENTED | `send-media:103 sendDocument + reply_markup` |
-| Inline keyboard outbound (callback_data 1-64B, url https, disabled) | IMPLEMENTED | `keyboard.ts:117 validate + toTelegramReplyMarkup` + `send*/route.ts` `reply_markup` JSON validation |
-| Callback acknowledgement `answerCallbackQuery` | IMPLEMENTED | `api.ts:answerTelegramCallback` best-effort in `webhook:162` after `processNormalizedInbound` |
-| Image outbound | IMPLEMENTED | `send-media:169 sendPhoto via chat-media URL` |
-| Document outbound | IMPLEMENTED | `send-media:169 sendDocument` |
+| Text + inline keyboard (callback/url) | IMPLEMENTED | `send.ts:128 reply_markup` via `keyboard.ts` |
+| Image + inline keyboard | IMPLEMENTED | `send-media:115 sendPhoto + reply_markup` |
+| Document + inline keyboard | IMPLEMENTED | `send-media:120 sendDocument + reply_markup` |
+| Video + inline keyboard | IMPLEMENTED | `send-media:115 sendVideo + reply_markup` |
+| Audio + inline keyboard | IMPLEMENTED | `send-media:115 sendAudio + reply_markup` (`audio` .MP3/.M4A validated) |
+| Voice file upload + inline keyboard | IMPLEMENTED | `send-media:115 sendVoice caption supported per #sendvoice + reply_markup` (`.ogg` file upload, no recorder — `audio/ogg` mapped to `voice`) |
+| Inline keyboard outbound (callback_data 1-64B, url https, disabled) | IMPLEMENTED | `keyboard.ts:117 validate + toTelegramReplyMarkup` |
+| Callback acknowledgement `answerCallbackQuery` | IMPLEMENTED | `api.ts:answerTelegramCallback` best-effort in `webhook:162` |
+| Image/document/video/audio/voice outbound (plain, no keyboard) | IMPLEMENTED | `send-media` `image|document|video|audio|voice` |
 | Reply/quote outbound | IMPLEMENTED | `send.ts:102` + `send-media:102` |
 | 4096 limit / 1024 caption | IMPLEMENTED | `send.ts:30` + `send-media:1024` |
 | Connection lifecycle (validate/webhook/disconnect) | IMPLEMENTED | `api.ts:84 + config route` |
 | Settings host | IMPLEMENTED | `channels-panel` |
 | Unified contact/conversation, `messages.channel` NOT NULL | IMPLEMENTED | `041:37 042:19` |
-| Inbox `Reply via` + filters (image+document for Telegram) | IMPLEMENTED | `conversations.ts` + `message-thread:660` + `composer:207` |
+| Inbox `Reply via` + filters (image|document|video|audio for Telegram) | IMPLEMENTED | `message-thread` thread maps `audio .ogg→voice`, composer `video|audio` pickers enabled |
 | Automations / Flows / AI fan-out | IMPLEMENTED | `processNormalizedInbound:342/354/377` |
 | Webhook secret verification | IMPLEMENTED | `webhook:58` |
 | `chat-media` reuse with `telegram/` prefix | IMPLEMENTED | `mirror:TELEGRAM_MIRROR_FOLDER telegram` |
@@ -180,11 +185,10 @@ Pure mapper, no DB/decrypt.
 | Capability | Classification | Reason |
 |---|---|---|
 | Inbound reactions (`message_reaction`) | NOT IMPLEMENTED | Telegram `message_reaction` update not handled |
-| Outbound video | NOT IMPLEMENTED | Deferred after image/document proven; `send-media` rejects `video` |
-| Outbound audio/voice | NOT IMPLEMENTED | Deferred; composer `voice` disabled for Telegram |
-| Outbound location/templates/broadcasts/reactions/typing/edit/delete | NOT IMPLEMENTED | No `api.ts` method; composer explicitly disables |
-| Inline keyboards `web_app/login_url/switch_inline_query/copy_text/pay` variants | NOT IMPLEMENTED | Explicitly rejected — `web_app` etc. would need Web App/Payments surface (deferred) |
-| Outbound interactive beyond inline `callback/url` | NOT IMPLEMENTED | Future: `sendContact/sendLocation` as inline? Not needed |
+| Outbound location/templates/broadcasts/reactions/typing/edit/delete / `sendVideoNote` | NOT IMPLEMENTED | `video_note` `sendVideoNote` caption-less + round constraints; `sendLocation` not in CRM media flow (deferred) |
+| Inline keyboards `web_app/login_url/switch_inline_query/copy_text/pay` variants | NOT IMPLEMENTED | Explicitly rejected — would need Web App/Payments surface (deferred) |
+| `animation`/GIF (`sendAnimation`), `sticker` (`sendSticker`), `live_photo` etc. | NOT IMPLEMENTED | Telegram-only media, no CRM inbox demand |
+| `video_note` round video (`sendVideoNote`) | NOT IMPLEMENTED | Deferred — no `ContentType voice` needed; would need `ContentType video_note` |
 | Public API `/api/v1` for Telegram | NOT IMPLEMENTED | Only private `/api/telegram/send` + `/send-media` |
 | MCP `send_message` for Telegram | NOT IMPLEMENTED | WA-only |
 | Read receipts / status sync | NOT IMPLEMENTED | Inbound `delivered`, outbound `sent` only |
@@ -219,13 +223,13 @@ Pure mapper, no DB/decrypt.
 - `getTelegramFile(botToken,fileId)` `122` `POST getFile` + `TelegramFileInfo`
 - `downloadTelegramFile(botToken,filePath)` `142` `GET file/bot<token>/<file_path>` + sanitize
 - `answerTelegramCallback(botToken,callbackQueryId)` `answerCallbackQuery` best-effort (webhook after)
-- `sendTelegramText` (inline `send.ts:139` `sendMessage` + `reply_markup` inline_keyboard)
-- `sendTelegramMedia` (`send-media.ts:103` `sendPhoto`/`sendDocument` + `reply_markup`)
+- `sendTelegramText` (`send.ts:139` `sendMessage` + `reply_markup`)
+- `sendTelegramMedia` (`send-media.ts:103` `sendPhoto|sendDocument|sendVideo|sendAudio|sendVoice` + `reply_markup` with `caption` 0-1024; voice caption supported per Bot API `#sendvoice`)
 - `keyboard.ts: validateTelegramInlineMarkup (Telegram 1-64b + ConvoxOS 8x8/64 safety), toTelegramReplyMarkup, TelegramInlineMarkup with callback_data/url/disabled`
 - `sanitizeTelegramMessage + lowerDesc` `api:24/80`, `telegramFetch` `42` handles `401/404→400 invalid_token, 429→rate_limited retryable, 5xx→502`
 - `mirrorTelegramMedia` `mirror:49` `chat-media/telegram/` with `MEDIA_MAX_BYTES` guard, `telegramMirrorObjectName` deterministic
 
-**Not exposed:** `sendVideo/sendAudio/sendVoice` (deferred), `editMessageText/deleteMessage/sendChatAction/setMessageReaction`. WhatsApp `meta-api.ts:1057` has 16 methods by contrast.
+**Not exposed:** `sendVideoNote` (deferred — no `voice` ContentType), `editMessageText/deleteMessage/sendChatAction/setMessageReaction`. WhatsApp `meta-api.ts:1057` has 16 methods by contrast.
 
 ## Tests
 
@@ -239,31 +243,34 @@ Established, not aspirational:
 
 ## Known Limitations
 
-- Inbound photo/document now mirrors to `chat-media/telegram/` (image `image/jpeg`, document with original filename). Video/audio/voice/sticker still normalized + mirrored but outbound for those remains deferred — user will see `Media*Bubble` if stored, else `[media]` fallback when >16 MB.
-- `chat-media` 16 MB `MEDIA_MAX_BYTES` guard skips mirror (keeps `[media]` placeholder, logs warn) — Telegram Bot API 20 MB file limit will be caught by same guard.
-- Caption preserved as `content_text` (caption ?? `[media]`), not as `media caption` field — `MessageBubble` already renders `media_url` + caption below.
-- Outbound image/document only (`sendPhoto`/`sendDocument` via public URL); video/audio/voice deferred — composer video/voice disabled for Telegram, template/interactive still WhatsApp-only.
-- No `getWebhookInfo` surfaced in Settings beyond `webhook_url`.
+- Inbound `photo|document|video|audio|voice` all mirrored to `chat-media/telegram/` (video `video/mp4`, audio `audio/mpeg`, voice `audio/ogg` mapped to `audio` content_type). `animation`/`video_note` not normalized (no `TelegramUpdate` field) — ignored.
+- `chat-media` 16 MB `MEDIA_MAX_BYTES` guard skips mirror (keeps `[media]` placeholder, logs warn) — covers Telegram `20 MB` URL (`#sending-files`) / `50 MB` multipart (`#sendvideo/#sendaudio/#sendvoice`) limits.
+- Caption preserved as `content_text` (`caption ?? [media]` → `[Video]/[Audio]/[Voice]` fallback), not as `media caption` field — `MessageBubble` renders `media_url` + caption below.
+- Outbound `image|document|video|audio|voice` (`sendPhoto|sendDocument|sendVideo|sendAudio|sendVoice` via `chat-media` public URL `≤16 MB`); `Mic` voice recorder remains WhatsApp-only (`opus-recorder`); `voice` is file upload `.ogg/.mp3/.m4a` → `sendVoice` (`caption` 0-1024 supported per `#sendvoice`).
+- Audio validation `audio .MP3/.M4A` (`#sendaudio`), voice `.OGG+OPUS/.MP3/.M4A` (`#sendvoice`) enforced before Telegram; permissive for `chat-media` (MIME not in URL) — Telegram `400` maps to `SendTelegramError 502`.
+- No `getWebhookInfo` surfaced beyond `webhook_url`.
 
 ## Future Candidates
 
-Shipped next: inbound photo/document mirror + outbound image/document (this milestone). Remaining deferred until proven:
+Shipped: final gap `video|audio|voice` outbound file upload (this update). Deferred by design:
 
-- Video/audio/voice outbound (`sendVideo`/`sendAudio`) — needs `chat-media` MIME allow-list check + duration handling.
-- Reactions (in/outbound), `answerCallbackQuery`, `sendChatAction` typing.
-- Inline keyboards richer than `callback_data`.
+- `video_note` (`sendVideoNote` caption-less, round) — would need `ContentType video_note` + `length` param.
+- `animation` GIF (`sendAnimation`) — would need `TelegramUpdate.animation` + `content_type video` mapping.
+- Reactions (`message_reaction` → `set/deleteMessageReaction`), `sendChatAction` typing.
+- `web_app/login_url/copy_text/pay` keyboard variants — would need Web App/Payments surface.
 - Templates/broadcasts, public API `/api/v1` per-channel, MCP per-channel, AI per-channel tuning.
 
 ## Definition of Done
 
-### Shipped (Phase 1-4 + media)
+### Shipped (Phase 1-4 + media + inline keyboards + video/audio/voice)
 
 - `telegram_config` + `contacts` nullable phone + `telegram_user_id` unique + `messages.channel NOT NULL CHECK whatsapp|telegram` hold, RLS admin write.
 - PK webhook `401/404/400/200` + `after(processNormalizedInbound)` + unified contact reuse + `Reply via` + `channel` provenance + `Settings → Channels` host + `GET/POST/DELETE /api/telegram/config` with `NEXT_PUBLIC_SITE_URL` loopback guard + hard-delete preserves history.
-- **Media:** inbound `photo/document` (with caption) → `content_type image/document` + durable `media_url` (`chat-media/telegram/` public URL) + `media_type`, oversized >16 MB keeps `[media]` placeholder (warn, not throw); outbound `image/document` via `sendPhoto/sendDocument` from same `chat-media` URL + correct `content_type`; composer image/document enabled for Telegram.
+- **Media:** inbound `photo|document|video|audio|voice` → `content_type image|video|audio|document` + `media_url` (`chat-media/telegram/`) + `media_type`; outbound `image|document|video|audio|voice` via `sendPhoto|Document|Video|Audio|Voice` from `chat-media` public URL `≤16 MB`; voice `.ogg` file upload → `sendVoice` (caption `0-1024` per `#sendvoice`), no `opus-recorder`.
+- **Inline keyboards:** `callback_data 1-64B + url https + disabled` via `keyboard.ts:117` 8×8/64 safety, `reply_markup` on `sendMessage|Photo|Document|Video|Audio|Voice` + `answerCallbackQuery` best-effort.
 
-### Not yet
+### Telegram plug COMPLETE
 
-- Video/audio/voice outbound, reactions, templates/broadcasts — deferred.
+No remaining shared CRM/channel capability gaps. Deferred by design: `video_note`/`animation`/`sticker` outbound, `web_app` buttons, reactions/typing/edit/delete, `sendLocation/Contact`.
 
 - Update docs `ROADMAP/PROGRESS/README` only after lint/typecheck/test/build green and Graphify once via `npm run graphify:update`.

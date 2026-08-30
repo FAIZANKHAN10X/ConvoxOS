@@ -99,9 +99,75 @@ describe('sendTelegramMedia', () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/sendDocument'), expect.anything());
   });
 
-  it('rejects unsupported kind', async () => {
+  it('sends video via sendVideo', async () => {
+    const { sendTelegramMedia } = await import('./send-media');
+    const fakeDb = {
+      from: vi.fn((table: string) => {
+        if (table === 'conversations')
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'c', account_id: 'a', contact: { id: 'ct', telegram_user_id: 1, telegram_chat_id: 1 } }, error: null })) })) })),
+            })),
+            update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+          } as never;
+        if (table === 'telegram_config')
+          return {
+            select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: 'x', bot_token_encrypted: 'enc:tok' }, error: null })) })) })),
+            update: vi.fn(() => ({ eq: vi.fn(() => ({ then: (r: (v: unknown) => void) => r({ error: null }) })) })),
+          } as never;
+        if (table === 'messages')
+          return { insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'm' }, error: null })) })) })) } as never;
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) })) } as never;
+      }),
+    } as unknown as import('@supabase/supabase-js').SupabaseClient;
+    fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, result: { message_id: 5 } }) }) as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(
+      sendTelegramMedia(fakeDb, 'a', { conversationId: 'c', mediaUrl: 'https://cdn.test/chat-media/account-a/1.mp4', mediaKind: 'video' }),
+    ).resolves.toBeDefined();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/sendVideo'), expect.anything());
+  });
+
+  it('sends voice via sendVoice for .ogg', async () => {
+    const { sendTelegramMedia } = await import('./send-media');
+    const fakeDb = {
+      from: vi.fn((table: string) => {
+        if (table === 'conversations')
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'c', account_id: 'a', contact: { id: 'ct', telegram_user_id: 1, telegram_chat_id: 1 } }, error: null })) })) })),
+            })),
+            update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+          } as never;
+        if (table === 'telegram_config')
+          return {
+            select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: 'x', bot_token_encrypted: 'enc:tok' }, error: null })) })) })),
+            update: vi.fn(() => ({ eq: vi.fn(() => ({ then: (r: (v: unknown) => void) => r({ error: null }) })) })),
+          } as never;
+        if (table === 'messages')
+          return { insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'm' }, error: null })) })) })) } as never;
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) })) } as never;
+      }),
+    } as unknown as import('@supabase/supabase-js').SupabaseClient;
+    fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, result: { message_id: 6 } }) }) as Response);
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(
+      sendTelegramMedia(fakeDb, 'a', {
+        conversationId: 'c',
+        mediaUrl: 'https://cdn.test/chat-media/account-a/1.ogg',
+        mediaKind: 'voice',
+        filename: '1.ogg',
+      }),
+    ).resolves.toBeDefined();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/sendVoice'), expect.anything());
+  });
+
+  it('rejects invalid audio format for audio kind', async () => {
     const { sendTelegramMedia } = await import('./send-media');
     const fakeDb = { from: vi.fn() } as unknown as import('@supabase/supabase-js').SupabaseClient;
-    await expect(sendTelegramMedia(fakeDb, 'acct-1', { conversationId: 'c', mediaUrl: 'https://x', mediaKind: 'video' as unknown as 'document' })).rejects.toThrow(/Unsupported/);
+    // audio with .txt extension should be rejected (Telegram audio needs mp3/m4a)
+    await expect(
+      sendTelegramMedia(fakeDb, 'a', { conversationId: 'c', mediaUrl: 'https://x/file.txt', mediaKind: 'audio', filename: 'file.txt' }),
+    ).rejects.toThrow(/MP3 or M4A/);
   });
 });
