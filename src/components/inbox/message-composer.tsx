@@ -765,8 +765,7 @@ export function MessageComposer({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* + menu — interactive messages + quick replies. Gated on the
-              24h window like free-form text (interactive requires it). */}
+          {/* + menu — secondary actions (keeps primary bar to 4: Attach • Plus • AI • Send) */}
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={inputsDisabled}
@@ -790,21 +789,18 @@ export function MessageComposer({
                 <Zap className="mr-2 h-4 w-4" />
                 {t("quickReplies")}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={onOpenTemplates} disabled={whatsappOnlyDisabled}>
+                <LayoutTemplate className="mr-2 h-4 w-4" />
+                {t("sendTemplate")}
+              </DropdownMenuItem>
+              {isTelegram && onTelegramKeyboardChange ? (
+                <DropdownMenuItem onClick={() => setTelegramKeyboardOpen(true)} disabled={readOnly || telegramBlocked}>
+                  <Grid2X2 className="mr-2 h-4 w-4" />
+                  Inline keyboard
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <GatedButton
-            variant="ghost"
-            size="sm"
-            canAct={!readOnly}
-            gateReason="send messages"
-            title={readOnly ? undefined : t("sendTemplate")}
-            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-            onClick={onOpenTemplates}
-            disabled={whatsappOnlyDisabled}
-          >
-            <LayoutTemplate className="h-4 w-4" />
-          </GatedButton>
 
           <GatedButton
             variant="ghost"
@@ -822,21 +818,6 @@ export function MessageComposer({
               <Sparkles className="h-4 w-4" />
             )}
           </GatedButton>
-
-          {isTelegram && onTelegramKeyboardChange ? (
-            <GatedButton
-              variant="ghost"
-              size="sm"
-              canAct={!readOnly}
-              gateReason="send messages"
-              title={telegramKeyboard ? `${telegramKeyboard.inline_keyboard.flat().length} buttons` : "Inline keyboard"}
-              className={cn("h-9 w-9 shrink-0 p-0", telegramKeyboard ? "text-primary" : "text-muted-foreground hover:text-foreground")}
-              onClick={() => setTelegramKeyboardOpen(true)}
-              disabled={readOnly || telegramBlocked}
-            >
-              <Grid2X2 className="h-4 w-4" />
-            </GatedButton>
-          ) : null}
 
           <textarea
             ref={textareaRef}
@@ -872,9 +853,10 @@ export function MessageComposer({
             gateReason="send messages"
             disabled={!text.trim() || sending || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0}
             onClick={handleSend}
-            className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
+            className="h-9 shrink-0 gap-1.5 bg-primary px-4 hover:bg-primary/90 disabled:opacity-40"
           >
-            <Send className="h-4 w-4" />
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="hidden sm:inline">{sending ? t("sending") ?? "Sending" : t("send")}</span>
           </GatedButton>
         </div>
       )}

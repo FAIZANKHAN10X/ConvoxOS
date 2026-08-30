@@ -521,6 +521,10 @@ function FlowCanvasInner() {
 
   return (
     <>
+      <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
+        <span>Trigger: {state.trigger_type}{state.trigger_config?.channel ? ` (${String(state.trigger_config.channel)})` : ''}</span>
+        <span className="ml-auto hidden sm:inline text-[11px]">Switch to List to edit trigger →</span>
+      </div>
       <div className="h-full w-full overflow-hidden">
         <ReactFlow
           nodes={rfNodes}
