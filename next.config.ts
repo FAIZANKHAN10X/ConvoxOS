@@ -82,6 +82,16 @@ const nextConfig: NextConfig = {
         destination: "/automations",
         permanent: false,
       },
+      {
+        source: "/flows/:id",
+        destination: "/automations/:id",
+        permanent: false,
+      },
+      {
+        source: "/automations/:id/edit",
+        destination: "/automations/:id",
+        permanent: false,
+      },
     ];
   },
 
