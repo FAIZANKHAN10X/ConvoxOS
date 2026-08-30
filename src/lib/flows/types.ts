@@ -32,6 +32,8 @@ export interface SendMessageNodeConfig {
   text: string;
   /** Auto-advance target after the message lands at Meta. */
   next_node_key: string;
+  /** Channel target — current resolves to FlowRun.trigger_channel, else explicit. Legacy NULL → whatsapp (compat). */
+  channel_target?: ChannelTarget;
 }
 
 export interface SendButtonsNodeConfig {
@@ -48,6 +50,7 @@ export interface SendButtonsNodeConfig {
     /** node_key the runner advances to when this button is tapped. */
     next_node_key: string;
   }>;
+  channel_target?: ChannelTarget;
 }
 
 export interface SendListNodeConfig {
@@ -66,6 +69,7 @@ export interface SendListNodeConfig {
       next_node_key: string;
     }>;
   }>;
+  channel_target?: ChannelTarget;
 }
 
 /**
@@ -95,6 +99,7 @@ export interface SendMediaNodeConfig {
   filename?: string;
   /** Auto-advance target after the send lands at Meta. */
   next_node_key: string;
+  channel_target?: ChannelTarget;
 }
 
 export interface HandoffNodeConfig {
@@ -184,6 +189,8 @@ export type EndNodeConfig = Record<string, never>;
  * v1.5+ additions (collect_input, condition, set_tag, http_fetch) will
  * extend this union — out-of-scope for the v1 engine PR.
  */
+export type ChannelTarget = "current" | "whatsapp" | "telegram";
+
 export type FlowNodeConfig =
   | { node_type: "start"; config: StartNodeConfig }
   | { node_type: "send_message"; config: SendMessageNodeConfig }
@@ -207,12 +214,14 @@ export interface KeywordTriggerConfig {
   keywords: string[];
   match_type?: "exact" | "contains";
   case_sensitive?: boolean;
+  /** Optional channel filter — any when absent. */
+  channel?: "any" | "whatsapp" | "telegram";
 }
 
 // No knobs in v1 — the trigger has a single semantic. Kept as a type
 // alias (not an empty interface) for forward compat without tripping
 // the no-empty-object-type lint rule.
-export type FirstInboundTriggerConfig = Record<string, never>;
+export type FirstInboundTriggerConfig = { channel?: "any" | "whatsapp" | "telegram" };
 
 export type FlowTriggerConfig =
   | { trigger_type: "keyword"; config: KeywordTriggerConfig }
@@ -264,6 +273,8 @@ export interface FlowRunRow {
   user_id: string;
   contact_id: string | null;
   conversation_id: string | null;
+  /** Channel that started this run — NULL for manual/time/tag triggers. */
+  trigger_channel: "whatsapp" | "telegram" | null;
   status:
     | "active"
     | "completed"

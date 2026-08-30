@@ -503,6 +503,7 @@ export interface KeywordMatchTriggerConfig {
    */
   match_type: 'exact' | 'contains' | 'word';
   case_sensitive?: boolean;
+  channel?: "any" | "whatsapp" | "telegram";
 }
 
 export interface TagTriggerConfig {
@@ -518,6 +519,7 @@ export interface TimeBasedTriggerConfig {
 export interface InteractiveReplyTriggerConfig {
   /** Button / list-row ids to match, exact. Any one matching fires. */
   reply_ids: string[];
+  channel?: "any" | "whatsapp" | "telegram";
 }
 
 export type AutomationTriggerConfig =
@@ -528,8 +530,11 @@ export type AutomationTriggerConfig =
   | InteractiveReplyTriggerConfig
   | Record<string, unknown>;
 
+export type AutomationChannelTarget = "current" | "whatsapp" | "telegram";
+
 export interface SendMessageStepConfig {
   text: string;
+  channel_target?: AutomationChannelTarget;
 }
 
 /**
@@ -537,13 +542,14 @@ export interface SendMessageStepConfig {
  * payload (same shape stored on messages + quick replies). `kind` is
  * implied by the step_type but kept on the payload for a uniform shape.
  */
-export type SendButtonsStepConfig = InteractiveMessagePayload;
-export type SendListStepConfig = InteractiveMessagePayload;
+export type SendButtonsStepConfig = InteractiveMessagePayload & { channel_target?: AutomationChannelTarget };
+export type SendListStepConfig = InteractiveMessagePayload & { channel_target?: AutomationChannelTarget };
 
 export interface SendTemplateStepConfig {
   template_name: string;
   language?: string;
   variables?: Record<string, string>;
+  channel_target?: AutomationChannelTarget;
 }
 
 export interface TagStepConfig {
