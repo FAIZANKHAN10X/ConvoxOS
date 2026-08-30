@@ -5,10 +5,10 @@
 ## Current State
 
 - **Branch:** `main`
-- **HEAD:** `a28baa7` `feat(settings): wire Telegram connect/manage lifecycle into Channels` (local, ahead of `origin/main` `0046713`)
-- **Current completed phase:** Phase 4 — Channel Connection Management — `COMPLETE` (Steps A `f7c9d96`, B `57974f5`, C `a28baa7`; docs + Graphify pending in this checkpoint)
-- **Next focus:** TBD — Instagram/media/templates not committed
-- **Overall status:** Phases 1–4 shipped. Telegram is now a complete plug: `Settings → Channels` aggregator, `GET/POST/DELETE /api/telegram/config`, `src/lib/channels/telegram/api.ts`, webhook lifecycle with `NEXT_PUBLIC_SITE_URL` + request-origin fallback, hard-delete preserves history, no `channels` table / factory / registry.
+- **HEAD:** `3765d36` `feat(flows): Phase F — builder channel-aware UX (ephemeral authoring)` (local, ahead of `origin/main` `293ecb4` by 6 with `99fdcba,4870c51,00c1ac1,e4bfb42,599e22e,3765d36`)
+- **Current completed phase:** Phase 5 — Channel-Neutral Flows & Automations foundations (A–F) — `COMPLETE` (see below)
+- **Next focus:** Final docs + verification (G/H) — channel-neutral dispatch, per-flow concurrency, builder UX complete; Flows/Automations now channel-neutral via `FlowRun.trigger_channel` + `channel_target` + `ChannelSocket`
+- **Overall status:** Phases 1–4 plus media + inline keyboards + channel-neutral Flows/Automations shipped. Telegram plug COMPLETE with video/audio/voice file upload and inline keyboards. No `flows.entry_channel`, no `channels` table / factory.
 
 *Working tree may also contain unrelated local Graphify V2 patch work and `messages/en.json` i18n added in this phase; those are part of the documented milestone.*
 
@@ -57,11 +57,26 @@
 - **Validation:** `typecheck` pass, `build` pass (`ƒ /api/telegram/config` listed), `npm test` `89/912` (up from `84/869`), `lint` 0 errors / 51 warnings, Telegram existing `send` 9 + `webhook`/`normalize` 10 still pass, WhatsApp `send` 20 still pass, `messages` parity `en ↔ ko` passes, no migration.
 - **Non-goals preserved:** no `channels` table, no `Conversation.channel`, no `ChannelFactory`/`ChannelRegistry`/`ChannelSender`, no Instagram/Messenger/media/templates, no WhatsApp rewrite (only `channels` host + deep-link aliases).
 
-## Next — Post-Phase 4 — `TBD`
+### Phase 5 — Telegram Media & Inline Keyboards — `COMPLETE` (pushed `6f8f5c5`)
+
+- **Media milestone:** inbound photo/document + outbound image/document via `chat-media/telegram/` + `sendPhoto/sendDocument`, `caption 1024`, `whatsappOnlyDisabled` relaxed for image/document, `Media*Bubble` generic.
+- **Inline milestone:** `keyboard.ts` `8×8/64` `callback_data 1-64B + url https + disabled`, `send.ts/send-media reply_markup` + `interactive_payload telegram_inline`, `answerCallbackQuery` best-effort, builder `TelegramInlineBuilder` + `TelegramInlinePreview`, `message-bubble` grid branch.
+
+### Phase 6 — Channel-Neutral Flows/Automations Foundations — `COMPLETE` (local `99fdcba..3765d36`)
+
+- **Phase A:** `043_flow_run_trigger_channel` nullable `whatsapp|telegram`, `ChannelTarget current|whatsapp|telegram` on `send_*+collect_input`, `AutomationChannelTarget` + trigger `channel any|whatsapp|telegram`.
+- **Phase B:** `src/lib/channels/socket.ts` thin explicit `dispatchText/Media/Interactive + resolveChannelTarget` (no factory, reuses `whatsapp/send-message` + `telegram/send`).
+- **Phase C:** Flow `trigger_channel` snapshot at `startNewRun`, per-send `channel_target` resolve (`legacy NULL→whatsapp`, `current→trigger snapshot else explicit`), `processNormalizedInbound` passes `channel`, `advanceFromNodeKey` via `ChannelSocket`.
+- **Phase D:** Automation `triggerMatches` channel filter + `context.trigger_channel`, send steps via `ChannelSocket`, `pending` retains `trigger_channel`, `Current` without context → deterministic `target_context_missing`.
+- **Phase E:** Channel-aware resume (`loadActiveRunsForContact` all active, `trigger_channel` + `replyId` match, no `LIMIT 1`), `044` per-flow uniqueness `UNIQUE(account,contact,flow_id) WHERE active` (allows `Flow A TG + Flow B WA` both waiting), `resume-channel.test` 4 isolation tests.
+- **Phase F:** Builder ephemeral `authoringChannel any|whatsapp|telegram` (`FlowEditorProvider` derived, not persisted `no flows.entry_channel`), `TriggerPanel` Channel `Any|WhatsApp|Telegram` for `keyword/first_inbound`, `ChannelTargetRow Current|WhatsApp|Telegram` on `send_message|buttons|list|media|collect_input`; Automations builder same + `send_template` locked WhatsApp.
+- **Validation:** `typecheck pass`, `lint 61 warnings /0 errors`, `96 files / 967 tests` (was `94`), `build pass`, `Graphify 3073 nodes`.
+
+## Next — Post-Phase 6 — `TBD` — Instagram/Messenger next.
 
 ## Validation Baseline
 
-*Phase 4 checkpoint (this file): lint 0 errors / 51 warnings, typecheck pass, `89/912` tests, build pass. Earlier checkpoints below are historical.*
+*Phase 6 checkpoint (this file): lint 0 errors (61 warnings), typecheck pass, `96/967` tests, build pass. Earlier checkpoints below are historical.*
 
 *Verified `2026-08-29` after `86fc94c` on `main` (Phase 3 baseline):*
 

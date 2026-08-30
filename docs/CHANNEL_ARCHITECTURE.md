@@ -62,8 +62,8 @@ These stay in the host, shared across channels:
 - Inbox (list, thread, composer, filters) — channel-*aware*, not
   channel-*owned*
 - Pipelines, deals, tags, custom fields, dashboard
-- Automations / flows / AI **fan-out after inbound**
-  (`processNormalizedInbound`)
+- **Flows / Automations — channel-neutral logic, channel-aware send**
+  (`processNormalizedInbound` → `FlowRun.trigger_channel` + `AutomationContext.trigger_channel` → `send_* {channel_target: current|whatsapp|telegram}` → `ChannelSocket dispatch`)
 - Account webhooks (`/api/v1/webhooks`), API keys, MCP
 - Shared crypto primitive (`encrypt` / `decrypt` — currently lives
   under `src/lib/whatsapp/encryption.ts` but is already reused by
@@ -132,6 +132,10 @@ What is **not** yet a socket, and was the Phase 4 gap (now shipped for Telegram)
   hosted under `Settings → Channels`. Future external plugs would
   clone this per-provider table + module pattern per
   [CHANNEL_CONNECTIONS.md](./CHANNEL_CONNECTIONS.md).
+
+**Channel-neutral automation (shipped):** Flows/Automations are
+**one engine each, channel-neutral logic, channel-aware send**
+(`flow_runs.trigger_channel` snapshot + `send_* {channel_target: current|whatsapp|telegram}` + `trigger_config.channel any|whatsapp|telegram`) dispatched through thin `ChannelSocket` (`whatsapp/send-message` vs `telegram/send(+media+keyboard)`) — no `ChannelFactory`.
 
 ---
 
@@ -260,5 +264,7 @@ Do **not**:
 | Telegram manual text outbound | Shipped (Phase 2) |
 | Channel-aware Inbox UX | Shipped (Phase 3) |
 | Telegram in-product connection/config | Shipped (Phase 4) — `GET/POST/DELETE /api/telegram/config`, `telegram/api.ts`, `Settings → Channels` |
+| Telegram media + inline keyboards | Shipped (Phase 5) |
+| Channel-neutral Flows / Automations | Shipped (FlowRun.trigger_channel + channel_target + ChannelSocket) |
 | Generic plugin framework | Intentionally absent |
-| Additional channel modules | TBD |
+| Additional channel modules | TBD (Instagram/Messenger next) |
