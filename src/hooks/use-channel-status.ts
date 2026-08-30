@@ -10,7 +10,6 @@ export function useChannelStatus() {
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!accountId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect

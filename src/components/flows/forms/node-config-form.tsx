@@ -24,7 +24,7 @@
  * renders the advanced rows.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Loader2,
   Paperclip,
@@ -652,11 +652,7 @@ interface ConditionCfg {
   false_next?: string;
 }
 
-interface UserTag {
-  id: string;
-  name: string;
-  color?: string;
-}
+
 
 function ConditionForm({
   cfg,

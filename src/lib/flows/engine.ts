@@ -36,13 +36,10 @@ import { supabaseAdmin } from "./admin-client";
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
-  engineSendMedia,
-  engineSendText,
 } from "./meta-send";
 import {
   dispatchMedia as dispatchChannelMedia,
   dispatchText as dispatchChannelText,
-  dispatchInteractive as dispatchChannelInteractive,
 } from "@/lib/channels/socket";
 import type { ChannelTarget, FlowChannel } from "./types";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
