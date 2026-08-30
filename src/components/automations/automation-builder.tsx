@@ -858,6 +858,20 @@ function TriggerCard({
             {type === "interactive_reply" && (
               <InteractiveReplyConfig config={config} onChange={onConfigChange} t={t} />
             )}
+            {(type === "keyword_match" || type === "interactive_reply") && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Channel</label>
+                <select
+                  value={(config.channel as string) ?? "any"}
+                  onChange={(e) => onConfigChange({ ...config, channel: e.target.value })}
+                  className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="any">Any</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="telegram">Telegram</option>
+                </select>
+              </div>
+            )}
             {type === "tag_added" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -1305,35 +1319,69 @@ function StepEditor({
   switch (step.step_type) {
     case "send_message":
       return (
-        <FieldBlock label={t("config.messageText")}>
-          <Textarea
-            value={(cfg.text as string) ?? ""}
-            onChange={(e) => set({ text: e.target.value })}
-            placeholder={t("config.placeholderMessageText")}
-            className="min-h-24 bg-muted text-foreground"
-          />
-        </FieldBlock>
+        <>
+          <FieldBlock label="Channel">
+            <select
+              value={(cfg.channel_target as string) ?? "whatsapp"}
+              onChange={(e) => set({ channel_target: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="current">Current Conversation</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="telegram">Telegram</option>
+            </select>
+          </FieldBlock>
+          <FieldBlock label={t("config.messageText")}>
+            <Textarea
+              value={(cfg.text as string) ?? ""}
+              onChange={(e) => set({ text: e.target.value })}
+              placeholder={t("config.placeholderMessageText")}
+              className="min-h-24 bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </>
       )
     case "send_buttons":
     case "send_list":
       // The whole step_config IS the interactive payload; the shared
       // builder edits it in place (and enforces Meta's limits + preview).
       return (
-        <InteractiveBuilder
-          value={asInteractive(cfg)}
-          onChange={(payload) =>
-            onChange({ ...step, step_config: toStepConfig(payload) })
-          }
-        />
+        <>
+          <FieldBlock label="Channel">
+            <select
+              value={(cfg.channel_target as string) ?? "whatsapp"}
+              onChange={(e) => set({ channel_target: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="current">Current Conversation</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="telegram">Telegram</option>
+            </select>
+          </FieldBlock>
+          <InteractiveBuilder
+            value={asInteractive(cfg)}
+            onChange={(payload) =>
+              onChange({ ...step, step_config: toStepConfig(payload) })
+            }
+          />
+        </>
       )
     case "send_template":
       return (
-        <SendTemplateFields
-          templateName={(cfg.template_name as string) ?? ""}
-          language={(cfg.language as string) ?? ""}
-          onChange={(patch) => set(patch)}
-          t={t}
-        />
+        <>
+          <FieldBlock label="Channel">
+            <select value="whatsapp" disabled className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground opacity-60">
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+            <p className="mt-1 text-[10px] text-muted-foreground">Templates are WhatsApp-only.</p>
+          </FieldBlock>
+          <SendTemplateFields
+            templateName={(cfg.template_name as string) ?? ""}
+            language={(cfg.language as string) ?? ""}
+            onChange={(patch) => set(patch)}
+            t={t}
+          />
+        </>
       )
     case "add_tag":
     case "remove_tag":

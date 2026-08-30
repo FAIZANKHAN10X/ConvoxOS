@@ -50,6 +50,44 @@ import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media"
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
 
+type ChannelTarget = "current" | "whatsapp" | "telegram";
+const CHANNEL_OPTIONS: { value: ChannelTarget; label: string }[] = [
+  { value: "current", label: "Current Conversation" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "telegram", label: "Telegram" },
+];
+
+function ChannelTargetRow({
+  value,
+  onChange,
+}: {
+  value: string | undefined;
+  onChange: (v: ChannelTarget) => void;
+}) {
+  // Legacy nodes without channel_target → whatsapp (preserve WhatsApp flows)
+  const display = (value as ChannelTarget) ?? "whatsapp";
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-muted-foreground">Channel</label>
+      <Select value={display} onValueChange={(v) => onChange(v as ChannelTarget)}>
+        <SelectTrigger className="bg-muted">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {CHANNEL_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {display === "current" && (
+        <p className="mt-1 text-[10px] text-muted-foreground">Sends via the conversation that started this run.</p>
+      )}
+    </div>
+  );
+}
+
 interface NodeConfigFormProps {
   node: BuilderNode;
   allNodes: BuilderNode[];
@@ -80,6 +118,10 @@ export function NodeConfigForm({
     case "send_message":
       return (
         <>
+          <ChannelTargetRow
+            value={(cfg as { channel_target?: string }).channel_target}
+            onChange={(v) => onUpdateConfig({ channel_target: v })}
+          />
           <TextRow
             label={t("textToCustomer")}
             value={(cfg as { text?: string }).text ?? ""}
@@ -133,6 +175,10 @@ export function NodeConfigForm({
     case "collect_input":
       return (
         <>
+          <ChannelTargetRow
+            value={(cfg as { channel_target?: string }).channel_target}
+            onChange={(v) => onUpdateConfig({ channel_target: v })}
+          />
           <TextRow
             label={t("promptToCustomer")}
             value={(cfg as { prompt_text?: string }).prompt_text ?? ""}
@@ -264,6 +310,10 @@ function SendButtonsForm({
 
   return (
     <>
+      <ChannelTargetRow
+        value={(cfg as unknown as { channel_target?: string }).channel_target}
+        onChange={(v) => onUpdateConfig({ channel_target: v })}
+      />
       <TextRow
         label={t("bodyText")}
         value={cfg.text ?? ""}
@@ -455,6 +505,10 @@ function SendListForm({
 
   return (
     <>
+      <ChannelTargetRow
+        value={(cfg as unknown as { channel_target?: string }).channel_target}
+        onChange={(v) => onUpdateConfig({ channel_target: v })}
+      />
       <TextRow
         label="Body text"
         value={cfg.text ?? ""}
@@ -945,6 +999,10 @@ function SendMediaForm({
 
   return (
     <>
+      <ChannelTargetRow
+        value={(cfg as unknown as { channel_target?: string }).channel_target}
+        onChange={(v) => onUpdateConfig({ channel_target: v })}
+      />
       <div>
         <label className="mb-1 block text-xs text-muted-foreground">{t("mediaTypeLabel")}</label>
         <Select

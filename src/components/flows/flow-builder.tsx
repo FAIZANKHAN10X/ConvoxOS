@@ -80,6 +80,8 @@ export function FlowBuilder() {
     setState,
     issues,
     flashKey,
+    authoringChannel,
+    setAuthoringChannel,
     addNode: addNodeCtx,
     updateNode,
     updateNodeConfig,
@@ -156,6 +158,20 @@ export function FlowBuilder() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-7">
+      <section className="border-border bg-card rounded-lg border p-3 flex items-center gap-3">
+        <span className="text-muted-foreground text-xs">Authoring channel</span>
+        <Select value={authoringChannel} onValueChange={(v) => setAuthoringChannel(v as typeof authoringChannel)}>
+          <SelectTrigger className="bg-muted w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Any</SelectItem>
+            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+            <SelectItem value="telegram">Telegram</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground text-[11px]">UI hint only — not saved to flow</span>
+      </section>
       <TriggerPanel
         state={state}
         setState={setState}
@@ -326,6 +342,29 @@ function TriggerPanel({
               }
               t={t}
             />
+          </div>
+        )}
+        {(state.trigger_type === 'keyword' || state.trigger_type === 'first_inbound_message') && (
+          <div>
+            <label className="text-muted-foreground mb-1 block text-xs">Channel</label>
+            <Select
+              value={(state.trigger_config.channel as string) ?? 'any'}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: { ...s.trigger_config, channel: v },
+                }))
+              }
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="telegram">Telegram</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>

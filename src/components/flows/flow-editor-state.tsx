@@ -58,6 +58,8 @@ import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
 // State shape
 // ============================================================
 
+export type AuthoringChannel = "any" | "whatsapp" | "telegram";
+
 export interface BuilderState {
   name: string;
   description: string;
@@ -71,6 +73,10 @@ export interface BuilderState {
 export interface FlowEditorContextValue {
   /** Immutable post-load envelope: id, created_at, fallback_policy, etc. */
   flow: FlowRow;
+
+  // Ephemeral authoring channel context — UI only, NOT persisted to flows entry.
+  authoringChannel: AuthoringChannel;
+  setAuthoringChannel: (c: AuthoringChannel) => void;
 
   // Authored state
   state: BuilderState;
@@ -239,6 +245,18 @@ export function FlowEditorProvider({
 }: ProviderProps) {
   const router = useRouter();
   const t = useTranslations("Flows.editorState");
+
+  const [authoringChannel, setAuthoringChannel] = useState<AuthoringChannel>(() => {
+    // Derive ephemeral hint from existing nodes/trigger if possible
+    const trigChannel = (initialFlow.trigger_config as Record<string, unknown>)?.channel as string | undefined;
+    if (trigChannel === "whatsapp" || trigChannel === "telegram") return trigChannel;
+    // Look at first send node channel_target
+    for (const n of initialNodes) {
+      const ct = (n.config as Record<string, unknown>)?.channel_target as string | undefined;
+      if (ct === "whatsapp" || ct === "telegram") return ct as AuthoringChannel;
+    }
+    return "any";
+  });
 
   const [state, setStateRaw] = useState<BuilderState>(() => ({
     name: initialFlow.name,
@@ -480,10 +498,25 @@ export function FlowEditorProvider({
       setState((s) => {
         const node_key = uniqueNodeKey(base, s.nodes);
         createdKey = node_key;
+        const baseConfig = defaultConfigFor(type);
+        // Seed new send nodes with authoring channel as channel_target
+        // (current for universal, explicit for specific). Keep legacy
+        // WhatsApp semantics inside defaultConfigFor for old flows.
+        const withChannel =
+          (type === "send_message" ||
+            type === "send_buttons" ||
+            type === "send_list" ||
+            type === "send_media" ||
+            type === "collect_input") &&
+          authoringChannel !== "any"
+            ? { channel_target: authoringChannel === "whatsapp" || authoringChannel === "telegram" ? authoringChannel : "current" }
+            : type.startsWith("send_") || type === "collect_input"
+              ? { channel_target: "current" }
+              : {};
         const next: BuilderNode = {
           node_key,
           node_type: type,
-          config: defaultConfigFor(type),
+          config: { ...baseConfig, ...withChannel } as Record<string, unknown>,
         };
         return {
           ...s,
@@ -497,7 +530,7 @@ export function FlowEditorProvider({
       });
       return createdKey;
     },
-    [setState],
+    [setState, authoringChannel],
   );
 
   const removeNode = useCallback(
@@ -521,6 +554,8 @@ export function FlowEditorProvider({
   const value = useMemo<FlowEditorContextValue>(
     () => ({
       flow: initialFlow,
+      authoringChannel,
+      setAuthoringChannel,
       state,
       setState,
       dirty,
@@ -542,6 +577,7 @@ export function FlowEditorProvider({
     }),
     [
       initialFlow,
+      authoringChannel,
       state,
       setState,
       dirty,
