@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import {
   ArrowLeft,
   ChevronDown,
+  FlaskConical,
   Plus,
   Trash2,
   GripVertical,
@@ -71,6 +72,7 @@ import {
   type ParentScope,
   type StepPath,
 } from "@/lib/automations/builder-tree"
+import { TestDialog } from "./test-dialog"
 import { cn } from "@/lib/utils"
 
 // ------------------------------------------------------------
@@ -639,6 +641,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [testOpen, setTestOpen] = useState(false)
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -746,6 +749,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             aria-label={t("activeAria")}
           />
         </div>
+        <Button variant="outline" onClick={() => setTestOpen(true)}>
+          <FlaskConical className="h-4 w-4" /> Test
+        </Button>
         <Button
           onClick={save}
           disabled={saving}
@@ -754,6 +760,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isEditing ? t("save") : t("saveDraft")}
         </Button>
+        <TestDialog open={testOpen} onClose={() => setTestOpen(false)} automationSteps={state.steps} triggerLabel={state.trigger_type} />
       </header>
 
       {/* Canvas */}

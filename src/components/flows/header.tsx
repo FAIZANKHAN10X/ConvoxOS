@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CircleDot,
+  FlaskConical,
   History,
   Loader2,
   PauseCircle,
@@ -37,6 +38,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { TestDialog } from "@/components/automations/test-dialog";
+import { useState } from "react";
 import {
   useFlowEditor,
   type BuilderState,
@@ -44,6 +47,7 @@ import {
 
 export function EditorHeader() {
   const router = useRouter();
+  const [testOpen, setTestOpen] = useState(false);
   const {
     flow,
     state,
@@ -61,11 +65,11 @@ export function EditorHeader() {
     <div className="flex flex-col gap-1.5 px-6 pt-5">
       <div className="flex flex-wrap items-center gap-3">
         {/* ---- left: back · icon · name · status · edited ---- */}
-        <button
+          <button
           type="button"
-          onClick={() => router.push("/flows")}
-          title="Back to Flows"
-          aria-label="Back to Flows"
+          onClick={() => router.push("/automations")}
+          title="Back to Automations"
+          aria-label="Back to Automations"
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -98,7 +102,7 @@ export function EditorHeader() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push(`/flows/${flow.id}/runs`)}
+            onClick={() => router.push(`/automations/${flow.id}/runs`)}
           >
             <History className="h-3.5 w-3.5" />
             Runs
@@ -149,6 +153,9 @@ export function EditorHeader() {
               Activate
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setTestOpen(true)}>
+            <FlaskConical className="h-3.5 w-3.5" /> Test
+          </Button>
           <Button onClick={() => void save()} disabled={saving} size="sm">
             {saving ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -157,6 +164,7 @@ export function EditorHeader() {
             )}
             Save
           </Button>
+          <TestDialog open={testOpen} onClose={() => setTestOpen(false)} flowNodes={state.nodes} triggerLabel={state.trigger_type} />
         </div>
       </div>
 
