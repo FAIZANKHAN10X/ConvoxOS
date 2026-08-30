@@ -70,6 +70,32 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   /**
+   * Compatibility redirects for unified Automations product.
+   * /flows is no longer primary nav; bookmarks and old links 307 → /automations.
+   * 307 (temporary) preserves method and allows revert; flip to 308 permanent
+   * after one release once no traffic hits /flows.
+   */
+  async redirects() {
+    return [
+      {
+        source: "/flows",
+        destination: "/automations",
+        permanent: false,
+      },
+      {
+        source: "/flows/:id",
+        destination: "/automations/:id",
+        permanent: false,
+      },
+      {
+        source: "/flows/:id/runs",
+        destination: "/automations/:id/runs",
+        permanent: false,
+      },
+    ];
+  },
+
+  /**
    * Cross-origin dev access (Next.js 16).
    *
    * Next 16 blocks requests to dev-only resources (`/_next/*` internals,

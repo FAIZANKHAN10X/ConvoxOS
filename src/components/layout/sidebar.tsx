@@ -21,7 +21,6 @@ import {
   UserCog,
   Users,
   UsersRound,
-  Workflow,
   X,
   Zap,
 } from "lucide-react";
@@ -90,10 +89,12 @@ const navItems: NavItem[] = [
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
-  { href: "/automations", labelKey: "automations", icon: Zap, description: "Event & rule-based — keywords, tags, schedules → actions" },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true, description: "Visual journeys — keyword/tap → branching conversation" },
+  { href: "/automations", labelKey: "automations", icon: Zap, description: "Automations — triggers → actions, branching, waits" },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
+
+// Legacy route — kept for compatibility redirects; no longer shown in primary nav.
+// Flows are now accessed via /automations (307 redirects handle bookmarks).
 
 const bottomNavItems = [
   { href: "/settings", labelKey: "settings", icon: Settings },
