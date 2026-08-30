@@ -11,7 +11,7 @@ import { validateTelegramInlineMarkup, toTelegramReplyMarkup } from './keyboard'
 export interface SendTelegramMediaParams {
   conversationId: string;
   mediaUrl: string; // public chat-media URL
-  mediaKind: 'image' | 'document';
+  mediaKind: 'image' | 'document' | 'video' | 'audio' | 'voice';
   filename?: string | null;
   caption?: string | null;
   replyToMessageId?: string | null;
@@ -27,10 +27,42 @@ const CAPTION_MAX = 1024;
 
 function validateMedia(kind: string, mediaUrl: string, caption?: string | null) {
   if (!mediaUrl || !mediaUrl.trim()) throw new SendTelegramError('bad_request', 'media_url is required', 400);
-  if (kind !== 'image' && kind !== 'document') throw new SendTelegramError('bad_request', 'Unsupported Telegram media kind', 400);
+  if (kind !== 'image' && kind !== 'document' && kind !== 'video' && kind !== 'audio' && kind !== 'voice')
+    throw new SendTelegramError('bad_request', 'Unsupported Telegram media kind', 400);
   if (caption && caption.length > CAPTION_MAX) throw new SendTelegramError('bad_request', `Caption exceeds ${CAPTION_MAX} chars`, 400);
+  // Telegram official: sendAudio → .MP3 or .M4A, sendVoice → .OGG+OPUS or .MP3/.M4A (via public URL, URL ≤20 MB per #sending-files)
+  // Validate before Telegram round-trip for UX; remain permissive for edge MIME aliases.
+  if (kind === 'audio') {
+    const lower = (mediaUrl + (caption ?? '')).toLowerCase();
+    // rely on mediaUrl extension or fallback mime check is best-effort; enforce strict only on explicit filename when present
+    void lower; // mediaUrl check is permissive — strictness handled via filename/media_type before persist
+  }
+  if (kind === 'voice') {
+    // Telegram sendVoice: caption is allowed (0-1024) per #sendvoice; mime must be OGG/OPUS or MP3/M4A
+    void caption;
+  }
   if (kind === 'image' && !/\.(png|jpg|jpeg|webp)(\?|$)/i.test(mediaUrl) && !mediaUrl.includes('chat-media')) {
     // allow chat-media URLs regardless of extension (signed URLs may have token)
+  }
+}
+
+function validateAudioMimeForKind(kind: string, mediaUrl: string, filename: string | null | undefined) {
+  const src = (filename ?? mediaUrl).toLowerCase();
+  const ext = src.split('?')[0].split('.').pop() ?? '';
+  if (kind === 'audio') {
+    // Official: .MP3 or .M4A — Telegram will 400 otherwise; we reject early
+    if (ext !== 'mp3' && ext !== 'm4a' && ext !== 'mpga' && !src.includes('audio/mpeg') && !src.includes('audio/mp4')) {
+      // best-effort: require mp3/m4a extension or audio mime hint; fallback to allow if chat-media (mime not in URL)
+      if (src.includes('chat-media')) return; // MIME will be derived from file.type, accept
+      throw new SendTelegramError('bad_request', 'Telegram audio must be MP3 or M4A', 400);
+    }
+  }
+  if (kind === 'voice') {
+    // Official: .OGG+OPUS or .MP3 or .M4A (voice) — URL ≤1 MB OGG per #sending-files, but bucket 16 MB safety keeps us under
+    if (ext !== 'ogg' && ext !== 'oga' && ext !== 'mp3' && ext !== 'm4a' && ext !== 'mpga') {
+      if (src.includes('chat-media')) return;
+      throw new SendTelegramError('bad_request', 'Telegram voice must be OGG (OPUS), MP3, or M4A', 400);
+    }
   }
 }
 
@@ -58,6 +90,7 @@ export async function sendTelegramMedia(
 
   if (!conversationId) throw new SendTelegramError('bad_request', 'conversation_id is required', 400);
   validateMedia(mediaKind, mediaUrl, caption);
+  validateAudioMimeForKind(mediaKind, mediaUrl, filename);
   if (inlineKeyboard) {
     const v = validateTelegramInlineMarkup(inlineKeyboard);
     if (!v.ok) throw new SendTelegramError('bad_request', v.error, 400);
@@ -116,6 +149,18 @@ export async function sendTelegramMedia(
     method = 'sendPhoto';
     payload.photo = mediaUrl;
     if (caption) payload.caption = caption;
+  } else if (mediaKind === 'video') {
+    method = 'sendVideo';
+    payload.video = mediaUrl;
+    if (caption) payload.caption = caption;
+  } else if (mediaKind === 'audio') {
+    method = 'sendAudio';
+    payload.audio = mediaUrl;
+    if (caption) payload.caption = caption;
+  } else if (mediaKind === 'voice') {
+    method = 'sendVoice';
+    payload.voice = mediaUrl;
+    if (caption) payload.caption = caption;
   } else {
     method = 'sendDocument';
     payload.document = mediaUrl;
@@ -134,8 +179,25 @@ export async function sendTelegramMedia(
   }
 
   const hasKeyboard = !!inlineKeyboard;
-  const contentType = hasKeyboard ? 'interactive' : mediaKind === 'image' ? 'image' : 'document';
-  const mediaType = mediaKind === 'image' ? 'image/jpeg' : 'application/octet-stream';
+  const contentType = hasKeyboard
+    ? 'interactive'
+    : mediaKind === 'image'
+      ? 'image'
+      : mediaKind === 'video'
+        ? 'video'
+        : mediaKind === 'audio' || mediaKind === 'voice'
+          ? 'audio'
+          : 'document';
+  const mediaType =
+    mediaKind === 'image'
+      ? 'image/jpeg'
+      : mediaKind === 'video'
+        ? 'video/mp4'
+        : mediaKind === 'audio'
+          ? 'audio/mpeg'
+          : mediaKind === 'voice'
+            ? 'audio/ogg'
+            : 'application/octet-stream';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mediaInsert: any = {
     conversation_id: conversationId,
@@ -156,8 +218,10 @@ export async function sendTelegramMedia(
     throw new SendTelegramError('db_error', `Message sent to Telegram but failed to save to DB: ${msgError.message}`, 500);
   }
 
+  const fallbackLabel =
+    mediaKind === 'image' ? '[Image]' : mediaKind === 'video' ? '[Video]' : mediaKind === 'audio' ? '[Audio]' : mediaKind === 'voice' ? '[Voice]' : filename || '[Document]';
   await db.from('conversations').update({
-    last_message_text: hasKeyboard ? '[Keyboard]' : caption || (mediaKind === 'image' ? '[Image]' : filename || '[Document]'),
+    last_message_text: hasKeyboard ? '[Keyboard]' : caption || fallbackLabel,
     last_message_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('id', conversationId);

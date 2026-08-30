@@ -33,9 +33,10 @@ export async function POST(request: Request) {
       reply_markup?: unknown;
     };
 
-    const mediaKind = (mediaKindRaw === 'image' || mediaKindRaw === 'document' ? mediaKindRaw : null) as 'image' | 'document' | null;
+    const allowedKinds = new Set(['image', 'document', 'video', 'audio', 'voice']);
+    const mediaKind = (mediaKindRaw && allowedKinds.has(mediaKindRaw) ? mediaKindRaw : null) as 'image' | 'document' | 'video' | 'audio' | 'voice' | null;
     if ((!conversationId && !contact_id) || !mediaUrl || !mediaKind) {
-      return NextResponse.json({ error: 'conversation_id|contact_id, media_url and media_kind (image|document) are required' }, { status: 400 });
+      return NextResponse.json({ error: 'conversation_id|contact_id, media_url and media_kind (image|document|video|audio|voice) are required' }, { status: 400 });
     }
     if (caption && caption.length > 1024) {
       return NextResponse.json({ error: 'Caption exceeds 1024 characters' }, { status: 400 });
