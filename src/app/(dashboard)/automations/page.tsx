@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -16,6 +16,11 @@ import {
   Users,
   PhoneCall,
   Loader2,
+  Search,
+  Workflow,
+  Archive,
+  HelpCircle,
+  UserPlus,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -23,6 +28,7 @@ import { useCan } from "@/hooks/use-can"
 import { useTranslations } from "next-intl"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { GatedButton } from "@/components/ui/gated-button"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -58,24 +64,105 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
   follow_up_reminder: PhoneCall,
 }
 
+type FlowRow = {
+  id: string
+  name: string
+  description: string | null
+  status: "draft" | "active" | "archived"
+  trigger_type: string
+  trigger_config: Record<string, unknown>
+  execution_count: number
+  last_executed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type UnifiedRow =
+  | {
+      kind: "automation"
+      id: string
+      name: string
+      description: string | null
+      status: "active" | "draft"
+      trigger_type: string
+      trigger_config: Record<string, unknown>
+      execution_count: number
+      last_executed_at: string | null
+      created_at: string
+      channel?: string | null
+    }
+  | {
+      kind: "flow"
+      id: string
+      name: string
+      description: string | null
+      status: "draft" | "active" | "archived"
+      trigger_type: string
+      trigger_config: Record<string, unknown>
+      execution_count: number
+      last_executed_at: string | null
+      created_at: string
+      channel?: string | null
+    }
+
+type FlowTemplateSummary = {
+  slug: string
+  name: string
+  description: string
+  icon: "MessageSquare" | "HelpCircle" | "UserPlus"
+  node_count: number
+}
+
+const FLOW_ICON: Record<string, typeof Workflow> = {
+  MessageSquare: MessageCircle,
+  HelpCircle,
+  UserPlus,
+}
+
+function flowTriggerLabel(t: string): string {
+  if (t === "keyword") return "Keyword Match"
+  if (t === "first_inbound_message") return "First Message"
+  if (t === "manual") return "Manual"
+  return t
+}
+
 export default function AutomationsPage() {
   const router = useRouter()
   const canCreate = useCan("send-messages")
   const t = useTranslations("Automations.list")
   const [automations, setAutomations] = useState<Automation[] | null>(null)
+  const [flows, setFlows] = useState<FlowRow[] | null>(null)
+  const [flowTemplates, setFlowTemplates] = useState<FlowTemplateSummary[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<UnifiedRow | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft" | "archived">("all")
+  const [search, setSearch] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [creating, setCreating] = useState(false)
 
   async function load() {
     try {
       const supabase = createClient()
-      const { data, error: fetchErr } = await supabase
-        .from("automations")
-        .select("*")
-        .order("created_at", { ascending: false })
-      if (fetchErr) throw fetchErr
-      setAutomations((data ?? []) as Automation[])
+      const [aRes, fRes] = await Promise.all([
+        supabase.from("automations").select("*").order("created_at", { ascending: false }),
+        supabase.from("flows").select("*").order("created_at", { ascending: false }),
+      ])
+      if (aRes.error) throw aRes.error
+      if (fRes.error) throw fRes.error
+      setAutomations((aRes.data ?? []) as Automation[])
+      setFlows((fRes.data ?? []) as FlowRow[])
+      // Flow templates (optional, ignore errors)
+      try {
+        const tr = await fetch("/api/flows/templates", { cache: "no-store" })
+        if (tr.ok) {
+          const j = (await tr.json()) as { templates: FlowTemplateSummary[] }
+          setFlowTemplates(j.templates ?? [])
+        }
+      } catch {
+        // ignore
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load automations")
     }
@@ -85,43 +172,126 @@ export default function AutomationsPage() {
     load()
   }, [])
 
-  async function toggleActive(a: Automation, next: boolean) {
-    // Optimistic flip so the switch feels instant.
-    setAutomations((prev) =>
-      prev?.map((x) => (x.id === a.id ? { ...x, is_active: next } : x)) ?? prev,
-    )
-    const res = await fetch(`/api/automations/${a.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ is_active: next }),
-    })
-    if (!res.ok) {
-      // Roll back on error.
-      setAutomations((prev) =>
-        prev?.map((x) => (x.id === a.id ? { ...x, is_active: !next } : x)) ?? prev,
-      )
-      const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? t("toasts.updateError"))
-      return
+  const unified: UnifiedRow[] = useMemo(() => {
+    const rows: UnifiedRow[] = []
+    if (automations) {
+      for (const a of automations) {
+        const cfg = (a.trigger_config ?? {}) as Record<string, unknown>
+        rows.push({
+          kind: "automation",
+          id: a.id,
+          name: a.name,
+          description: (a as unknown as { description?: string | null }).description ?? null,
+          status: a.is_active ? "active" : "draft",
+          trigger_type: a.trigger_type,
+          trigger_config: cfg,
+          execution_count: a.execution_count,
+          last_executed_at: a.last_executed_at ?? null,
+          created_at: a.created_at,
+          channel: (cfg.channel as string) ?? null,
+        })
+      }
     }
-    toast.success(next ? t("toasts.activated") : t("toasts.paused"))
+    if (flows) {
+      for (const f of flows) {
+        const cfg = (f.trigger_config ?? {}) as Record<string, unknown>
+        rows.push({
+          kind: "flow",
+          id: f.id,
+          name: f.name,
+          description: f.description,
+          status: f.status,
+          trigger_type: f.trigger_type,
+          trigger_config: cfg,
+          execution_count: f.execution_count,
+          last_executed_at: f.last_executed_at,
+          created_at: f.created_at,
+          channel: (cfg.channel as string) ?? null,
+        })
+      }
+    }
+    rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    return rows
+  }, [automations, flows])
+
+  const filtered = useMemo(() => {
+    let out = unified
+    if (statusFilter !== "all") {
+      out = out.filter((r) => r.status === statusFilter)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      out = out.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.description ?? "").toLowerCase().includes(q) ||
+          r.trigger_type.toLowerCase().includes(q),
+      )
+    }
+    return out
+  }, [unified, statusFilter, search])
+
+  async function toggleActive(row: UnifiedRow, next: boolean) {
+    if (row.kind === "automation") {
+      // optimistic
+      setAutomations((prev) => prev?.map((x) => (x.id === row.id ? { ...x, is_active: next } : x)) ?? prev)
+      const res = await fetch(`/api/automations/${row.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ is_active: next }),
+      })
+      if (!res.ok) {
+        setAutomations((prev) => prev?.map((x) => (x.id === row.id ? { ...x, is_active: !next } : x)) ?? prev)
+        const body = await res.json().catch(() => ({}))
+        toast.error(body?.error ?? t("toasts.updateError"))
+        return
+      }
+      toast.success(next ? t("toasts.activated") : t("toasts.paused"))
+    } else {
+      setFlows((prev) => prev?.map((x) => (x.id === row.id ? { ...x, status: next ? "active" : "draft" } : x)) ?? prev)
+      const res = await fetch(`/api/flows/${row.id}/activate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: next ? "active" : "draft" }),
+      })
+      if (!res.ok) {
+        setFlows((prev) => prev?.map((x) => (x.id === row.id ? { ...x, status: next ? "draft" : "active" } : x)) ?? prev)
+        const body = await res.json().catch(() => ({}))
+        toast.error(body?.error ?? t("toasts.updateError"))
+        return
+      }
+      toast.success(next ? t("toasts.activated") : t("toasts.paused"))
+    }
   }
 
-  async function duplicate(a: Automation) {
-    const res = await fetch(`/api/automations/${a.id}/duplicate`, { method: "POST" })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      toast.error(body?.error ?? t("toasts.duplicateError"))
-      return
+  async function duplicate(row: UnifiedRow) {
+    if (row.kind === "automation") {
+      const res = await fetch(`/api/automations/${row.id}/duplicate`, { method: "POST" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        toast.error(body?.error ?? t("toasts.duplicateError"))
+        return
+      }
+      toast.success(t("toasts.duplicated"))
+      load()
+    } else {
+      const res = await fetch(`/api/flows/${row.id}/duplicate`, { method: "POST" }).catch(() => null)
+      // Fallback: many flow duplicates via template_slug copy isn't exposed; try generic clone via API
+      if (!res || !res.ok) {
+        toast.error(t("toasts.duplicateError"))
+        return
+      }
+      toast.success(t("toasts.duplicated"))
+      load()
     }
-    toast.success(t("toasts.duplicated"))
-    load()
   }
 
   async function confirmDelete() {
     if (!pendingDelete) return
     setDeleting(true)
-    const res = await fetch(`/api/automations/${pendingDelete.id}`, { method: "DELETE" })
+    const row = pendingDelete
+    const url = row.kind === "automation" ? `/api/automations/${row.id}` : `/api/flows/${row.id}`
+    const res = await fetch(url, { method: "DELETE" })
     setDeleting(false)
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -137,6 +307,58 @@ export default function AutomationsPage() {
     router.push(`/automations/new?template=${slug}`)
   }
 
+  async function handleCreateBlank() {
+    if (!newName.trim()) return
+    setCreating(true)
+    try {
+      const res = await fetch("/api/automations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          trigger_type: "keyword_match",
+          trigger_config: { keywords: [], match_type: "contains" },
+          is_active: false,
+          steps: [],
+        }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error ?? `Create failed: ${res.status}`)
+      }
+      const j = (await res.json()) as { automation: { id: string } }
+      setCreateOpen(false)
+      setNewName("")
+      router.push(`/automations/${j.automation.id}/edit`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Create failed")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleUseFlowTemplate(slug: string) {
+    setCreating(true)
+    try {
+      const res = await fetch("/api/flows", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ template_slug: slug }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error ?? `Clone failed: ${res.status}`)
+      }
+      const j = (await res.json()) as { flow: { id: string } }
+      setCreateOpen(false)
+      router.push(`/flows/${j.flow.id}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Clone failed")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
@@ -148,7 +370,7 @@ export default function AutomationsPage() {
     )
   }
 
-  if (automations === null) {
+  if (automations === null || flows === null) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -156,21 +378,19 @@ export default function AutomationsPage() {
     )
   }
 
-  const showTemplates = automations.length < 3
+  const showTemplates = unified.length < 3
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("subtitle")}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <GatedButton
           canAct={canCreate}
           gateReason="create automations"
-          onClick={() => router.push("/automations/new")}
+          onClick={() => setCreateOpen(true)}
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
@@ -178,12 +398,41 @@ export default function AutomationsPage() {
         </GatedButton>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", "active", "draft", "archived"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatusFilter(s)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              statusFilter === s
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search automations…"
+              className="w-56 bg-muted pl-8"
+            />
+          </div>
+        </div>
+      </div>
+
       {showTemplates && (
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("templatesTitle")}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {TEMPLATE_ORDER.map((slug) => {
-              const t = AUTOMATION_TEMPLATES[slug]
+              const tpl = AUTOMATION_TEMPLATES[slug]
               const Icon = TEMPLATE_ICON[slug]
               return (
                 <button
@@ -194,8 +443,8 @@ export default function AutomationsPage() {
                   <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="text-sm font-semibold text-foreground">{t.name}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">{t.description}</p>
+                  <div className="text-sm font-semibold text-foreground">{tpl.name}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{tpl.description}</p>
                 </button>
               )
             })}
@@ -203,54 +452,104 @@ export default function AutomationsPage() {
         </section>
       )}
 
-      {automations.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-primary" />
+      {filtered.length === 0 ? (
+        unified.length === 0 ? (
+          <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Zap className="h-6 w-6 text-primary" />
+            </div>
+            <p className="mt-3 text-sm font-medium text-foreground">{t("emptyTitle")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("emptyDesc")}</p>
           </div>
-          <p className="mt-3 text-sm font-medium text-foreground">{t("emptyTitle")}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("emptyDesc")}
-          </p>
-        </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center text-sm text-muted-foreground">
+            No automations with status &quot;{statusFilter}&quot;{search ? ` matching "${search}"` : ""}.
+          </div>
+        )
       ) : (
         <ul className="space-y-3">
-          {automations.map((a) => (
-            <AutomationCard
-              key={a.id}
-              automation={a}
-              onToggle={(next) => toggleActive(a, next)}
-              onEdit={() => router.push(`/automations/${a.id}/edit`)}
-              onDuplicate={() => duplicate(a)}
-              onLogs={() => router.push(`/automations/${a.id}/logs`)}
-              onDelete={() => setPendingDelete(a)}
-              t={t}
+          {filtered.map((row) => (
+            <UnifiedCard
+              key={`${row.kind}:${row.id}`}
+              row={row}
+              onToggle={(next) => toggleActive(row, next)}
+              onEdit={() => {
+                if (row.kind === "automation") router.push(`/automations/${row.id}/edit`)
+                else router.push(`/flows/${row.id}`)
+              }}
+              onDuplicate={() => duplicate(row)}
+              onLogs={() => {
+                if (row.kind === "automation") router.push(`/automations/${row.id}/logs`)
+                else router.push(`/flows/${row.id}/runs`)
+              }}
+              onDelete={() => setPendingDelete(row)}
             />
           ))}
         </ul>
       )}
 
+      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) { setCreateOpen(false); setNewName("") } }}>
+        <DialogContent className="sm:max-w-3xl bg-popover text-popover-foreground">
+          <DialogHeader>
+            <DialogTitle>Create automation</DialogTitle>
+            <DialogDescription>Start from a template or blank. Flows and automations are now automations — templates work on either engine compatibly.</DialogDescription>
+          </DialogHeader>
+
+          {flowTemplates.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Flow templates</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {flowTemplates.map((tpl) => {
+                  const Icon = FLOW_ICON[tpl.icon] ?? FileText
+                  return (
+                    <button
+                      key={tpl.slug}
+                      type="button"
+                      onClick={() => handleUseFlowTemplate(tpl.slug)}
+                      disabled={creating}
+                      className="flex flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted disabled:opacity-50"
+                    >
+                      <Icon className="h-5 w-5 text-primary" />
+                      <span className="text-sm font-semibold text-popover-foreground">{tpl.name}</span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">{tpl.description}</span>
+                      <span className="mt-auto border-t border-border pt-2 text-[11px] text-muted-foreground">{tpl.node_count} nodes</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Or start blank</p>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Welcome menu"
+              className="bg-muted"
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateBlank() }}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+            <Button onClick={handleCreateBlank} disabled={!newName.trim() || creating}>
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Create blank automation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("deleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("deleteDesc", { name: pendingDelete?.name ?? "" })}
-            </DialogDescription>
+            <DialogDescription>{t("deleteDesc", { name: pendingDelete?.name ?? "" })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setPendingDelete(null)}
-              disabled={deleting}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleting}
-            >
+            <Button variant="ghost" onClick={() => setPendingDelete(null)} disabled={deleting}>{t("cancel")}</Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               {t("delete")}
             </Button>
@@ -261,104 +560,70 @@ export default function AutomationsPage() {
   )
 }
 
-function AutomationCard({
-  automation,
+function UnifiedCard({
+  row,
   onToggle,
   onEdit,
   onDuplicate,
   onLogs,
   onDelete,
-  t,
 }: {
-  automation: Automation
+  row: UnifiedRow
   onToggle: (next: boolean) => void
   onEdit: () => void
   onDuplicate: () => void
   onLogs: () => void
   onDelete: () => void
-  t: ReturnType<typeof useTranslations>
 }) {
-  const meta = triggerMeta(automation.trigger_type)
+  const isActive = row.status === "active"
+  const meta = row.kind === "automation" ? triggerMeta(row.trigger_type) : null
+  const label = row.kind === "automation" ? meta!.label : flowTriggerLabel(row.trigger_type)
+  const pillClass = row.kind === "automation" ? meta!.pillClass : "border-border bg-muted text-muted-foreground"
+  const Icon = row.kind === "automation" ? Zap : Workflow
+  const channelBadge = row.channel && row.channel !== "any" ? row.channel : null
+
   return (
     <li className="rounded-xl border border-border bg-card transition-colors hover:border-border">
       <div className="flex items-center gap-4 p-4">
-        <div
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10"
-          aria-hidden
-        >
-          <Zap className="h-5 w-5 text-primary" />
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10" aria-hidden>
+          <Icon className="h-5 w-5 text-primary" />
         </div>
-
-        <button
-          type="button"
-          onClick={onEdit}
-          className="min-w-0 flex-1 text-left"
-        >
+        <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-foreground">
-              {automation.name}
-            </span>
-            {automation.is_active && (
+            <span className="truncate text-sm font-semibold text-foreground">{row.name}</span>
+            {isActive && (
               <span className="relative flex h-2 w-2" aria-label="active">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
             )}
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium", isActive ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-300" : "border-border bg-muted text-muted-foreground")}>
+              {isActive ? "Active" : row.status === "archived" ? "Archived" : "Draft"}
+            </span>
           </div>
-          {automation.description && (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{automation.description}</p>
-          )}
+          {row.description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.description}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                meta.pillClass,
-              )}
-            >
-              {meta.label}
-            </span>
-            <span className="tabular-nums">
-              {automation.execution_count === 1
-                ? t("runs", { count: automation.execution_count })
-                : t("runsPlural", { count: automation.execution_count })}
-            </span>
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium", pillClass)}>{label}</span>
+            {channelBadge && <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-[10px]">{channelBadge}</span>}
+            <span className="tabular-nums">{row.execution_count} runs</span>
             <span aria-hidden>·</span>
-            <span>{t("lastRun", { time: formatRelative(automation.last_executed_at) })}</span>
+            <span>last {formatRelative(row.last_executed_at)}</span>
           </div>
         </button>
-
         <div className="flex items-center gap-3">
-          <Switch
-            checked={automation.is_active}
-            onCheckedChange={(v) => onToggle(!!v)}
-            aria-label={automation.is_active ? t("deactivate") : t("activate")}
-          />
-
+          {row.status !== "archived" && (
+            <Switch checked={isActive} onCheckedChange={(v) => onToggle(!!v)} aria-label={isActive ? "Deactivate" : "Activate"} />
+          )}
           <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label="Open menu"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted"
-            >
+            <DropdownMenuTrigger aria-label="Open menu" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted">
               <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil className="h-4 w-4" />
-                {t("edit")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="h-4 w-4" />
-                {t("duplicate")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onLogs}>
-                <FileText className="h-4 w-4" />
-                {t("viewLogs")}
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onEdit}><Pencil className="h-4 w-4" />Edit</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate}><Copy className="h-4 w-4" />Duplicate</DropdownMenuItem>
+              <DropdownMenuItem onClick={onLogs}><FileText className="h-4 w-4" />{row.kind === "flow" ? "View Runs" : "View Logs"}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-                {t("delete")}
-              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={onDelete}><Trash2 className="h-4 w-4" />Delete</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
