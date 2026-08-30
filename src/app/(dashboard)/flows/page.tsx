@@ -92,6 +92,7 @@ export default function FlowsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [statusFilter, setStatusFilter] = useState<FlowRow["status"] | "all">("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -223,15 +224,33 @@ export default function FlowsPage() {
         </GatedButton>
       </header>
 
-      {flows.length === 0 ? (
-        <EmptyState
-          onCreate={() => setCreateOpen(true)}
-          canCreate={canCreate}
-          t={t}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", "draft", "active", "archived"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatusFilter(s)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              statusFilter === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {s === "all" ? "All" : STATUS_LABELS(t)[s as FlowRow["status"]]}
+          </button>
+        ))}
+      </div>
+
+      {(statusFilter === "all" ? flows : flows.filter((f) => f.status === statusFilter)).length === 0 ? (
+        flows.length === 0 ? (
+          <EmptyState onCreate={() => setCreateOpen(true)} canCreate={canCreate} t={t} />
+        ) : (
+          <div className="rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center text-sm text-muted-foreground">
+            No flows with status &quot;{statusFilter}&quot;
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {flows.map((flow) => (
+          {(statusFilter === "all" ? flows : flows.filter((f) => f.status === statusFilter)).map((flow) => (
             <FlowCard
               key={flow.id}
               flow={flow}
