@@ -170,6 +170,14 @@ export interface ConditionNodeConfig {
   true_next: string;
   /** Node to advance to when it evaluates false. */
   false_next: string;
+  // P1 — multi-condition support
+  conditions?: Array<{
+    subject: ConditionSubject;
+    subject_key: string;
+    operator: ConditionOperator;
+    value?: string;
+  }>;
+  match?: 'all' | 'any';
 }
 
 export interface SetTagNodeConfig {
@@ -180,9 +188,15 @@ export interface SetTagNodeConfig {
 }
 
 export interface WaitNodeConfig {
-  amount: number;
-  unit: "minutes" | "hours" | "days";
+  amount?: number;
+  unit?: "minutes" | "hours" | "days";
+  until?: string;
   next_node_key: string;
+}
+
+export interface RandomizerNodeConfig {
+  variants: Array<{ id: string; label: string; weight: number; next_node_key: string }>;
+  mode?: 'sticky' | 'random';
 }
 
 // Terminal nodes carry no config — they just stop the run.
@@ -208,6 +222,7 @@ export type FlowNodeConfig =
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "wait"; config: WaitNodeConfig }
+  | { node_type: "randomizer"; config: RandomizerNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

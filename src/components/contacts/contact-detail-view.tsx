@@ -482,6 +482,12 @@ export function ContactDetailView({
                 >
                   {t('tabs.deals')}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="activity"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  Activity
+                </TabsTrigger>
               </TabsList>
 
               {/* Details Tab */}
@@ -741,8 +747,11 @@ export function ContactDetailView({
                         </div>
                       </div>
                     ))}
-                  </div>
+                    </div>
                 )}
+              </TabsContent>
+              <TabsContent value="activity" className="flex-1 overflow-y-auto px-4 py-3">
+                <ActivityFeed contactId={contact.id} />
               </TabsContent>
             </Tabs>
           </div>
@@ -756,4 +765,56 @@ export function ContactDetailView({
     />
     </>
   );
+
+function ActivityFeed({ contactId }: { contactId: string }) {
+  const [items, setItems] = useState<Array<{ id: string; type: string; title: string; description?: string; timestamp: string }>>([])
+  const [filter, setFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+
+  const load = async (reset = false) => {
+    setLoading(true)
+    const params = new URLSearchParams({ limit: '50', filter })
+    if (!reset && nextCursor) params.set('cursor', nextCursor)
+    const res = await fetch(`/api/contacts/${contactId}/activity?${params.toString()}`)
+    const j = await res.json().catch(() => ({ items: [] }))
+    if (reset) setItems(j.items ?? [])
+    else setItems((prev) => [...prev, ...(j.items ?? [])])
+    setNextCursor(j.nextCursor ?? null)
+    setLoading(false)
+  }
+
+  useEffect(() => { void load(true) }, [contactId, filter])
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-border bg-muted px-2 py-1 text-xs">
+          <option value="all">All</option>
+          <option value="message_inbound">Messages In</option>
+          <option value="message_outbound">Messages Out</option>
+          <option value="automation_executed">Automations</option>
+          <option value="task_created">Tasks</option>
+          <option value="sequence_enrolled">Sequences</option>
+        </select>
+        <button onClick={() => load(true)} className="text-xs text-muted-foreground hover:text-foreground">Refresh</button>
+      </div>
+      {loading && items.length === 0 ? <p className="text-sm text-muted-foreground">Loading…</p> : items.length === 0 ? <p className="text-sm text-muted-foreground text-center py-8">No activity yet.</p> : (
+        <div className="space-y-2">
+          {items.map((a) => (
+            <div key={a.id} className="flex gap-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+              <div className="h-2 w-2 mt-2 rounded-full bg-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{a.title}</div>
+                {a.description && <div className="text-xs text-muted-foreground truncate">{a.description}</div>}
+                <div className="text-[11px] text-muted-foreground">{new Date(a.timestamp).toLocaleString()} • {a.type}</div>
+              </div>
+            </div>
+          ))}
+          {nextCursor && <button onClick={() => load(false)} className="w-full text-xs text-muted-foreground hover:text-foreground py-2">Load more</button>}
+        </div>
+      )}
+    </div>
+  )
+}
 }

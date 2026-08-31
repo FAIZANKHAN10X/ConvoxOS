@@ -24,6 +24,7 @@ import {
   Users,
   PencilLine,
   Briefcase,
+  CheckSquare,
   Webhook,
   CircleSlash,
 } from "lucide-react"
@@ -64,12 +65,15 @@ export type UnifiedPrimitiveId =
   | "collect_input"
   // Logic
   | "condition"
+  | "randomizer"
+  | "goal"
   // Timing
   | "wait"
   // CRM
   | "tag"
   | "update_contact"
   | "create_deal"
+  | "create_task"
   | "assign_conversation"
   | "handoff"
   | "close_conversation"
@@ -98,10 +102,13 @@ export const UNIFIED_PRIMITIVES: PrimitiveMeta[] = [
   { id: "send_template", label: "Template", blurb: "Approved WhatsApp template", icon: FileText, category: "communication", hosts: ["automation"], picker: true },
   { id: "collect_input", label: "Collect Input", blurb: "Ask, save reply → vars", icon: Inbox, category: "input", hosts: ["flow"], picker: true },
   { id: "condition", label: "Condition", blurb: "Branch yes / no", icon: GitFork, category: "logic", hosts: ["flow", "automation"], picker: true },
+  { id: "randomizer", label: "Randomizer", blurb: "Split randomly 2–6 ways", icon: GitFork, category: "logic", hosts: ["automation"], picker: true },
+  { id: "goal", label: "Goal", blurb: "Wait for condition, skip ahead", icon: Flag, category: "logic", hosts: ["automation"], picker: true },
   { id: "wait", label: "Wait", blurb: "Pause minutes / hours / days", icon: Hourglass, category: "timing", hosts: ["automation"], picker: true },
   { id: "tag", label: "Tag", blurb: "Add or remove tag", icon: Tag, category: "crm", hosts: ["flow", "automation"], picker: true },
   { id: "update_contact", label: "Update Contact", blurb: "Set contact field / custom", icon: PencilLine, category: "crm", hosts: ["automation"], picker: true },
   { id: "create_deal", label: "Create Deal", blurb: "New pipeline deal", icon: Briefcase, category: "crm", hosts: ["automation"], picker: true },
+  { id: "create_task", label: "Create Task", blurb: "New task + assign", icon: CheckSquare, category: "crm", hosts: ["automation"], picker: true },
   { id: "assign_conversation", label: "Assign", blurb: "Assign to agent / round-robin", icon: Users, category: "crm", hosts: ["automation"], picker: true },
   { id: "handoff", label: "Handoff", blurb: "Hand to human", icon: UserPlus, category: "crm", hosts: ["flow"], picker: true },
   { id: "close_conversation", label: "Close Conversation", blurb: "Mark closed", icon: CircleSlash, category: "crm", hosts: ["automation"], picker: true },

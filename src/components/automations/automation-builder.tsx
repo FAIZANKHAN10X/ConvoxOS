@@ -34,6 +34,10 @@ import {
   ArrowUp,
   MousePointerClick,
   List,
+  ListPlus,
+  CheckSquare,
+  Shuffle,
+  Flag,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -118,6 +122,10 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   assign_conversation: { label: "assign_conversation", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "update_contact_field", icon: PencilLine, border: "border-l-primary" },
   create_deal: { label: "create_deal", icon: Briefcase, border: "border-l-primary" },
+  create_task: { label: "create_task", icon: CheckSquare, border: "border-l-primary" },
+  randomizer: { label: "randomizer", icon: Shuffle, border: "border-l-amber-500" },
+  goal: { label: "goal", icon: Flag, border: "border-l-emerald-500" },
+  enroll_in_sequence: { label: "enroll_in_sequence", icon: ListPlus, border: "border-l-violet-500" },
   wait: { label: "wait", icon: Hourglass, border: "border-l-border" },
   condition: { label: "condition", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "send_webhook", icon: Webhook, border: "border-l-primary" },
@@ -134,6 +142,10 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "create_task",
+  "randomizer",
+  "goal",
+  "enroll_in_sequence",
   "wait",
   "condition",
   "send_webhook",
@@ -145,9 +157,16 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType }[] = [
   { value: "first_inbound_message" },
   { value: "keyword_match" },
   { value: "interactive_reply" },
+  { value: "customer_replied" },
   { value: "new_contact_created" },
+  { value: "contact_changed" },
+  { value: "note_added" },
+  { value: "task_added" },
   { value: "conversation_assigned" },
   { value: "tag_added" },
+  { value: "opportunity_created" },
+  { value: "pipeline_stage_changed" },
+  { value: "inbound_webhook" },
   { value: "time_based" },
 ]
 
@@ -191,6 +210,14 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { field: "name", value: "" }
     case "create_deal":
       return { pipeline_id: "", stage_id: "", title: "", value: 0 }
+    case "create_task":
+      return { title: "", description: "", due_at: "", assigned_to: "" }
+    case "randomizer":
+      return { variants: [{ id: "a", label: "Variant A", weight: 50 }, { id: "b", label: "Variant B", weight: 50 }], mode: "random" }
+    case "goal":
+      return { condition: { subject: "tag_presence", operand: "", value: "" }, timeout_hours: 24 }
+    case "enroll_in_sequence":
+      return { sequence_id: "" }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -642,6 +669,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [testOpen, setTestOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [stats, setStats] = useState<{ attempted: number; matched: number; unmatched: number; executed: number; completed: number; failed: number; cancelled: number; window: string } | null>(null)
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -764,6 +794,18 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         <Button variant="outline" onClick={() => setTestOpen(true)}>
           <FlaskConical className="h-4 w-4" /> Test
         </Button>
+        <Button variant="outline" onClick={async () => {
+          if (!initial.id) return
+          setStatsOpen(true)
+          const res = await fetch(`/api/automations/${initial.id}/stats`)
+          const j = await res.json().catch(() => null)
+          setStats(j)
+        }}>
+          Stats
+        </Button>
+        <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+          History
+        </Button>
         <Button
           onClick={save}
           disabled={saving}
@@ -773,6 +815,30 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           {isEditing ? t("save") : t("saveDraft")}
         </Button>
         <TestDialog open={testOpen} onClose={() => setTestOpen(false)} automationSteps={state.steps} triggerLabel={state.trigger_type} />
+        <HistoryDialog open={historyOpen} onClose={() => setHistoryOpen(false)} automationId={initial.id} onRestore={() => window.location.reload()} />
+        {statsOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-card border border-border rounded-lg p-4 w-full max-w-md">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium">Stats (30d)</h3>
+                <Button variant="ghost" size="sm" onClick={() => setStatsOpen(false)}>Close</Button>
+              </div>
+              {!stats ? <p className="text-sm text-muted-foreground">Loading…</p> : (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>Attempted: <span className="font-mono">{stats.attempted}</span></div>
+                  <div>Matched: <span className="font-mono">{stats.matched}</span></div>
+                  <div>Unmatched: <span className="font-mono">{stats.unmatched}</span></div>
+                  <div>Executed: <span className="font-mono">{stats.executed}</span></div>
+                  <div>Completed: <span className="font-mono">{stats.completed}</span></div>
+                  <div>Failed: <span className="font-mono">{stats.failed}</span></div>
+                  <div>Cancelled: <span className="font-mono">{stats.cancelled}</span></div>
+                  <div>Window: <span className="font-mono">{stats.window}</span></div>
+                </div>
+              )}
+              <p className="mt-3 text-[11px] text-muted-foreground">Dry runs are not counted. Attempted = trigger evaluations in window.</p>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Canvas */}
@@ -823,6 +889,9 @@ function TriggerCard({
   t: ReturnType<typeof useTranslations>
 }) {
   const [open, setOpen] = useState(false)
+  const { stages } = useResources()
+  const pipelineIdForStage = (config.pipeline_id as string) ?? ""
+  const fromStageOptions = stages.filter((s) => !pipelineIdForStage || s.pipeline_id === pipelineIdForStage)
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
@@ -902,6 +971,93 @@ function TriggerCard({
                   t={t}
                 />
               </div>
+            )}
+            {type === "contact_changed" && (
+              <>
+                <FieldBlock label="Field">
+                  <ContactFieldSelect
+                    value={(config.field as string) ?? "name"}
+                    onChange={(v) => onConfigChange({ ...config, field: v })}
+                    t={t}
+                  />
+                </FieldBlock>
+                <FieldBlock label="Value (optional — leave empty to fire on any change)">
+                  <Input
+                    value={(config.value as string) ?? ""}
+                    onChange={(e) => onConfigChange({ ...config, value: e.target.value })}
+                    placeholder="e.g. VIP"
+                    className="bg-muted text-foreground"
+                  />
+                </FieldBlock>
+              </>
+            )}
+            {type === "note_added" && (
+              <p className="text-[11px] text-muted-foreground">
+                Fires when a contact note is added. No additional configuration.
+              </p>
+            )}
+            {type === "task_added" && (
+              <p className="text-[11px] text-muted-foreground">
+                Fires when a task is created. No additional configuration.
+              </p>
+            )}
+            {type === "customer_replied" && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Channel</label>
+                <select
+                  value={(config.channel as string) ?? "any"}
+                  onChange={(e) => onConfigChange({ ...config, channel: e.target.value })}
+                  className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="any">Any</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="telegram">Telegram</option>
+                </select>
+              </div>
+            )}
+            {type === "opportunity_created" && (
+              <div className="space-y-3">
+                <p className="text-[11px] text-muted-foreground">Optional filters — leave empty to fire for any opportunity.</p>
+                <DealPipelineFields
+                  pipelineId={(config.pipeline_id as string) ?? ""}
+                  stageId={(config.stage_id as string) ?? ""}
+                  onChange={(patch) => onConfigChange({ ...config, ...patch })}
+                  t={t}
+                />
+              </div>
+            )}
+            {type === "pipeline_stage_changed" && (
+              <div className="space-y-3">
+                <p className="text-[11px] text-muted-foreground">Optional filters — leave empty to fire for any stage change.</p>
+                <DealPipelineFields
+                  pipelineId={(config.pipeline_id as string) ?? ""}
+                  stageId={(config.to_stage_id as string) ?? ""}
+                  onChange={(patch) => onConfigChange({ ...config, pipeline_id: patch.pipeline_id, to_stage_id: patch.stage_id })}
+                  t={t}
+                />
+                <FieldBlock label="From Stage (optional)">
+                  <select
+                    value={(config.from_stage_id as string) ?? ""}
+                    onChange={(e) => onConfigChange({ ...config, from_stage_id: e.target.value })}
+                    className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="">Any</option>
+                    {fromStageOptions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </FieldBlock>
+              </div>
+            )}
+            {type === "inbound_webhook" && (
+              <FieldBlock label="Path (optional — leave empty to fire on any webhook)">
+                <Input
+                  value={(config.path as string) ?? ""}
+                  onChange={(e) => onConfigChange({ ...config, path: e.target.value })}
+                  placeholder="e.g. /lead or my-hook"
+                  className="bg-muted text-foreground"
+                />
+              </FieldBlock>
             )}
             {type === "time_based" && (
               <div>
@@ -1385,6 +1541,7 @@ function StepEditor({
           </FieldBlock>
           <InteractiveBuilder
             value={asInteractive(cfg)}
+            channel={(cfg.channel_target as string) === 'telegram' ? 'telegram' : 'whatsapp'}
             onChange={(payload) =>
               onChange({ ...step, step_config: toStepConfig(payload) })
             }
@@ -1489,32 +1646,273 @@ function StepEditor({
           </FieldBlock>
         </>
       )
-    case "wait":
+    case "create_task":
       return (
-        <div className="grid grid-cols-2 gap-2">
-          <FieldBlock label={t("config.amountLabel")}>
+        <>
+          <FieldBlock label={t("config.titleLabel")}>
             <Input
-              type="number"
-              min={1}
-              value={(cfg.amount as number) ?? 1}
-              onChange={(e) => set({ amount: Math.max(1, Number(e.target.value)) })}
+              value={(cfg.title as string) ?? ""}
+              onChange={(e) => set({ title: e.target.value })}
+              placeholder="Task title"
               className="bg-muted text-foreground"
             />
           </FieldBlock>
-          <FieldBlock label={t("config.unitLabel")}>
+          <FieldBlock label="Description">
+            <Textarea
+              value={(cfg.description as string) ?? ""}
+              onChange={(e) => set({ description: e.target.value })}
+              placeholder="Optional details"
+              className="min-h-20 bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label="Due Date (optional)">
+            <Input
+              type="datetime-local"
+              value={(cfg.due_at as string) ?? ""}
+              onChange={(e) => set({ due_at: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label="Assign to">
+            <AgentSelect
+              value={(cfg.assigned_to as string) ?? ""}
+              onChange={(v) => set({ assigned_to: v })}
+              t={t}
+            />
+          </FieldBlock>
+        </>
+      )
+    case "randomizer": {
+      const variants = (cfg.variants as Array<{ id: string; label: string; weight: number }> | undefined) ?? []
+      const mode = (cfg.mode as string) ?? 'random'
+      const updateVariant = (idx: number, patch: Partial<{ id: string; label: string; weight: number }>) =>
+        set({ variants: variants.map((v, i) => (i === idx ? { ...v, ...patch } : v)) })
+      const addVariant = () =>
+        set({ variants: [...variants, { id: `v${variants.length + 1}`, label: `Variant ${String.fromCharCode(65 + variants.length)}`, weight: 10 }] })
+      const removeVariant = (idx: number) => set({ variants: variants.filter((_, i) => i !== idx) })
+      const total = variants.reduce((s, v) => s + (v.weight ?? 0), 0)
+      return (
+        <div className="space-y-3">
+          <FieldBlock label="Mode">
             <select
-              value={(cfg.unit as string) ?? "hours"}
-              onChange={(e) => set({ unit: e.target.value })}
+              value={mode}
+              onChange={(e) => set({ mode: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
-              <option value="minutes">{t("config.units.minutes")}</option>
-              <option value="hours">{t("config.units.hours")}</option>
-              <option value="days">{t("config.units.days")}</option>
+              <option value="random">Random each time</option>
+              <option value="sticky">Sticky (same contact always same branch)</option>
             </select>
           </FieldBlock>
+          <div className="text-xs text-muted-foreground">Total weight: {total} (must sum to 100). {variants.length} variants.</div>
+          <div className="space-y-2">
+            {variants.map((v, idx) => (
+              <div key={idx} className="flex items-center gap-2 rounded-md border border-border bg-muted/20 p-2">
+                <Input
+                  value={v.label}
+                  onChange={(e) => updateVariant(idx, { label: e.target.value })}
+                  placeholder="Label"
+                  className="flex-1 bg-muted text-foreground"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  value={v.weight}
+                  onChange={(e) => updateVariant(idx, { weight: Math.max(1, Number(e.target.value) || 1) })}
+                  className="w-20 bg-muted text-foreground"
+                />
+                <span className="text-xs text-muted-foreground">%</span>
+                {variants.length > 2 && (
+                  <Button variant="ghost" size="sm" onClick={() => removeVariant(idx)} className="text-red-400 hover:bg-red-500/10"><Trash2 className="h-3 w-3" /></Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {variants.length < 6 && (
+            <Button variant="ghost" size="sm" onClick={addVariant} className="mt-2"><Plus className="h-3 w-3" /> Add variant</Button>
+          )}
+          {Math.abs(total - 100) > 0.01 && <p className="text-xs text-amber-400">Weights must sum to 100 (currently {total}).</p>}
         </div>
       )
-    case "condition":
+    }
+    case "goal": {
+      const cond = (cfg.condition as Record<string, unknown> | undefined) ?? { subject: 'tag_presence', operand: '' }
+      const setCond = (patch: Record<string, unknown>) => set({ condition: { ...cond, ...patch } })
+      return (
+        <div className="space-y-3">
+          <FieldBlock label="Goal Condition — when true, skip ahead">
+            <select
+              value={(cond.subject as string) ?? 'tag_presence'}
+              onChange={(e) => setCond({ subject: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="tag_presence">Tag present</option>
+              <option value="contact_field">Contact field equals</option>
+              <option value="message_content">Message contains</option>
+              <option value="time_of_day">Time of day</option>
+            </select>
+          </FieldBlock>
+          <FieldBlock label="Operand">
+            <Input
+              value={(cond.operand as string) ?? ''}
+              onChange={(e) => setCond({ operand: e.target.value })}
+              placeholder={cond.subject === 'contact_field' ? 'name' : cond.subject === 'tag_presence' ? 'tag id' : 'text or HH:mm-HH:mm'}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          {(cond.subject === 'contact_field' || cond.subject === 'message_content') && (
+            <FieldBlock label="Value">
+              <Input value={(cond.value as string) ?? ''} onChange={(e) => setCond({ value: e.target.value })} className="bg-muted text-foreground" />
+            </FieldBlock>
+          )}
+          <FieldBlock label="Timeout (hours) — after this, continue without goal">
+            <Input
+              type="number"
+              min={1}
+              value={(cfg.timeout_hours as number) ?? 24}
+              onChange={(e) => set({ timeout_hours: Math.max(1, Number(e.target.value) || 24) })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <p className="text-[11px] text-muted-foreground">Goal waits (durable) until condition true or timeout. When satisfied, subsequent steps are skipped and execution continues after Goal.</p>
+        </div>
+      )
+    }
+    case "wait": {
+      const hasUntil = typeof (cfg.until as string) === 'string' && (cfg.until as string).trim() !== ''
+      const mode = hasUntil ? 'datetime' : 'duration'
+      return (
+        <div className="space-y-3">
+          <FieldBlock label="Wait Type">
+            <select
+              value={mode}
+              onChange={(e) => {
+                if (e.target.value === 'datetime') set({ until: new Date(Date.now() + 3600000).toISOString().slice(0, 16), amount: undefined, unit: undefined } as unknown as Record<string, unknown>)
+                else set({ until: undefined, amount: 1, unit: 'hours' } as unknown as Record<string, unknown>)
+              }}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="duration">Duration</option>
+              <option value="datetime">Until Date/Time</option>
+            </select>
+          </FieldBlock>
+          {mode === 'duration' ? (
+            <div className="grid grid-cols-2 gap-2">
+              <FieldBlock label={t("config.amountLabel")}>
+                <Input
+                  type="number"
+                  min={1}
+                  value={(cfg.amount as number) ?? 1}
+                  onChange={(e) => set({ amount: Math.max(1, Number(e.target.value)) })}
+                  className="bg-muted text-foreground"
+                />
+              </FieldBlock>
+              <FieldBlock label={t("config.unitLabel")}>
+                <select
+                  value={(cfg.unit as string) ?? "hours"}
+                  onChange={(e) => set({ unit: e.target.value })}
+                  className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+                >
+                  <option value="minutes">{t("config.units.minutes")}</option>
+                  <option value="hours">{t("config.units.hours")}</option>
+                  <option value="days">{t("config.units.days")}</option>
+                </select>
+              </FieldBlock>
+            </div>
+          ) : (
+            <FieldBlock label="Until (local time)">
+              <Input
+                type="datetime-local"
+                value={(cfg.until as string) ? String(cfg.until).slice(0, 16) : ''}
+                onChange={(e) => set({ until: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                className="bg-muted text-foreground"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Automation will resume when this time is reached. Durable via pending execution table.</p>
+            </FieldBlock>
+          )}
+        </div>
+      )
+    }
+    case "condition": {
+      const hasMulti = Array.isArray((cfg as unknown as { conditions?: unknown }).conditions) && ((cfg as unknown as { conditions: unknown[] }).conditions.length > 0)
+      const conditions = hasMulti ? (cfg as unknown as { conditions: Array<{ subject: string; operand?: string; value?: string }> }).conditions : null
+      const match = (cfg as unknown as { match?: string }).match ?? 'all'
+      const setConditions = (next: Array<{ subject: string; operand?: string; value?: string }>) => set({ conditions: next, match })
+      const setMatch = (m: string) => set({ match: m })
+      const addCondition = () => {
+        if (!hasMulti) {
+          const first = { subject: (cfg.subject as string) ?? 'tag_presence', operand: (cfg.operand as string) ?? '', value: (cfg.value as string) ?? '' }
+          set({ conditions: [first, { subject: 'tag_presence', operand: '', value: '' }], match: 'all', subject: undefined, operand: undefined, value: undefined } as unknown as Record<string, unknown>)
+        } else {
+          setConditions([...(conditions as Array<{ subject: string; operand?: string; value?: string }>), { subject: 'tag_presence', operand: '', value: '' }])
+        }
+      }
+      const updateCondition = (idx: number, patch: Partial<{ subject: string; operand?: string; value?: string }>) => {
+        if (!conditions) return
+        setConditions(conditions.map((c, i) => (i === idx ? { ...c, ...patch } : c)))
+      }
+      const removeCondition = (idx: number) => {
+        if (!conditions) return
+        const next = conditions.filter((_, i) => i !== idx)
+        if (next.length <= 1) {
+          // Collapse back to single when only one left
+          const remaining = next[0]
+          if (remaining) set({ subject: remaining.subject, operand: remaining.operand, value: remaining.value, conditions: undefined, match: undefined } as unknown as Record<string, unknown>)
+          else set({ conditions: undefined, match: undefined } as unknown as Record<string, unknown>)
+        } else setConditions(next)
+      }
+      if (hasMulti) {
+        return (
+          <>
+            <FieldBlock label="Match">
+              <select
+                value={match}
+                onChange={(e) => setMatch(e.target.value)}
+                className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+              >
+                <option value="all">All (AND)</option>
+                <option value="any">Any (OR)</option>
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">If {match === 'all' ? 'every condition' : 'any condition'} matches, the Yes branch is taken; otherwise No.</p>
+            </FieldBlock>
+            <div className="space-y-3">
+              {(conditions as Array<{ subject: string; operand?: string; value?: string }>).map((c, idx) => (
+                <div key={idx} className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Condition {idx + 1}</span>
+                    <Button variant="ghost" size="sm" onClick={() => removeCondition(idx)} className="h-6 text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                  <FieldBlock label="Subject">
+                    <select
+                      value={c.subject ?? 'tag_presence'}
+                      onChange={(e) => updateCondition(idx, { subject: e.target.value })}
+                      className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+                    >
+                      <option value="tag_presence">Tag present</option>
+                      <option value="contact_field">Contact field</option>
+                      <option value="message_content">Message contains</option>
+                      <option value="time_of_day">Time of day</option>
+                    </select>
+                  </FieldBlock>
+                  <FieldBlock label="Operand">
+                    <Input
+                      value={c.operand ?? ''}
+                      onChange={(e) => updateCondition(idx, { operand: e.target.value })}
+                      placeholder={c.subject === 'time_of_day' ? '09:00-17:00' : c.subject === 'contact_field' ? 'name' : 'tag id or text'}
+                      className="bg-muted text-foreground"
+                    />
+                  </FieldBlock>
+                  {(c.subject === 'contact_field' || c.subject === 'message_content') && (
+                    <FieldBlock label="Value">
+                      <Input value={c.value ?? ''} onChange={(e) => updateCondition(idx, { value: e.target.value })} className="bg-muted text-foreground" />
+                    </FieldBlock>
+                  )}
+                </div>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" onClick={addCondition} className="mt-2"><Plus className="h-3.5 w-3.5" /> Add condition</Button>
+          </>
+        )
+      }
       return (
         <>
           <FieldBlock label={t("config.subjectLabel")}>
@@ -1554,27 +1952,103 @@ function StepEditor({
               />
             </FieldBlock>
           )}
+          <Button variant="ghost" size="sm" onClick={addCondition} className="mt-2"><Plus className="h-3.5 w-3.5" /> Add condition (AND/OR)</Button>
         </>
       )
-    case "send_webhook":
+    }
+    case "send_webhook": {
+      const headers = (cfg.headers as Record<string, string> | undefined) ?? {}
+      const headersText = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\n')
+      const setHeadersText = (text: string) => {
+        const next: Record<string, string> = {}
+        text.split('\n').forEach((line) => {
+          const idx = line.indexOf(':')
+          if (idx > 0) {
+            const k = line.slice(0, idx).trim()
+            const v = line.slice(idx + 1).trim()
+            if (k) next[k] = v
+          }
+        })
+        set({ headers: next })
+      }
       return (
         <>
+          <FieldBlock label="Method">
+            <select
+              value={(cfg.method as string) ?? 'POST'}
+              onChange={(e) => set({ method: e.target.value })}
+              className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </FieldBlock>
           <FieldBlock label={t("config.urlLabel")}>
             <Input
               value={(cfg.url as string) ?? ""}
               onChange={(e) => set({ url: e.target.value })}
+              placeholder="https://api.example.com/contacts/{{contact.id}}"
               className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label="Headers (one per line, Key: Value)">
+            <Textarea
+              value={headersText}
+              onChange={(e) => setHeadersText(e.target.value)}
+              placeholder="Authorization: Bearer xxx"
+              className="min-h-16 bg-muted font-mono text-xs text-foreground"
             />
           </FieldBlock>
           <FieldBlock label={t("config.bodyTemplateLabel")}>
             <Textarea
               value={(cfg.body_template as string) ?? ""}
               onChange={(e) => set({ body_template: e.target.value })}
+              placeholder='{"contact_id":"{{contact.id}}"} — supports {{contact.*}}, {{vars.*}}, {{message.text}}'
               className="min-h-20 bg-muted font-mono text-xs text-foreground"
             />
           </FieldBlock>
+          <FieldBlock label="Store response?">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={!!cfg.store_response}
+                onChange={(e) => set({ store_response: e.target.checked })}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              Save response to variable
+            </label>
+          </FieldBlock>
+          {cfg.store_response && (
+            <FieldBlock label="Response variable name">
+              <Input
+                value={(cfg.response_var as string) ?? 'external_response'}
+                onChange={(e) => set({ response_var: e.target.value })}
+                placeholder="external_response"
+                className="bg-muted font-mono text-xs text-foreground"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Available as {`{{vars.${(cfg.response_var as string) || 'external_response'}}}`} in later steps.</p>
+            </FieldBlock>
+          )}
         </>
       )
+    }
+    case "enroll_in_sequence": {
+      const seqId = (cfg.sequence_id as string) ?? ""
+      return (
+        <FieldBlock label="Sequence">
+          <Input
+            value={seqId}
+            onChange={(e) => set({ sequence_id: e.target.value })}
+            placeholder="Sequence ID (UUID)"
+            className="bg-muted font-mono text-xs text-foreground"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">Enrolls contact in sequence. Use sequence ID from Sequences list.</p>
+        </FieldBlock>
+      )
+    }
     case "close_conversation":
       return (
         <p className="text-xs text-muted-foreground">
@@ -1611,11 +2085,30 @@ function previewFor(step: BuilderStep): string {
     case "send_template":
       return (step.step_config.template_name as string) || "pick a template"
     case "wait":
-      return `${step.step_config.amount ?? "?"} ${step.step_config.unit ?? ""}`
+      return (step.step_config.until as string) ? `until ${String(step.step_config.until).slice(0, 16)}` : `${step.step_config.amount ?? "?"} ${step.step_config.unit ?? ""}`
     case "condition":
-      return `when ${step.step_config.subject ?? "?"}`
+      return (step.step_config as unknown as { conditions?: unknown[] }).conditions ? `when ${(step.step_config as unknown as { conditions: unknown[] }).conditions.length} conditions` : `when ${step.step_config.subject ?? "?"}`
+    case "randomizer":
+      return `random ${((step.step_config as unknown as { variants?: unknown[] }).variants?.length ?? 0)} ways`
+    case "goal":
+      return `goal: ${(step.step_config as unknown as { condition?: { subject?: string } }).condition?.subject ?? "?"}`
+    case "enroll_in_sequence":
+      return (step.step_config.sequence_id as string) ? `enroll ${(step.step_config.sequence_id as string).slice(0, 8)}…` : "pick sequence"
     case "send_webhook":
       return (step.step_config.url as string) || "no url"
+    case "create_task":
+      return (step.step_config.title as string) || "new task"
+    case "create_deal":
+      return (step.step_config.title as string) || "new deal"
+    case "add_tag":
+    case "remove_tag":
+      return (step.step_config.tag_id as string) ? "tag" : "pick a tag"
+    case "update_contact_field":
+      return (step.step_config.field as string) || "field"
+    case "assign_conversation":
+      return (step.step_config.mode as string) || "assign"
+    case "close_conversation":
+      return "close"
     default:
       return ""
   }
@@ -1650,6 +2143,55 @@ export interface ServerStepNode {
   step_type: string
   step_config: Record<string, unknown>
   branches: { yes: ServerStepNode[]; no: ServerStepNode[] }
+}
+
+function HistoryDialog({ open, onClose, automationId, onRestore }: { open: boolean; onClose: () => void; automationId?: string; onRestore: () => void }) {
+  const [versions, setVersions] = useState<Array<{ version_number: number; created_at: string; is_published: boolean }>>([])
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!open || !automationId) return
+    setLoading(true)
+    fetch(`/api/automations/${automationId}/versions`).then((r) => r.json()).then((j) => {
+      setVersions(j.versions ?? [])
+      setLoading(false)
+    })
+  }, [open, automationId])
+  async function restore(v: number) {
+    if (!automationId) return
+    if (!confirm(`Restore version ${v} into draft?`)) return
+    const res = await fetch(`/api/automations/${automationId}/versions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ version_number: v }) })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({ error: 'failed' }))
+      toast.error(j.error ?? 'Restore failed')
+      return
+    }
+    toast.success(`Version ${v} restored to draft`)
+    onRestore()
+  }
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-card border border-border rounded-lg p-4 w-full max-w-md max-h-[80vh] overflow-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-medium">Version History</h3>
+          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+        </div>
+        {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : versions.length === 0 ? <p className="text-sm text-muted-foreground">No versions yet. Publish to create a snapshot.</p> : (
+          <div className="space-y-2">
+            {versions.map((v) => (
+              <div key={v.version_number} className="flex items-center justify-between rounded-md border border-border p-2">
+                <div>
+                  <div className="text-sm font-medium">v{v.version_number} {v.is_published ? '• Published' : ''}</div>
+                  <div className="text-xs text-muted-foreground">{new Date(v.created_at).toLocaleString()}</div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => restore(v.version_number)}>Restore</Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function fromServerSteps(nodes: ServerStepNode[]): BuilderStep[] {

@@ -61,6 +61,25 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
         }
         break;
       }
+      case "randomizer": {
+        const variants = Array.isArray((cfg as { variants?: unknown }).variants)
+          ? ((cfg as { variants: Array<Record<string, unknown>> }).variants)
+          : [];
+        for (const v of variants) {
+          const next = typeof v.next_node_key === "string" ? v.next_node_key : null;
+          const id = typeof v.id === "string" ? v.id : null;
+          const label = typeof v.label === "string" ? v.label : id;
+          if (!id || !next || !knownKeys.has(next)) continue;
+          edges.push({
+            id: `${node.node_key}--variant:${id}--${next}`,
+            source: node.node_key,
+            target: next,
+            sourceHandle: `variant:${id}`,
+            label: label ?? id,
+          });
+        }
+        break;
+      }
 
       case "condition": {
         const trueNext = (cfg as { true_next?: string }).true_next;
@@ -183,6 +202,19 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
     case "wait":
       return [{ id: "next", label: "Next" }];
 
+    case "randomizer": {
+      const variants = Array.isArray((cfg as { variants?: unknown }).variants)
+        ? ((cfg as { variants: Array<Record<string, unknown>> }).variants)
+        : [];
+      return variants
+        .filter((v) => typeof v.id === "string" && v.id)
+        .map((v) => {
+          const id = v.id as string
+          const label = typeof v.label === "string" ? v.label : id
+          return { id: `variant:${id}`, label: label ?? id }
+        });
+    }
+
     case "condition":
       return [
         { id: "true", label: "true" },
@@ -231,6 +263,8 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
     case "handoff":
     case "end":
       return [];
+    default:
+      return [];
   }
 }
 
@@ -258,6 +292,20 @@ export function applyEdgeConnection(
     case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
       return null;
+
+    case "randomizer": {
+      if (!sourceHandle.startsWith("variant:")) return null;
+      const vid = sourceHandle.slice("variant:".length);
+      const variants = Array.isArray((node.config as { variants?: unknown }).variants)
+        ? ((node.config as { variants: Array<Record<string, unknown>> }).variants)
+        : [];
+      if (!variants.some((v) => v.id === vid)) return null;
+      return {
+        variants: variants.map((v) =>
+          v.id === vid ? { ...v, next_node_key: targetKey } : v
+        ),
+      };
+    }
 
     case "condition":
       if (sourceHandle === "true") return { true_next: targetKey };
@@ -316,6 +364,8 @@ export function applyEdgeConnection(
     case "handoff":
     case "end":
       return null;
+    default:
+      return null;
   }
 }
 
@@ -354,6 +404,19 @@ function patchedConfigWithoutKey(
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;
       return { ...cfg, next_node_key: "" };
+    }
+
+    case "randomizer": {
+      const variants = Array.isArray((cfg as { variants?: unknown }).variants)
+        ? ((cfg as { variants: Array<Record<string, unknown>> }).variants)
+        : [];
+      if (!variants.some((v) => v.next_node_key === deletedKey)) return null;
+      return {
+        ...cfg,
+        variants: variants.map((v) =>
+          v.next_node_key === deletedKey ? { ...v, next_node_key: "" } : v
+        ),
+      };
     }
 
     case "condition": {

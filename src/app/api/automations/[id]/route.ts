@@ -128,6 +128,34 @@ export async function PATCH(
     if (err) return NextResponse.json({ error: err }, { status: 500 })
   }
 
+  // P2-F Version History: when publishing (willBeActive), create immutable snapshot
+  if (willBeActive) {
+    const isActivating = update.is_active === true || (update.is_active === undefined && existing.is_active)
+    // Only create new version when activating or when steps/trigger changed while active
+    const hasChanges = Array.isArray(body.steps) || 'trigger_type' in update || 'trigger_config' in update || update.is_active === true
+    if (isActivating && hasChanges) {
+      const admin2 = supabaseAdmin()
+      // Need account_id for RLS — fetch from existing automation's account
+      const { data: autoRow } = await admin2.from('automations').select('account_id').eq('id', id).maybeSingle()
+      const accountId = (autoRow as { account_id: string } | null)?.account_id
+      if (accountId) {
+        const { data: maxVer } = await admin2.from('automation_versions').select('version_number').eq('automation_id', id).order('version_number', { ascending: false }).limit(1).maybeSingle()
+        const nextNum = ((maxVer as { version_number: number } | null)?.version_number ?? 0) + 1
+        const stepsForSnapshot = Array.isArray(body.steps) ? body.steps : await loadStepsTree(id)
+        const triggerType = (update.trigger_type ?? existing.trigger_type) as string
+        const triggerConfig = update.trigger_config ?? existing.trigger_config
+        await admin2.from('automation_versions').insert({
+          automation_id: id,
+          account_id: accountId,
+          version_number: nextNum,
+          snapshot: { trigger_type: triggerType, trigger_config: triggerConfig, steps: stepsForSnapshot },
+          is_published: true,
+          created_by: user.id,
+        })
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

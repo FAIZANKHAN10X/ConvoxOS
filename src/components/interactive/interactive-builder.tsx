@@ -57,6 +57,8 @@ interface InteractiveBuilderProps {
   onChange: (payload: InteractiveMessagePayload) => void;
   /** Show the live WhatsApp-style preview beside the form. Default true. */
   showPreview?: boolean;
+  /** Channel-aware limit: Telegram allows up to 10 buttons, WhatsApp 3. Defaults to WhatsApp (stricter) for unknown contexts. */
+  channel?: 'whatsapp' | 'telegram'
 }
 
 /**
@@ -70,9 +72,10 @@ export function InteractiveBuilder({
   value,
   onChange,
   showPreview = true,
+  channel = 'whatsapp',
 }: InteractiveBuilderProps) {
   const [advanced, setAdvanced] = useState(false);
-  const validation = validateInteractivePayload(value);
+  const validation = validateInteractivePayload(value, channel);
 
   const setField = (patch: Partial<InteractiveMessagePayload>) =>
     onChange({ ...value, ...patch } as InteractiveMessagePayload);
@@ -148,7 +151,7 @@ export function InteractiveBuilder({
           </div>
 
           {value.kind === "buttons" ? (
-            <ButtonsEditor value={value} onChange={onChange} advanced={advanced} />
+            <ButtonsEditor value={value} onChange={onChange} advanced={advanced} channel={channel} />
           ) : (
             <ListEditor value={value} onChange={onChange} advanced={advanced} />
           )}
@@ -191,12 +194,16 @@ function ButtonsEditor({
   value,
   onChange,
   advanced,
+  channel = 'whatsapp',
 }: {
   value: InteractiveButtonsPayload;
   onChange: (p: InteractiveMessagePayload) => void;
   advanced: boolean;
+  channel?: 'whatsapp' | 'telegram'
 }) {
   const buttons = value.buttons;
+  const maxButtons = channel === 'telegram' ? 10 : INTERACTIVE_LIMITS.maxButtons
+  const channelLabel = channel === 'telegram' ? 'Telegram' : 'WhatsApp'
   const update = (idx: number, patch: Partial<InteractiveButtonsPayload["buttons"][number]>) =>
     onChange({
       ...value,
@@ -216,7 +223,7 @@ function ButtonsEditor({
   return (
     <div>
       <label className="mb-2 block text-xs text-muted-foreground">
-        Buttons ({buttons.length}/{INTERACTIVE_LIMITS.maxButtons})
+        Buttons ({buttons.length}/{maxButtons}) <span className="ml-2 text-[10px]">({channelLabel} max)</span>
       </label>
       <div className="flex flex-col gap-2">
         {buttons.map((b, i) => (
@@ -255,11 +262,16 @@ function ButtonsEditor({
           </div>
         ))}
       </div>
-      {buttons.length < INTERACTIVE_LIMITS.maxButtons && (
+      {buttons.length < maxButtons && (
         <Button variant="ghost" size="sm" onClick={add} className="mt-2">
           <Plus className="h-3.5 w-3.5" />
           Add button
         </Button>
+      )}
+      {buttons.length >= maxButtons && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {channelLabel} limit reached ({maxButtons} buttons). Switch channel or remove a button to add more.
+        </p>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ vi.mock('./tag-write', () => ({
 
 vi.mock('@/lib/automations/engine', () => ({
   runAutomationsForTrigger: mocks.dispatch,
+  checkPendingGoalsForContact: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {

@@ -1,3 +1,4 @@
+
 "use client";
 
 /**
@@ -191,6 +192,14 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
       return { mode: "add", tag_id: "", next_node_key: "" };
     case "wait":
       return { amount: 1, unit: "hours", next_node_key: "" };
+    case "randomizer":
+      return {
+        variants: [
+          { id: "a", label: "Variant A", weight: 50, next_node_key: "" },
+          { id: "b", label: "Variant B", weight: 50, next_node_key: "" },
+        ],
+        mode: "random",
+      };
     case "handoff":
       return { note: "" };
     case "end":

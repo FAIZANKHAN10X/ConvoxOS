@@ -126,6 +126,21 @@ export async function POST(request: Request) {
     )
   }
 
+  // P2-F Version History: when publishing, create immutable snapshot
+  if (is_active && automation) {
+    const admin2 = supabaseAdmin()
+    const { data: maxVer } = await admin2.from('automation_versions').select('version_number').eq('automation_id', automation.id).order('version_number', { ascending: false }).limit(1).maybeSingle()
+    const nextNum = ((maxVer as { version_number: number } | null)?.version_number ?? 0) + 1
+    await admin2.from('automation_versions').insert({
+      automation_id: automation.id,
+      account_id: accountId,
+      version_number: nextNum,
+      snapshot: { trigger_type: effectiveTriggerType, trigger_config: effectiveTriggerConfig ?? {}, steps: effectiveSteps ?? [] },
+      is_published: true,
+      created_by: user.id,
+    })
+  }
+
   if (effectiveSteps && effectiveSteps.length > 0) {
     const err = await insertSteps(automation.id, effectiveSteps)
     if (err) return NextResponse.json({ error: err }, { status: 500 })

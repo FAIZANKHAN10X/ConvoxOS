@@ -78,6 +78,27 @@ export async function PATCH(
         console.error('[api/v1/contacts] update error:', error);
         return fail('internal', 'Failed to update contact', 500);
       }
+      // Fire contact_changed triggers (P1) — one per changed field, fire-and-forget
+      try {
+        const { runAutomationsForTrigger, checkPendingGoalsForContact } = await import('@/lib/automations/engine');
+        for (const [field, newValue] of Object.entries(updates)) {
+          if (field === 'updated_at') continue;
+          const ctxPayload = {
+            contact_changed_field: field,
+            contact_changed_value: newValue == null ? '' : String(newValue),
+            contact_changed_old_value: (existing as unknown as Record<string, unknown>)?.[field] == null ? '' : String((existing as unknown as Record<string, unknown>)[field]),
+          }
+          void runAutomationsForTrigger({
+            accountId: ctx.accountId,
+            triggerType: 'contact_changed',
+            contactId: id,
+            context: ctxPayload,
+          }).catch((e) => console.error('[api/v1/contacts] contact_changed dispatch failed:', e));
+          void checkPendingGoalsForContact(ctx.accountId, id, ctxPayload).catch((e) => console.error('[goals] checkPendingGoalsForContact failed:', e));
+        }
+      } catch (e) {
+        console.error('[api/v1/contacts] contact_changed import failed:', e);
+      }
     }
 
     if (Array.isArray(body.tags)) {

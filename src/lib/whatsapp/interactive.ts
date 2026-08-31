@@ -100,6 +100,10 @@ function validateHeaderFooter(
   return ok()
 }
 
+function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length
+}
+
 /**
  * Validate an interactive payload against Meta's hard limits + our
  * structural rules (non-empty ids/titles, unique ids). Returns a result
@@ -108,9 +112,14 @@ function validateHeaderFooter(
  *
  * `unknown` in, narrowed here, so it's safe to call straight on a parsed
  * request body.
+ *
+ * Channel-aware (P0): Telegram allows up to 10 inline buttons vs WhatsApp's
+ * 3. Callers that know the target channel must pass `channel`; default is
+ * WhatsApp to preserve stricter backward behavior for unknown contexts.
  */
 export function validateInteractivePayload(
   payload: unknown,
+  channel: 'whatsapp' | 'telegram' = 'whatsapp',
 ): InteractiveValidation {
   if (!payload || typeof payload !== 'object') {
     return fail('Interactive message payload is required.')
@@ -133,15 +142,23 @@ export function validateInteractivePayload(
     if (!Array.isArray(buttons) || buttons.length < 1) {
       return fail('Add at least one reply button.')
     }
-    if (buttons.length > INTERACTIVE_LIMITS.maxButtons) {
+    const maxButtons = channel === 'telegram' ? 10 : INTERACTIVE_LIMITS.maxButtons
+    if (buttons.length > maxButtons) {
+      const channelLabel = channel === 'telegram' ? 'Telegram' : 'WhatsApp'
       return fail(
-        `A reply-button message allows at most ${INTERACTIVE_LIMITS.maxButtons} buttons.`,
+        `${channelLabel} allows at most ${maxButtons} buttons per message (got ${buttons.length}).`,
       )
     }
     const seen = new Set<string>()
     for (const b of buttons) {
       if (!b || typeof b.id !== 'string' || b.id.trim() === '') {
         return fail('Every button needs an id.')
+      }
+      if (channel === 'telegram') {
+        const bytes = byteLength(b.id)
+        if (bytes < 1 || bytes > 64) {
+          return fail(`Button id "${b.id}" must be 1-64 bytes for Telegram (got ${bytes}).`)
+        }
       }
       if (seen.has(b.id)) {
         return fail(`Duplicate button id "${b.id}".`)
@@ -190,6 +207,12 @@ export function validateInteractivePayload(
         total++
         if (!row || typeof row.id !== 'string' || row.id.trim() === '') {
           return fail('Every list row needs an id.')
+        }
+        if (channel === 'telegram') {
+          const bytes = byteLength(row.id)
+          if (bytes < 1 || bytes > 64) {
+            return fail(`List row id "${row.id}" must be 1-64 bytes for Telegram (got ${bytes}).`)
+          }
         }
         if (seen.has(row.id)) {
           return fail(`Duplicate list row id "${row.id}".`)

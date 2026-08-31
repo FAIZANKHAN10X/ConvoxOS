@@ -39,6 +39,34 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Button / List Reply',
     pillClass: 'border-pink-500/30 bg-pink-500/10 text-pink-300',
   },
+  contact_changed: {
+    label: 'Contact Changed',
+    pillClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  },
+  note_added: {
+    label: 'Note Added',
+    pillClass: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+  },
+  customer_replied: {
+    label: 'Customer Replied',
+    pillClass: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+  },
+  opportunity_created: {
+    label: 'Opportunity Created',
+    pillClass: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+  },
+  pipeline_stage_changed: {
+    label: 'Pipeline Stage Changed',
+    pillClass: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
+  },
+  task_added: {
+    label: 'Task Added',
+    pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+  },
+  inbound_webhook: {
+    label: 'Inbound Webhook',
+    pillClass: 'border-slate-500/30 bg-slate-500/10 text-slate-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {

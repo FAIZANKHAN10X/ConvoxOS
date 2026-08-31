@@ -266,5 +266,9 @@ Do **not**:
 | Telegram in-product connection/config | Shipped (Phase 4) — `GET/POST/DELETE /api/telegram/config`, `telegram/api.ts`, `Settings → Channels` |
 | Telegram media + inline keyboards | Shipped (Phase 5) |
 | Channel-neutral Flows / Automations | Shipped (FlowRun.trigger_channel + channel_target + ChannelSocket) |
-| Generic plugin framework | Intentionally absent |
-| Additional channel modules | TBD (Instagram/Messenger next) |
+| Channel capability matrix + Target contracts | Shipped as specs (2026-08-31 audit): `docs/specs/channel-capabilities.md` + `node-system.md` + `crm-automation.md`; P0 TG cap bug filed |
+| Generic plugin framework | Intentionally absent (see `docs/research/architectural-gap.md` §3) |
+| Additional channel modules | TBD (Instagram/Messenger next — same plugs pattern) |
+| Audit gaps (P0/P1/P2) | Tracked in `docs/research/gap-matrices.md` + `ROADMAP.md` Audit Checkpoint + `PROGRESS.md` |
+
+**Reconstruction audit (2026-08-31):** `docs/research/CONVOXOS_RECONSTRUCTION_AUDIT.md` (16 sections) + `docs/research/manychat-model.md` + `highlevel-model.md` + `builder-ux-model.md` + `channel-behavior.md` + `repo-audit.md` + `gap-matrices.md` + `architectural-gap.md` establish target lifecycle Draft→Validate→Test→Publish→Active→Paused(preserve waiting)→Archived, 30-block cap, and `Current` fidelity. `P0` before P1: channel-aware caps.

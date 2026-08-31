@@ -5,12 +5,11 @@
 ## Current State
 
 - **Branch:** `main`
-- **HEAD:** `3765d36` `feat(flows): Phase F — builder channel-aware UX (ephemeral authoring)` (local, ahead of `origin/main` `293ecb4` by 6 with `99fdcba,4870c51,00c1ac1,e4bfb42,599e22e,3765d36`)
-- **Current completed phase:** Phase 5 — Channel-Neutral Flows & Automations foundations (A–F) — `COMPLETE` (see below)
-- **Next focus:** Final docs + verification (G/H) — channel-neutral dispatch, per-flow concurrency, builder UX complete; Flows/Automations now channel-neutral via `FlowRun.trigger_channel` + `channel_target` + `ChannelSocket`
-- **Overall status:** Phases 1–4 plus media + inline keyboards + channel-neutral Flows/Automations shipped. Telegram plug COMPLETE with video/audio/voice file upload and inline keyboards. No `flows.entry_channel`, no `channels` table / factory.
-
-*Working tree may also contain unrelated local Graphify V2 patch work and `messages/en.json` i18n added in this phase; those are part of the documented milestone.*
+- **HEAD:** `752583e` + P0/P1/P2 working tree (uncommitted) — see below
+- **Current completed phase:** Phase 6 — Channel-Neutral Flows/Automations (A–F) — `COMPLETE`; P0 Telegram channel-aware caps — `COMPLETE (verified)`; P1-A..E — `COMPLETE (verified)`; P2-A Randomizer — `COMPLETE`; P2-B Goal — `COMPLETE`; P2-C Sequences — `COMPLETE`; P2-E External Request — `COMPLETE`; P2-F Version/Stats/DryRun/Reusable — `COMPLETE (working tree, uncommitted)`
+- **Audit checkpoint:** 2026-08-31 ManyChat Pro + HighLevel Reconstruction — `COMPLETE` — `docs/research/CONVOXOS_RECONSTRUCTION_AUDIT.md` (16 sections) + specs in `docs/specs/`
+- **Next focus:** P2-D Broadcasts — **COMING SOON / DEFERRED** → P2-G Activity Feed → P3
+- **Overall status:** P0/P1/P2-A/B/C/E/F implementation finished in working tree, not yet committed. No `channels` table / factory. P0/P1/P2 regression green (src/lib 97 files 1013 passed, typecheck pass, build pass).
 
 ## Completed Phases
 
@@ -95,6 +94,27 @@
 - **Graphify pipeline:** `0046713` `chore: add smooth Graphify viewer pipeline` — `origin/main` before Phase 4
 - **Phase 4 checkpoint:** `f7c9d96` Step A channels host, `57974f5` Step B provider+config API, `a28baa7` Step C Telegram UI (all on local `main`, not yet pushed; Phase 4 docs + Graphify to follow in this checkpoint)
 - Untracked generated: `?? .opencode/`, `?? graphify-out/`, `?? supabase/.temp/` (do not commit)
+
+### Audit 2026-08-31 — Reconstruction (no src)
+
+- **Deliverables:** `docs/research/manychat-model.md`, `highlevel-model.md`, `builder-ux-model.md`, `channel-behavior.md`, `repo-audit.md`, `gap-matrices.md`, `architectural-gap.md`, `CONVOXOS_RECONSTRUCTION_AUDIT.md`; `docs/specs/{automation-product-spec,builder-spec,node-system,channel-capabilities,crm-automation}.md`; updated `ROADMAP.md` Audit Checkpoint + `docs/CHANNEL_ARCHITECTURE.md` + `PROGRESS.md`.
+- **Verified gaps:** P0 TG caps, P1 tasks entity + trigger catalog + condition multi + wait variants, P2 randomizer/goal/sequences etc. — see `gap-matrices.md`. Known `send_buttons` TG builder payload mismatch traced — ChannelSocket routing correct, validator caps wrong (`repo-audit.md` §6).
+
+### P0 — Telegram Channel-Capability Correctness — `COMPLETE (working tree, uncommitted)`
+
+- **Fix:** `src/lib/whatsapp/interactive.ts:112` channel-aware `validateInteractivePayload(payload, channel='whatsapp'|'telegram')` — Telegram 10 vs WhatsApp 3, callback_data 1-64B, channel label in error; `src/lib/automations/validate.ts:59` branch on `channel_target` (current→whatsapp stricter), `src/lib/flows/validate.ts:334` same; `src/components/interactive/interactive-builder.tsx:55` channel prop + `ButtonsEditor` limit `telegram?10:3`; `src/components/automations/automation-builder.tsx:1386` passes channel, `src/components/flows/forms/node-config-form.tsx:285` channel-aware `maxButtons`.
+- **Tests:** `src/lib/p0-channel-capability.test.ts:6` 24 tests (telegram 10 ok/11 fail, whatsapp 3/4, cross-channel, callback 64B, default whatsapp); existing `interactive.test.ts` 3-button still pass.
+- **Verification:** `npm test -- src/lib/p0* src/lib/whatsapp/interactive* src/lib/automations/validate* src/lib/flows/validate*` 103 passed; `src/lib/flows src/lib/automations src/lib/channels` 284 passed; `typecheck` pass; `build` pass.
+
+### P1 — Core Automation + CRM Foundation — `COMPLETE (working tree, uncommitted)`
+
+- **P1-A Triggers:** `src/types/index.ts:482` +13 trigger types + 6 config interfaces (`ContactChanged`, `NoteAdded`, `TaskAdded`, `CustomerReplied`, `OpportunityCreated`, `PipelineStageChanged`, `InboundWebhook`) + `src/lib/automations/validate.ts:180` per-trigger validation + `src/lib/automations/engine.ts:775` `triggerMatches` with channel/value/pipeline filters + `src/lib/automations/trigger-meta.ts:42` + `src/components/automations/automation-builder.tsx:142` options+UI + `src/lib/inbound/processNormalizedInbound.ts:357` `customer_replied` hook + `src/app/api/v1/contacts/[id]/route.ts:60` contact_changed dispatch per field + `src/lib/automations/engine.ts:580` update_contact_field & `create_deal` & `create_task` post-hooks fire `contact_changed`/`opportunity_created`/`task_added` with depth guards.
+- **P1-B Tasks:** `supabase/migrations/047_tasks.sql:1` `tasks` table (account_id, contact_id nullable, assigned_to, title, description, status open/completed, due_at, source_automation_id, RLS `is_account_member`), `src/types/index.ts:154` Task interface + `CreateTaskStepConfig` + `create_task` step type, `src/lib/automations/validate.ts:125` title required, `src/lib/automations/engine.ts:680` `create_task` case with `tasks` insert + `task_added` dispatch, `src/lib/automations/unified-taxonomy.ts:56` primitive, `src/components/automations/automation-builder.tsx:142` step meta + blankConfig + editor.
+- **P1-C Conditions:** `src/lib/flows/types.ts:158` & `src/types/index.ts:660` `conditions[]` + `match:'all'|'any'` backward compat, `src/lib/flows/validate.ts:660` multi validation, `src/lib/automations/validate.ts:147` multi, `src/lib/flows/engine.ts:607` & `src/lib/automations/engine.ts:989` evaluate multi with ALL/ANY, `src/components/automations/automation-builder.tsx:1656` multi editor (Add condition, match toggle, per-condition subject/operand/value, collapse back to single).
+- **P1-D Wait:** `src/types/index.ts:662` & `src/lib/flows/types.ts:190` `until?: string` + duration, `src/lib/automations/validate.ts:136` & `src/lib/flows/validate.ts:833` either duration or valid ISO datetime, `src/lib/automations/engine.ts:1104` & `src/lib/flows/engine.ts:159` `waitMs` handles `until` (until-now diff, min 1000), `src/components/automations/automation-builder.tsx:1631` & `src/components/flows/forms/node-config-form.tsx:919` datetime-local toggle (Duration vs Until Date/Time) durable via `automation_pending_executions` run_at.
+- **P1-E Cycle:** `src/lib/flows/validate.ts:830` `findCycle` DFS reachable from entry, error `Cycle detected: a → b → a`, runtime safety cap 64 iterations `src/lib/flows/engine.ts:694` remains.
+- **Tests:** `src/lib/automations/p1-trigger.test.ts:1` 13 tests (validation + matching per trigger + channel), `src/lib/automations/p1-task.test.ts:1` 3 tests, `src/lib/p1-cd-cycle.test.ts:1` 9 tests (multi condition, wait until/duration, cycle direct/self/acyclic), `src/lib/p0-channel-capability.test.ts` still green.
+- **Verification:** `src/lib` 959 passed; `typecheck` pass; `build` pass; one flaky `src/app/api/telegram/webhook/route.test.ts` timeout only in full suite (isolated 5/5 pass).
 
 ## Working Rules
 

@@ -9,6 +9,7 @@ function fixtureHtml(nodes: unknown[], edges: unknown[]) {
   return `<!doctype html><script>
 const RAW_NODES = ${JSON.stringify(nodes)};
 const RAW_EDGES = ${JSON.stringify(edges)};
+const container = document.getElementById('graph');
 const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
   physics: { enabled: true },
 });
@@ -16,6 +17,51 @@ const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
 network.once('stabilizationIterationsDone', () => {
   network.setOptions({ physics: { enabled: false } });
 });
+
+function showInfo(nodeId) {}
+</script>`;
+}
+
+function v1PatchedHtml(nodes: unknown[], edges: unknown[]) {
+  return `<!doctype html><script>
+const RAW_NODES = ${JSON.stringify(nodes)};
+const RAW_EDGES = ${JSON.stringify(edges)};
+const container = document.getElementById('graph');
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+  // CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V1: performance-first interaction profile
+  physics: {
+    enabled: true,
+    solver: 'barnesHut',
+    barnesHut: {
+      gravitationalConstant: -1800,
+      centralGravity: 0.08,
+      springLength: 110,
+      springConstant: 0.035,
+      damping: 0.82,
+      avoidOverlap: 0.2,
+    },
+    adaptiveTimestep: true,
+    maxVelocity: 35,
+    minVelocity: 0.75,
+    stabilization: { enabled: true, iterations: 120, updateInterval: 25, fit: true },
+  },
+  interaction: {
+    hover: false,
+    tooltipDelay: 150,
+    hideEdgesOnDrag: true,
+    hideEdgesOnZoom: true,
+    navigationButtons: false,
+    keyboard: false,
+  },
+  nodes: { shape: 'dot', borderWidth: 1.5 },
+  edges: { smooth: false, selectionWidth: 2 },
+});
+
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({ physics: { enabled: false } });
+});
+
+function showInfo(nodeId) {}
 </script>`;
 }
 
@@ -32,8 +78,8 @@ async function fixture(graph: { nodes: unknown[]; links: unknown[] }, html: stri
 
 async function rawData(htmlPath: string) {
   const html = await readFile(htmlPath, "utf8");
-  const nodes = JSON.parse(html.match(/const RAW_NODES = ([\s\S]*?);\nconst RAW_EDGES/)![1]);
-  const edges = JSON.parse(html.match(/const RAW_EDGES = ([\s\S]*?);\nconst network/)![1]);
+  const nodes = JSON.parse(html.match(/const RAW_NODES = (\[[\s\S]*?\]);/)![1]);
+  const edges = JSON.parse(html.match(/const RAW_EDGES = (\[[\s\S]*?\]);/)![1]);
   return { nodes, edges };
 }
 
@@ -50,9 +96,25 @@ describe("Graphify smooth patch", () => {
     expect(first).toMatchObject({ nodes: 1, edges: 1, changed: true });
     expect(second).toMatchObject({ nodes: 1, edges: 1, changed: false });
     expect(firstHtml).toBe(secondHtml);
-    expect(firstHtml.match(/CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V1/g)).toHaveLength(1);
-    expect(firstHtml).toContain("solver: 'barnesHut'");
-    expect(firstHtml).toContain("smooth: false");
+    expect(firstHtml.match(/CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V2/g)).toHaveLength(1);
+    expect(firstHtml).toContain("seedCommunityLayout");
+    expect(firstHtml).toContain("solver: 'forceAtlas2Based'");
+    expect(firstHtml).toContain("physics: { enabled: false }");
+    expect(firstHtml).toContain("type: 'continuous'");
+  });
+
+  it("upgrades a V1-patched viewer to V2", async () => {
+    const graph = { nodes: [{ id: "a", community: 0 }], links: [{ from: "a", to: "a" }] };
+    const paths = await fixture(graph, v1PatchedHtml(graph.nodes, graph.links));
+
+    const result = await patchGraphifyHtml(paths);
+    const html = await readFile(paths.htmlPath, "utf8");
+
+    expect(result.changed).toBe(true);
+    expect(html).toContain("CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V2");
+    expect(html).not.toContain("CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V1");
+    expect(html).toContain("forceAtlas2Based");
+    expect(html.match(/CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V2/g)).toHaveLength(1);
   });
 
   it("rejects a viewer whose embedded graph is stale", async () => {
@@ -88,7 +150,7 @@ describe("Graphify smooth patch", () => {
 
   it("fails closed when Graphify changes the network anchor", async () => {
     const graph = { nodes: [{ id: "a" }], links: [] };
-    const paths = await fixture(graph, "const RAW_NODES = [{\"id\":\"a\"}];\nconst RAW_EDGES = [];\n");
+    const paths = await fixture(graph, 'const RAW_NODES = [{"id":"a"}];\nconst RAW_EDGES = [];\n');
 
     await expect(patchGraphifyHtml(paths)).rejects.toThrow("network configuration anchor");
   });

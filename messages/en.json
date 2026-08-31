@@ -1214,6 +1214,10 @@
           "label": "Wait",
           "blurb": "Pauses — minutes / hours / days"
         },
+        "randomizer": {
+          "label": "Randomizer",
+          "blurb": "Splits randomly 2–6 ways"
+        },
         "handoff": {
           "label": "Handoff to agent",
           "blurb": "Hands the conversation to a human"

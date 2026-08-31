@@ -48,6 +48,8 @@ import { removeContactTag } from "@/lib/contacts/tag-write";
 import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
+  type ConditionOperator,
+  type ConditionSubject,
   type DispatchInboundInput,
   type DispatchInboundResult,
   type FlowNodeRow,
@@ -143,7 +145,8 @@ export function isAutoAdvancing(node_type: string): boolean {
     node_type === "send_message" ||
     node_type === "send_media" ||
     node_type === "condition" ||
-    node_type === "set_tag"
+    node_type === "set_tag" ||
+    node_type === "randomizer"
   );
 }
 
@@ -156,7 +159,13 @@ export function isSuspending(node_type: string): boolean {
   );
 }
 
-export function waitMsForFlow(cfg: { amount?: number; unit?: string }): number {
+export function waitMsForFlow(cfg: { amount?: number; unit?: string; until?: string }): number {
+  if (cfg.until) {
+    const untilDate = new Date(cfg.until)
+    if (!Number.isNaN(untilDate.getTime())) {
+      return Math.max(1_000, untilDate.getTime() - Date.now())
+    }
+  }
   const unit = cfg.unit === "days" ? 86_400_000 : cfg.unit === "minutes" ? 60_000 : 3_600_000
   const amount = typeof cfg.amount === "number" && cfg.amount >= 1 ? cfg.amount : 1
   return Math.max(1_000, amount * unit)
@@ -609,6 +618,45 @@ async function evaluateConditionNode(
   run: FlowRunRow,
   cfg: ConditionNodeConfig,
 ): Promise<boolean> {
+  // P1 — multi-condition support
+  const multi = (cfg as unknown as { conditions?: Array<{ subject: ConditionSubject; subject_key: string; operator: ConditionOperator; value?: string }>; match?: string }).conditions
+  if (Array.isArray(multi) && multi.length > 0) {
+    const match = (cfg as unknown as { match?: string }).match === 'any' ? 'any' : 'all'
+    const results: boolean[] = []
+    for (const c of multi) {
+      let subjectValue: string | undefined
+      if (c.subject === "var") {
+        const v = run.vars[c.subject_key];
+        subjectValue = typeof v === "string" ? v : v === undefined ? undefined : String(v);
+      } else if (c.subject === "tag") {
+        const { count } = await db
+          .from("contact_tags")
+          .select("contact_id", { count: "exact", head: true })
+          .eq("contact_id", run.contact_id!)
+          .eq("tag_id", c.subject_key);
+        subjectValue = (count ?? 0) > 0 ? c.subject_key : undefined;
+      } else {
+        const ALLOWED = ["name", "email", "phone", "company"] as const;
+        type AllowedField = (typeof ALLOWED)[number];
+        if (!ALLOWED.includes(c.subject_key as AllowedField)) {
+          throw new Error(`unsupported contact_field: ${c.subject_key}`);
+        }
+        const { data } = await db
+          .from("contacts")
+          .select(c.subject_key)
+          .eq("id", run.contact_id!)
+          .maybeSingle();
+        const raw = (data as Record<string, unknown> | null)?.[c.subject_key];
+        subjectValue = typeof raw === "string" && raw.length > 0 ? raw : undefined;
+      }
+      results.push(evaluateConditionPredicate({
+        operator: c.operator,
+        subjectValue,
+        configValue: c.value,
+      }))
+    }
+    return match === 'any' ? results.some(Boolean) : results.every(Boolean)
+  }
   let subjectValue: string | undefined;
   if (cfg.subject === "var") {
     const v = run.vars[cfg.subject_key];
@@ -944,12 +992,56 @@ async function advanceFromNodeKey(
         await endRun(db, run.id, "failed", "wait_enqueue_failed");
         return { outcome: "completed" };
       }
-      await logEvent(db, run.id, "node_entered", node.node_key, { wait_amount: cfg.amount, wait_unit: cfg.unit, run_at: runAt, next_node_key: nextKey });
+      await logEvent(db, run.id, "node_entered", node.node_key, { wait_amount: cfg.amount, wait_unit: cfg.unit, wait_until: (cfg as unknown as { until?: string }).until, run_at: runAt, next_node_key: nextKey });
       const advanced = await advanceCurrentNodeKey(db, run.id, run.current_node_key, node.node_key);
       if (!advanced) {
         await logEvent(db, run.id, "error", node.node_key, { reason: "lost_race_during_advance" });
       }
       return { outcome: "advanced" };
+    }
+    if (node.node_type === "randomizer") {
+      const cfg = node.config as unknown as { variants: Array<{ id: string; label: string; weight: number; next_node_key: string }>; mode?: string };
+      const variants = cfg.variants ?? []
+      if (variants.length === 0) {
+        await logEvent(db, run.id, "error", node.node_key, { reason: "randomizer_no_variants" });
+        await endRun(db, run.id, "failed", "randomizer_no_variants");
+        return { outcome: "completed" };
+      }
+      const mode: string = cfg.mode === 'random' ? 'random' : 'sticky'
+      let chosenId: string | null = null
+      if (mode === 'sticky') {
+        const key: string = `_randomizer_${node.node_key}`
+        const existing: unknown = run.vars[key]
+        if (typeof existing === 'string' && variants.some((v: { id: string }) => v.id === existing)) {
+          chosenId = existing
+        }
+      }
+      if (!chosenId) {
+        const total: number = variants.reduce((sum: number, v: { weight: number }) => sum + (typeof v.weight === 'number' ? v.weight : 0), 0)
+        let r: number = Math.random() * total
+        for (const v of variants) {
+          r -= (v as { weight: number }).weight
+          if (r <= 0) {
+            chosenId = (v as { id: string }).id
+            break
+          }
+        }
+        if (!chosenId && variants.length > 0) chosenId = (variants[variants.length - 1] as { id: string }).id
+        if (mode === 'sticky' && chosenId) {
+          const newVars: Record<string, unknown> = { ...run.vars, [`_randomizer_${node.node_key}`]: chosenId }
+          await db.from('flow_runs').update({ vars: newVars }).eq('id', run.id)
+          run.vars = newVars
+        }
+      }
+      const chosen: { id: string; label: string; weight: number; next_node_key: string } | undefined = variants.find((v: { id: string }) => v.id === chosenId) as unknown as { id: string; label: string; weight: number; next_node_key: string } | undefined
+      if (!chosen || !chosen.next_node_key) {
+        await logEvent(db, run.id, "error", node.node_key, { reason: "randomizer_no_variant", detail: String(chosenId) });
+        await endRun(db, run.id, "failed", "randomizer_no_variant");
+        return { outcome: "completed" };
+      }
+      await logEvent(db, run.id, "node_entered", node.node_key, { randomizer_chosen: chosen.id, randomizer_label: chosen.label, randomizer_mode: mode, advancing_to: chosen.next_node_key });
+      currentKey = chosen.next_node_key
+      continue
     }
     if (node.node_type === "send_buttons") {
       await sendButtonsAndSuspend(db, run, node);

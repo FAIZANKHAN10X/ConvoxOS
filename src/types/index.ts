@@ -159,6 +159,23 @@ export interface ContactNote {
   created_at: string;
 }
 
+export type TaskStatus = 'open' | 'completed';
+
+export interface Task {
+  id: string;
+  account_id: string;
+  user_id: string;
+  contact_id: string | null;
+  assigned_to: string | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  due_at: string | null;
+  source_automation_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
 export interface Conversation {
@@ -472,7 +489,18 @@ export type AutomationTriggerType =
   | 'time_based'
   /** Customer tapped a reply button / list row whose id matches; lets
    *  multi-step menus be chained across automations. */
-  | 'interactive_reply';
+  | 'interactive_reply'
+  // P1 — Contact category
+  | 'contact_changed'
+  | 'note_added'
+  | 'task_added'
+  // P1 — Conversation category
+  | 'customer_replied'
+  // P1 — Opportunity category
+  | 'opportunity_created'
+  | 'pipeline_stage_changed'
+  // P1 — Business Event
+  | 'inbound_webhook';
 
 export type AutomationStepType =
   | 'send_message'
@@ -484,6 +512,10 @@ export type AutomationStepType =
   | 'assign_conversation'
   | 'update_contact_field'
   | 'create_deal'
+  | 'create_task'
+  | 'randomizer'
+  | 'goal'
+  | 'enroll_in_sequence'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -522,12 +554,54 @@ export interface InteractiveReplyTriggerConfig {
   channel?: "any" | "whatsapp" | "telegram";
 }
 
+// P1 — Contact category
+export interface ContactChangedTriggerConfig {
+  /** Field that must change: built-in (name|email|phone|company) or custom:<id> */
+  field: string;
+  /** Optional: only fire when new value equals this string (exact match). Omit to fire on any change. */
+  value?: string;
+}
+
+// P1 — Note category (contact_notes)
+export type NoteAddedTriggerConfig = Record<string, never>
+export type TaskAddedTriggerConfig = Record<string, never>
+
+// P1 — Conversation category (generic inbound, alias for new_message_received with channel filter)
+export interface CustomerRepliedTriggerConfig {
+  channel?: "any" | "whatsapp" | "telegram";
+}
+
+// P1 — Opportunity category
+export interface OpportunityCreatedTriggerConfig {
+  pipeline_id?: string;
+  stage_id?: string;
+}
+
+export interface PipelineStageChangedTriggerConfig {
+  pipeline_id?: string;
+  from_stage_id?: string;
+  to_stage_id?: string;
+}
+
+// P1 — Business Event
+export interface InboundWebhookTriggerConfig {
+  /** Optional path filter; if set, only webhook POSTs to this path fire. Omit for any inbound webhook. */
+  path?: string;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
   | InteractiveReplyTriggerConfig
+  | ContactChangedTriggerConfig
+  | NoteAddedTriggerConfig
+  | TaskAddedTriggerConfig
+  | CustomerRepliedTriggerConfig
+  | OpportunityCreatedTriggerConfig
+  | PipelineStageChangedTriggerConfig
+  | InboundWebhookTriggerConfig
   | Record<string, unknown>;
 
 export type AutomationChannelTarget = "current" | "whatsapp" | "telegram";
@@ -581,9 +655,36 @@ export interface CreateDealStepConfig {
   value?: number;
 }
 
+export interface CreateTaskStepConfig {
+  title: string;
+  description?: string;
+  due_at?: string;
+  assigned_to?: string;
+}
+
+export interface RandomizerStepConfig {
+  variants: Array<{ id: string; label: string; weight: number }>;
+  mode?: 'sticky' | 'random';
+}
+
+export interface GoalStepConfig {
+  // Condition that defines when the goal is satisfied
+  condition: ConditionStepConfig;
+  // Optional timeout in hours — if goal not met within this time, continue to next step (or fail)
+  timeout_hours?: number;
+  // Where to jump when goal is met — if omitted, just continue to next step (goal acts as wait)
+  target_step_position?: number;
+}
+
+export interface EnrollInSequenceStepConfig {
+  sequence_id: string;
+}
+
 export interface WaitStepConfig {
-  amount: number;
-  unit: 'minutes' | 'hours' | 'days';
+  amount?: number;
+  unit?: 'minutes' | 'hours' | 'days';
+  /** ISO datetime for date/time wait — when present, wait until this time instead of duration */
+  until?: string;
 }
 
 export type ConditionSubject =
@@ -598,12 +699,19 @@ export interface ConditionStepConfig {
   operand?: string;
   /** For contact_field equals / message_content contains — comparison value */
   value?: string;
+  // P1 — multi-condition support
+  conditions?: Array<{ subject: ConditionSubject; operand?: string; value?: string }>;
+  match?: 'all' | 'any';
 }
 
 export interface SendWebhookStepConfig {
   url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body_template?: string;
+  // When true, response JSON is stored in vars for downstream steps
+  store_response?: boolean;
+  response_var?: string;
 }
 
 export type AutomationStepConfig =
@@ -615,6 +723,10 @@ export type AutomationStepConfig =
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
+  | CreateTaskStepConfig
+  | RandomizerStepConfig
+  | GoalStepConfig
+  | EnrollInSequenceStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
@@ -650,6 +762,42 @@ export interface AutomationStep {
   step_config: AutomationStepConfig;
   position: number;
   created_at: string;
+}
+
+export interface Sequence {
+  id: string;
+  account_id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SequenceStepType = 'send_message' | 'send_buttons' | 'send_list' | 'wait';
+
+export interface SequenceStep {
+  id: string;
+  sequence_id: string;
+  position: number;
+  step_type: SequenceStepType;
+  step_config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SequenceEnrollment {
+  id: string;
+  sequence_id: string;
+  account_id: string;
+  contact_id: string;
+  status: 'active' | 'completed' | 'cancelled';
+  current_position: number;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  cancelled_at: string | null;
 }
 
 export interface AutomationLogStepResult {

@@ -21,6 +21,12 @@ import type {
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
+
+const MAX_CONTACT_CHANGED_DEPTH = 5
+function getContactChangedDepth(ctx?: AutomationContext): number {
+  const v = (ctx?.vars as Record<string, unknown> | undefined)?.['_contact_changed_depth']
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
 import { engineSendTemplate, engineSendInteractive } from './meta-send'
 import { dispatchText as dispatchChannelText, dispatchInteractive as dispatchChannelInteractive } from '@/lib/channels/socket'
 import type { AutomationChannelTarget } from '@/types'
@@ -46,6 +52,25 @@ export interface AutomationContext {
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
   interactive_reply_id?: string
+  // P1 — Contact
+  contact_changed_field?: string
+  contact_changed_value?: string
+  contact_changed_old_value?: string
+  // P1 — Note
+  note_id?: string
+  note_text?: string
+  // P1 — Task
+  task_id?: string
+  task_title?: string
+  // P1 — Opportunity
+  opportunity_id?: string
+  pipeline_id?: string
+  stage_id?: string
+  from_stage_id?: string
+  to_stage_id?: string
+  // P1 — Business Event
+  webhook_path?: string
+  webhook_payload?: Record<string, unknown>
 }
 
 export interface DispatchInput {
@@ -124,7 +149,20 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (!automations || automations.length === 0) return
 
     for (const automation of automations as Automation[]) {
-      if (!triggerMatches(automation, input.context)) continue
+      const matched = triggerMatches(automation, input.context)
+      // Log every evaluation for truthful stats (attempted/matched/unmatched), fire-and-forget
+      void (async () => {
+        try {
+          await supabaseAdmin().from('automation_trigger_evaluations').insert({
+            automation_id: automation.id,
+            account_id: automation.account_id,
+            contact_id: input.contactId ?? null,
+            trigger_type: automation.trigger_type,
+            matched,
+          })
+        } catch {}
+      })()
+      if (!matched) continue
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -317,6 +355,71 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         status: 'success',
         detail: `waiting ${cfg.amount} ${cfg.unit}`,
       })
+      status = 'partial'
+      await appendResults(args.logId, results, status, errorMessage)
+      return
+    }
+
+    if (step.step_type === 'randomizer') {
+      const cfg = step.step_config as unknown as { variants: Array<{ id: string; label: string; weight: number }>; mode?: string }
+      const variants = cfg.variants ?? []
+      if (variants.length === 0) {
+        results.push({ step_id: step.id, step_type: 'randomizer', status: 'failed', detail: 'no variants' })
+        status = 'failed'
+        errorMessage = 'randomizer needs variants'
+        break
+      }
+      const total = variants.reduce((sum, v) => sum + (typeof v.weight === 'number' ? v.weight : 0), 0)
+      let r = Math.random() * total
+      let chosen = variants[0]
+      for (const v of variants) {
+        r -= (typeof v.weight === 'number' ? v.weight : 0)
+        if (r <= 0) {
+          chosen = v
+          break
+        }
+      }
+      results.push({ step_id: step.id, step_type: 'randomizer', status: 'success', detail: `chose ${chosen.id} (${chosen.label})` })
+      if (!args.context.vars) args.context.vars = {}
+      args.context.vars[`_randomizer_${step.id}`] = chosen.id
+      continue
+    }
+
+    if (step.step_type === 'goal') {
+      const cfg = step.step_config as unknown as { condition: { subject: string; operand?: string; value?: string }; timeout_hours?: number }
+      const cond = cfg.condition
+      if (!cond || !cond.subject) {
+        results.push({ step_id: step.id, step_type: 'goal', status: 'failed', detail: 'goal missing condition' })
+        status = 'failed'
+        errorMessage = 'goal missing condition'
+        break
+      }
+      const satisfied = await evaluateCondition(cond as unknown as ConditionStepConfig, args).catch(() => false)
+      if (satisfied) {
+        results.push({ step_id: step.id, step_type: 'goal', status: 'success', detail: 'goal satisfied immediately' })
+        continue
+      }
+      const timeoutHours = typeof cfg.timeout_hours === 'number' && cfg.timeout_hours > 0 ? cfg.timeout_hours : 24
+      const runAt = new Date(Date.now() + timeoutHours * 3600000).toISOString()
+      await db.from('automation_pending_executions').insert({
+        automation_id: args.automation.id,
+        account_id: args.automation.account_id,
+        user_id: args.automation.user_id,
+        contact_id: args.contactId,
+        log_id: args.logId,
+        parent_step_id: args.parentStepId,
+        branch: args.branch,
+        next_step_position: step.position + 1,
+        context: {
+          ...args.context,
+          _goal_condition: cond,
+          _goal_step_id: step.id,
+          _goal_timeout_hours: timeoutHours,
+        },
+        run_at: runAt,
+        status: 'pending',
+      })
+      results.push({ step_id: step.id, step_type: 'goal', status: 'success', detail: `waiting for goal (timeout ${timeoutHours}h)` })
       status = 'partial'
       await appendResults(args.logId, results, status, errorMessage)
       return
@@ -600,6 +703,24 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             { contact_id: args.contactId, custom_field_id: customFieldId, value },
             { onConflict: 'contact_id,custom_field_id' },
           )
+        // Fire contact_changed trigger (P1) — custom field + check pending goals
+        {
+          const depth = getContactChangedDepth(args.context)
+          if (depth < MAX_CONTACT_CHANGED_DEPTH) {
+            void runAutomationsForTrigger({
+              accountId: args.automation.account_id,
+              triggerType: 'contact_changed',
+              contactId: args.contactId,
+              context: {
+                ...args.context,
+                contact_changed_field: cfg.field,
+                contact_changed_value: value,
+                vars: { ...(args.context.vars ?? {}), _contact_changed_depth: depth + 1 },
+              },
+            }).catch((e) => console.error('[automations] contact_changed dispatch failed:', e))
+          }
+          void checkPendingGoalsForContact(args.automation.account_id, args.contactId, { contact_changed_field: cfg.field, contact_changed_value: value, ...args.context }).catch((e) => console.error('[goals] checkPendingGoalsForContact failed:', e))
+        }
         return `custom field updated`
       }
 
@@ -615,6 +736,24 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .update({ [cfg.field]: value, updated_at: new Date().toISOString() })
         .eq('id', args.contactId)
         .eq('account_id', args.automation.account_id)
+      // Fire contact_changed trigger (P1) + check pending goals
+      {
+        const depth = getContactChangedDepth(args.context)
+        if (depth < MAX_CONTACT_CHANGED_DEPTH) {
+          void runAutomationsForTrigger({
+            accountId: args.automation.account_id,
+            triggerType: 'contact_changed',
+            contactId: args.contactId,
+            context: {
+              ...args.context,
+              contact_changed_field: cfg.field,
+              contact_changed_value: value,
+              vars: { ...(args.context.vars ?? {}), _contact_changed_depth: depth + 1 },
+            },
+          }).catch((e) => console.error('[automations] contact_changed dispatch failed:', e))
+        }
+        void checkPendingGoalsForContact(args.automation.account_id, args.contactId, { contact_changed_field: cfg.field, contact_changed_value: value, ...args.context }).catch((e) => console.error('[goals] checkPendingGoalsForContact failed:', e))
+      }
       return `${cfg.field} updated`
     }
 
@@ -646,29 +785,148 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'deal created'
     }
 
+    case 'create_task': {
+      const cfg = step.step_config as unknown as { title?: string; description?: string; due_at?: string; assigned_to?: string }
+      const title = interpolate(cfg.title ?? '', args).trim()
+      if (!title) throw new Error('create_task needs title')
+      const description = cfg.description != null ? interpolate(String(cfg.description), args) : null
+      let dueAt: string | null = null
+      if (cfg.due_at) {
+        const parsed = new Date(interpolate(String(cfg.due_at), args))
+        if (!Number.isNaN(parsed.getTime())) dueAt = parsed.toISOString()
+      }
+      let assignedTo: string | null = cfg.assigned_to ?? null
+      if (assignedTo) {
+        const { data: member } = await db
+          .from('profiles')
+          .select('user_id')
+          .eq('user_id', assignedTo)
+          .eq('account_id', args.automation.account_id)
+          .maybeSingle()
+        if (!member) throw new Error(`create_task: assigned_to ${assignedTo} is not a member of this account`)
+      }
+      const { data: insertedTask, error: taskErr } = await db
+        .from('tasks')
+        .insert({
+          account_id: args.automation.account_id,
+          user_id: args.automation.user_id,
+          contact_id: args.contactId ?? null,
+          assigned_to: assignedTo,
+          title,
+          description,
+          due_at: dueAt,
+          status: 'open',
+          source_automation_id: args.automation.id,
+        })
+        .select('id')
+        .single()
+      if (taskErr) throw new Error(`create_task failed: ${taskErr.message}`)
+      void runAutomationsForTrigger({
+        accountId: args.automation.account_id,
+        triggerType: 'task_added',
+        contactId: args.contactId ?? null,
+        context: {
+          ...args.context,
+          task_id: (insertedTask as { id: string }).id,
+          task_title: title,
+        },
+      }).catch((e) => console.error('[automations] task_added dispatch failed:', e))
+      return `task created ${(insertedTask as { id: string }).id}`
+    }
+
+    case 'enroll_in_sequence': {
+      const cfg = step.step_config as unknown as { sequence_id: string }
+      if (!cfg.sequence_id) throw new Error('enroll_in_sequence needs sequence_id')
+      if (!args.contactId) throw new Error('enroll_in_sequence needs a contact')
+      const { enrollContactInSequence } = await import('@/lib/sequences/engine')
+      const { enrollmentId, alreadyActive } = await enrollContactInSequence({
+        accountId: args.automation.account_id,
+        sequenceId: cfg.sequence_id,
+        contactId: args.contactId,
+        triggerChannel: (args.context.trigger_channel as 'whatsapp' | 'telegram' | null) ?? null,
+        vars: args.context.vars,
+      })
+      return alreadyActive ? `already enrolled ${enrollmentId}` : `enrolled ${enrollmentId}`
+    }
+
     case 'send_webhook': {
       const cfg = step.step_config as SendWebhookStepConfig
       if (!cfg.url) throw new Error('send_webhook needs url')
-      // SSRF guard: the URL and headers are account-controlled and the
-      // server makes the request, so refuse any destination that resolves
-      // to a private / loopback / link-local / reserved address. Mirrors
-      // the webhook_endpoints delivery path (see lib/webhooks/deliver.ts).
-      if (!(await isDeliverableUrl(cfg.url))) {
+      const method = (cfg.method ?? 'POST').toUpperCase()
+      if (!['GET','POST','PUT','PATCH','DELETE'].includes(method)) throw new Error(`unsupported method ${method}`)
+      const interpolatedUrl = interpolate(cfg.url, args)
+      if (!(await isDeliverableUrl(interpolatedUrl))) {
         throw new Error('send_webhook: destination not allowed')
       }
-      const body = cfg.body_template ? interpolate(cfg.body_template, args) : JSON.stringify(args.context)
-      const res = await fetch(cfg.url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...(cfg.headers ?? {}) },
-        body,
-        // Do NOT follow redirects — a public URL could 3xx-bounce to an
-        // internal address, defeating the guard above. Bound the request
-        // so a hung/slow internal host can't tie up the runner.
-        redirect: 'manual',
-        signal: AbortSignal.timeout(10_000),
-      })
-      if (!res.ok) throw new Error(`webhook returned ${res.status}`)
-      return `webhook ${res.status}`
+      // Interpolate headers
+      const headers: Record<string, string> = {}
+      if (cfg.headers) {
+        for (const [k, v] of Object.entries(cfg.headers)) {
+          headers[k] = interpolate(String(v), args)
+        }
+      }
+      // Body handling: GET/DELETE should not have body, others can
+      let body: string | undefined = undefined
+      if (cfg.body_template != null && cfg.body_template !== '') {
+        body = interpolate(String(cfg.body_template), args)
+      } else if (method !== 'GET' && method !== 'DELETE') {
+        body = JSON.stringify(args.context)
+        if (!headers['content-type']) headers['content-type'] = 'application/json'
+      }
+      if (method === 'GET' && body) throw new Error('GET requests should not have a body')
+      const start = Date.now()
+      let res: Response
+      try {
+        res = await fetch(interpolatedUrl, {
+          method,
+          headers,
+          body: method === 'GET' || method === 'DELETE' ? undefined : body,
+          redirect: 'manual',
+          signal: AbortSignal.timeout(10_000),
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error('[webhook] fetch failed:', { method, url: interpolatedUrl, error: msg, duration: Date.now() - start })
+        throw new Error(`webhook fetch failed: ${msg}`)
+      }
+      const duration = Date.now() - start
+      // Read response (bounded to 100KB to avoid giant persistence)
+      let text = ''
+      let json: unknown = null
+      try {
+        text = await res.text()
+        if (text.length > 100 * 1024) text = text.slice(0, 100 * 1024) + '…[truncated]'
+        try {
+          json = JSON.parse(text)
+        } catch {
+          // not JSON, keep text
+        }
+      } catch (e) {
+        console.error('[webhook] read body failed:', e)
+      }
+      // Logging (redact Authorization)
+      const safeHeaders = { ...headers }
+      if (safeHeaders['authorization']) safeHeaders['authorization'] = '[REDACTED]'
+      if (safeHeaders['Authorization']) safeHeaders['Authorization'] = '[REDACTED]'
+      console.log('[webhook]', { method, url: interpolatedUrl, status: res.status, duration, headers: safeHeaders })
+
+      // Store response in vars if requested
+      if (cfg.store_response) {
+        const varName = (cfg.response_var && cfg.response_var.trim()) ? cfg.response_var.trim() : 'external_response'
+        if (!args.context.vars) args.context.vars = {}
+        // Bound response storage to 10KB JSON
+        const toStore = json !== null ? json : text
+        const str = JSON.stringify(toStore)
+        const limited = str.length > 10 * 1024 ? str.slice(0, 10 * 1024) : str
+        try {
+          args.context.vars[varName] = JSON.parse(limited)
+        } catch {
+          args.context.vars[varName] = limited
+        }
+      }
+
+      if (!res.ok) throw new Error(`webhook returned ${res.status}: ${text.slice(0, 500)}`)
+      return `webhook ${res.status}${json ? ' json' : ' text'}`
     }
 
     case 'close_conversation': {
@@ -801,6 +1059,58 @@ export function triggerMatches(automation: Automation, ctx: AutomationContext | 
     return Boolean(tagId && cfg?.tag_id && cfg.tag_id === tagId)
   }
 
+  // P1 — Contact changed
+  if (automation.trigger_type === 'contact_changed') {
+    const cfg = automation.trigger_config as unknown as { field?: string; value?: string }
+    const changedField = ctx?.contact_changed_field
+    const changedValue = ctx?.contact_changed_value
+    if (!changedField || !cfg?.field) return false
+    if (cfg.field !== changedField) return false
+    if (cfg.value !== undefined && cfg.value !== '' && String(changedValue ?? '') !== String(cfg.value)) return false
+    return true
+  }
+
+  if (automation.trigger_type === 'note_added') {
+    return Boolean(ctx?.note_id)
+  }
+
+  if (automation.trigger_type === 'task_added') {
+    return Boolean(ctx?.task_id)
+  }
+
+  if (automation.trigger_type === 'customer_replied') {
+    const cfg = automation.trigger_config as unknown as { channel?: string }
+    const cfgChannel = cfg?.channel as string | undefined
+    const ctxChannel = (ctx as unknown as { trigger_channel?: string | null })?.trigger_channel
+    if (cfgChannel && cfgChannel !== 'any' && ctxChannel && cfgChannel !== ctxChannel) return false
+    if (cfgChannel && cfgChannel !== 'any' && !ctxChannel) return false
+    const text = (ctx?.message_text ?? '').toString()
+    return Boolean(text && text.trim().length > 0)
+  }
+
+  if (automation.trigger_type === 'opportunity_created') {
+    const cfg = automation.trigger_config as unknown as { pipeline_id?: string; stage_id?: string }
+    if (!ctx?.opportunity_id) return false
+    if (cfg?.pipeline_id && cfg.pipeline_id !== ctx.pipeline_id) return false
+    if (cfg?.stage_id && cfg.stage_id !== ctx.stage_id) return false
+    return true
+  }
+
+  if (automation.trigger_type === 'pipeline_stage_changed') {
+    const cfg = automation.trigger_config as unknown as { pipeline_id?: string; from_stage_id?: string; to_stage_id?: string }
+    if (!ctx?.opportunity_id) return false
+    if (cfg?.pipeline_id && cfg.pipeline_id !== ctx.pipeline_id) return false
+    if (cfg?.from_stage_id && cfg.from_stage_id !== ctx.from_stage_id) return false
+    if (cfg?.to_stage_id && cfg.to_stage_id !== ctx.to_stage_id) return false
+    return true
+  }
+
+  if (automation.trigger_type === 'inbound_webhook') {
+    const cfg = automation.trigger_config as unknown as { path?: string }
+    if (cfg?.path && cfg.path !== ctx?.webhook_path) return false
+    return true
+  }
+
   return true
 }
 
@@ -856,9 +1166,44 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
   }
 }
 
+export async function checkPendingGoalsForContact(accountId: string, contactId: string, ctx: AutomationContext): Promise<void> {
+  const db = supabaseAdmin()
+  const { data: pending } = await db.from('automation_pending_executions').select('*').eq('account_id', accountId).eq('contact_id', contactId).eq('status', 'pending')
+  if (!pending || pending.length === 0) return
+  for (const p of pending as Array<{ id: string; context: Record<string, unknown>; automation_id: string; log_id: string | null; parent_step_id: string | null; branch: string | null; next_step_position: number }>) {
+    const goalCond = (p.context as Record<string, unknown>)?._goal_condition as unknown as import('@/types').ConditionStepConfig | undefined
+    if (!goalCond) continue
+    const automation = { id: p.automation_id, account_id: accountId } as unknown as import('@/types').Automation
+    const args: ExecuteArgs = {
+      automation: automation as import('@/types').Automation,
+      contactId,
+      context: { ...ctx, ...(p.context as AutomationContext), vars: { ...((p.context as unknown as { vars?: Record<string, unknown> })?.vars ?? {}), ...ctx.vars } },
+      parentStepId: p.parent_step_id,
+      branch: p.branch as 'yes' | 'no' | null,
+      startPosition: p.next_step_position,
+      logId: p.log_id,
+      triggerEvent: 'goal_satisfied',
+    }
+    try {
+      const satisfied = await evaluateCondition(goalCond, args)
+      if (satisfied) {
+        await db.from('automation_pending_executions').update({ run_at: new Date().toISOString() }).eq('id', p.id)
+      }
+    } catch (e) {
+      console.error('[goals] evaluate pending goal failed:', e)
+    }
+  }
+}
+
 function waitMs(cfg: WaitStepConfig): number {
+  if (cfg.until) {
+    const untilDate = new Date(cfg.until)
+    if (!Number.isNaN(untilDate.getTime())) {
+      return Math.max(1_000, untilDate.getTime() - Date.now())
+    }
+  }
   const unitMs = cfg.unit === 'days' ? 86_400_000 : cfg.unit === 'hours' ? 3_600_000 : 60_000
-  return Math.max(1_000, cfg.amount * unitMs)
+  return Math.max(1_000, (cfg.amount ?? 1) * unitMs)
 }
 
 function interpolate(s: string, args: ExecuteArgs): string {

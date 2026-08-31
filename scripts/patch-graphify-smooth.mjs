@@ -4,7 +4,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-const PATCH_MARKER = "CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V1";
+const PATCH_MARKER = "CONVOXOS_GRAPHIFY_SMOOTH_PATCH_V2";
 
 function parseConstArray(html, name) {
   const start = html.indexOf(`const ${name} = `);
@@ -61,30 +61,59 @@ function graphTopology(graph, source) {
 }
 
 function patchNetworkOptions(html) {
-  const start = html.indexOf("const network = new vis.Network");
-  const endAnchor = "\n\nnetwork.once('stabilizationIterationsDone'";
-  const end = html.indexOf(endAnchor, start);
+  const start = html.indexOf("const container = document.getElementById('graph');");
+  const end = html.indexOf("function showInfo(nodeId)", start);
   if (start < 0 || end < 0) {
     throw new Error("Graphify HTML network configuration anchor was not found");
   }
 
-  const replacement = `const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
-  // ${PATCH_MARKER}: performance-first interaction profile
+  const replacement = `const container = document.getElementById('graph');
+// ${PATCH_MARKER}: community-seeded layout, one-shot stabilize, then freeze
+(function seedCommunityLayout() {
+  var groups = {};
+  for (var i = 0; i < RAW_NODES.length; i++) {
+    var node = RAW_NODES[i];
+    var cid = node.community;
+    if (cid === undefined || cid === null) cid = -1;
+    if (!groups[cid]) groups[cid] = [];
+    groups[cid].push(node);
+  }
+  var cids = Object.keys(groups);
+  var ring = Math.max(2800, cids.length * 34);
+  var updates = [];
+  for (var c = 0; c < cids.length; c++) {
+    var angle = (2 * Math.PI * c) / cids.length;
+    var cx = Math.cos(angle) * ring;
+    var cy = Math.sin(angle) * ring;
+    var members = groups[cids[c]];
+    var localR = 48 + Math.sqrt(members.length) * 22;
+    for (var j = 0; j < members.length; j++) {
+      var a = (2 * Math.PI * j) / Math.max(members.length, 1);
+      updates.push({
+        id: members[j].id,
+        x: cx + Math.cos(a) * localR,
+        y: cy + Math.sin(a) * localR,
+      });
+    }
+  }
+  nodesDS.update(updates);
+})();
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
   physics: {
     enabled: true,
-    solver: 'barnesHut',
-    barnesHut: {
-      gravitationalConstant: -1800,
-      centralGravity: 0.08,
-      springLength: 110,
-      springConstant: 0.035,
-      damping: 0.82,
-      avoidOverlap: 0.2,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -72,
+      centralGravity: 0.01,
+      springLength: 160,
+      springConstant: 0.07,
+      damping: 0.48,
+      avoidOverlap: 1,
     },
     adaptiveTimestep: true,
-    maxVelocity: 35,
-    minVelocity: 0.75,
-    stabilization: { enabled: true, iterations: 120, updateInterval: 25, fit: true },
+    maxVelocity: 50,
+    minVelocity: 0.9,
+    stabilization: { enabled: true, iterations: 600, updateInterval: 40, fit: true },
   },
   interaction: {
     hover: false,
@@ -94,9 +123,20 @@ function patchNetworkOptions(html) {
     navigationButtons: false,
     keyboard: false,
   },
+  layout: { improvedLayout: false },
   nodes: { shape: 'dot', borderWidth: 1.5 },
   edges: { smooth: false, selectionWidth: 2 },
-});`;
+});
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({
+    physics: { enabled: false },
+    interaction: { hover: true, tooltipDelay: 120, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
+    edges: { smooth: { enabled: true, type: 'continuous', roundness: 0.15 }, selectionWidth: 2 },
+  });
+  network.fit({ animation: false });
+});
+
+`;
 
   return `${html.slice(0, start)}${replacement}${html.slice(end)}`;
 }

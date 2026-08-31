@@ -26,6 +26,7 @@ import {
   MessageCircle,
   Paperclip,
   PlayCircle,
+  Shuffle,
   Tag,
   UserPlus,
   Workflow,
@@ -51,6 +52,7 @@ export type NodeType =
   | 'condition'
   | 'set_tag'
   | 'wait'
+  | 'randomizer'
   | 'handoff'
   | 'end';
 
@@ -162,6 +164,13 @@ export const NODE_META: Record<
     blurb: 'Pauses minutes / hours / days',
     category: 'timing',
   },
+  randomizer: {
+    label: 'Randomizer',
+    icon: Shuffle,
+    color: 'text-orange-400',
+    blurb: 'Splits randomly 2–6 ways',
+    category: 'logic',
+  },
   handoff: {
     label: 'Handoff to agent',
     icon: UserPlus,
@@ -216,6 +225,7 @@ const NODE_HUE: Record<NodeType, { l: number; c: number; h: number }> = {
   condition: { l: 0.72, c: 0.15, h: 65 }, // amber — a fork in the road
   set_tag: { l: 0.65, c: 0.15, h: 350 }, // pink
   wait: { l: 0.6, c: 0.12, h: 45 }, // amber-gold for wait
+  randomizer: { l: 0.65, c: 0.18, h: 30 }, // orange — randomizer
   handoff: { l: 0.65, c: 0.17, h: 16 }, // rose — hands off
   end: { l: 0.55, c: 0.01, h: 260 }, // neutral grey — terminal
 };
@@ -436,6 +446,10 @@ export function summarizeNode(
       const unit = typeof cfg.unit === 'string' ? cfg.unit : '';
       if (amount == null || !unit) return null;
       return `${amount} ${unit}`;
+    }
+  case 'randomizer': {
+      const variants = Array.isArray(cfg.variants) ? cfg.variants as Array<Record<string, unknown>> : [];
+      return variants.length > 0 ? `Randomizer ${variants.length} ways` : null;
     }
   case 'handoff': {
       const note = typeof cfg.note === 'string' ? cfg.note : '';

@@ -39,6 +39,24 @@ Durable docs: [`docs/CHANNEL_ARCHITECTURE.md`](./docs/CHANNEL_ARCHITECTURE.md), 
 
 ---
 
+## Audit Checkpoint — 2026-08-31 ManyChat Pro + HighLevel Reconstruction
+
+> Research: `docs/research/manychat-model.md`, `highlevel-model.md`, `builder-ux-model.md`, `channel-behavior.md`, `repo-audit.md`, `gap-matrices.md`, `architectural-gap.md` · Specs: `docs/specs/automation-product-spec.md`, `builder-spec.md`, `node-system.md`, `channel-capabilities.md`, `crm-automation.md` · Final: `docs/research/CONVOXOS_RECONSTRUCTION_AUDIT.md` (16 sections). Channel-aware P0 bug, task entity gap, and wait variant gap are blocking before P1 parity.
+
+**P0 Correctness (before any parity claim):** TG button/list caps channel-aware — `validateFlowForActivation:362` + `validateInteractivePayload:136` must branch on `channel_target` (WA ≤3 vs TG ≤10) — `repo-audit.md` §6 send_buttons trace.
+
+**P1 Core CRM/automation:** Trigger catalog expansion (contact_changed/dnd/customer_replied/note+task added/appointment/opportunity+stage/stale/inbound_webhook), `tasks` entity + add_task, add_note + triggers (notes exist `001`), update_opportunity/move_stage + stale, Condition multi all/any, Wait full (Duration+window+day+TZ, Date Specific/Dynamic+offset), cycle guard at publish.
+
+**P2 Major parity:** Randomizer 2–6 sticky/every, Goal skip-ahead, Sequences domain, Broadcasts audience+channel (clone from automation), External Request full + Sheets, Stats View + Version History, Testing quick widget + Flows dry-run, reusable Start Automation / Add to Workflow, Activity feed.
+
+**P3 Valuable:** Delete contact/DND, Notify, Sheets, Workflow AI Prompt, Appointment if calendar owned.
+
+**P4 Later:** Instagram/Messenger/SMS/Email plugs, Company workflows, microservices/event bus/CQRS (not needed — see `architectural-gap.md` §3).
+
+*Lifecycle target: Draft → Validate → Test → Publish → Active → Paused (waiting preserved) → Archived with no silent WA default — waiting snapshot preserved.*
+
+---
+
 ## Phase 0 — Foundation / Existing CRM
 
 **Scope (from `README.md:1`, `supabase/migrations/001_*.sql` through `039`, `CHANGELOG.md`):** Forkable WhatsApp CRM template — shared inbox, contacts/tags/custom fields/CSV import/dedupe (`022`), pipelines/kanban, broadcasts with Meta templates (`001`, `014`), no-code automations (`006`), flows (`010`), AI reply/knowledge (`029`, `030`), realtime dashboard, team accounts `accounts`/`profiles` (`017`), RLS `is_account_member`, `chat-media`/`flow-media` storage, public API `/api/v1`, MCP server.

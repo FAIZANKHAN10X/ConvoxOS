@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   runAutomationsForTrigger,
+  checkPendingGoalsForContact,
   type AutomationContext,
 } from '@/lib/automations/engine';
 import { addContactTagIfAbsent } from './tag-write';
@@ -62,6 +63,11 @@ export async function addContactTagAndDispatch(
       },
     },
   });
+
+  // P2-B Goal: check pending goals that might be satisfied by this tag
+  void checkPendingGoalsForContact(input.accountId, input.contactId, { tag_id: input.tagId, ...input.context }).catch((e) =>
+    console.error('[goals] checkPendingGoalsForContact failed:', e)
+  )
 
   return { added: true, dispatched: true };
 }

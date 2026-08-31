@@ -138,6 +138,18 @@ export function validateFlowForActivation(
     }
   }
 
+  // Cycle detection — any cycle reachable from entry is an error
+  if (flow.entry_node_id && keys.has(flow.entry_node_id)) {
+    const cycle = findCycle(flow.entry_node_id, nodes);
+    if (cycle) {
+      issues.push({
+        severity: "error",
+        scope: "flow",
+        message: `Cycle detected: ${cycle.join(' → ')}. Remove the loop before activating.`,
+      });
+    }
+  }
+
   return issues;
 }
 
@@ -359,14 +371,20 @@ function validateNode(
           message: "Send-buttons needs at least one button.",
         });
       }
-      if (btns.length > INTERACTIVE_LIMITS.maxButtons) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "buttons",
-          message: `WhatsApp allows at most ${INTERACTIVE_LIMITS.maxButtons} buttons per message.`,
-        });
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target
+        const isTelegram = ch === 'telegram'
+        const maxButtons = isTelegram ? 10 : INTERACTIVE_LIMITS.maxButtons
+        if (btns.length > maxButtons) {
+          const label = isTelegram ? 'Telegram' : 'WhatsApp'
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "buttons",
+            message: `${label} allows at most ${maxButtons} buttons per message (got ${btns.length}).`,
+          });
+        }
       }
       const seenIds = new Set<string>();
       btns.forEach((b, i) => {
@@ -658,47 +676,103 @@ function validateNode(
         value?: string;
         true_next?: string;
         false_next?: string;
+        conditions?: Array<{ subject?: string; subject_key?: string; operator?: string; value?: string }>;
+        match?: string;
       };
-      if (!cfg.subject || !["var", "tag", "contact_field"].includes(cfg.subject)) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "subject",
-          message: "Condition needs a subject (var / tag / contact_field).",
-        });
-      }
-      if (!cfg.subject_key?.trim()) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "subject_key",
-          message: "Condition needs a subject_key (var name, tag id, or field name).",
-        });
-      }
-      if (
-        !cfg.operator ||
-        !["equals", "contains", "present", "absent"].includes(cfg.operator)
-      ) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "operator",
-          message: "Condition needs an operator.",
-        });
-      } else if (
-        (cfg.operator === "equals" || cfg.operator === "contains") &&
-        (cfg.value === undefined || cfg.value === "")
-      ) {
-        issues.push({
-          severity: "warning",
-          scope: "node",
-          node_key: node.node_key,
-          field: "value",
-          message: `Operator "${cfg.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
-        });
+      const hasMulti = Array.isArray(cfg.conditions) && cfg.conditions.length > 0
+      if (hasMulti) {
+        if (cfg.match !== undefined && cfg.match !== 'all' && cfg.match !== 'any') {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "match",
+            message: 'Condition match must be "all" or "any".',
+          });
+        }
+        cfg.conditions!.forEach((c, idx) => {
+          const base = `conditions.${idx}`
+          if (!c.subject || !["var", "tag", "contact_field"].includes(c.subject)) {
+            issues.push({
+              severity: "error",
+              scope: "node",
+              node_key: node.node_key,
+              field: `${base}.subject`,
+              message: `Condition ${idx + 1} needs a subject (var / tag / contact_field).`,
+            });
+          }
+          if (!c.subject_key?.trim()) {
+            issues.push({
+              severity: "error",
+              scope: "node",
+              node_key: node.node_key,
+              field: `${base}.subject_key`,
+              message: `Condition ${idx + 1} needs a subject_key.`,
+            });
+          }
+          if (!c.operator || !["equals", "contains", "present", "absent"].includes(c.operator)) {
+            issues.push({
+              severity: "error",
+              scope: "node",
+              node_key: node.node_key,
+              field: `${base}.operator`,
+              message: `Condition ${idx + 1} needs an operator.`,
+            });
+          } else if (
+            (c.operator === "equals" || c.operator === "contains") &&
+            (c.value === undefined || c.value === "")
+          ) {
+            issues.push({
+              severity: "warning",
+              scope: "node",
+              node_key: node.node_key,
+              field: `${base}.value`,
+              message: `Operator "${c.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
+            });
+          }
+        })
+      } else {
+        if (!cfg.subject || !["var", "tag", "contact_field"].includes(cfg.subject)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "subject",
+            message: "Condition needs a subject (var / tag / contact_field).",
+          });
+        }
+        if (!cfg.subject_key?.trim()) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "subject_key",
+            message: "Condition needs a subject_key (var name, tag id, or field name).",
+          });
+        }
+        if (
+          !cfg.operator ||
+          !["equals", "contains", "present", "absent"].includes(cfg.operator)
+        ) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "operator",
+            message: "Condition needs an operator.",
+          });
+        } else if (
+          (cfg.operator === "equals" || cfg.operator === "contains") &&
+          (cfg.value === undefined || cfg.value === "")
+        ) {
+          issues.push({
+            severity: "warning",
+            scope: "node",
+            node_key: node.node_key,
+            field: "value",
+            message: `Operator "${cfg.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
+          });
+        }
       }
       for (const branch of ["true_next", "false_next"] as const) {
         const key = cfg[branch];
@@ -768,17 +842,65 @@ function validateNode(
     }
 
     case "wait": {
-      const cfg = node.config as { amount?: number; unit?: string; next_node_key?: string };
-      if (typeof cfg.amount !== "number" || cfg.amount < 1) {
-        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "amount", message: "Wait needs amount ≥ 1." });
-      }
-      if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
-        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "unit", message: "Wait needs unit (minutes/hours/days)." });
+      const cfg = node.config as { amount?: number; unit?: string; until?: string; next_node_key?: string };
+      const hasUntil = typeof cfg.until === 'string' && cfg.until.trim() !== ''
+      const hasDuration = typeof cfg.amount === 'number' && cfg.amount >= 1 && typeof cfg.unit === 'string' && ["minutes", "hours", "days"].includes(cfg.unit)
+      if (hasUntil) {
+        const d = new Date(String(cfg.until))
+        if (Number.isNaN(d.getTime())) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "until", message: "Wait until must be a valid ISO datetime." });
+        }
+      } else if (!hasDuration) {
+        if (typeof cfg.amount !== "number" || cfg.amount < 1) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "amount", message: "Wait needs amount ≥ 1." });
+        }
+        if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "unit", message: "Wait needs unit (minutes/hours/days)." });
+        }
       }
       if (!cfg.next_node_key) {
         issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "next_node_key", message: "Wait must point to a next node." });
       } else if (!knownKeys.has(cfg.next_node_key)) {
         issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "next_node_key", message: `Wait points to non-existent node "${cfg.next_node_key}".` });
+      }
+      break;
+    }
+
+    case "randomizer": {
+      const cfg = node.config as { variants?: Array<{ id?: string; label?: string; weight?: number; next_node_key?: string }>; mode?: string };
+      const variants = cfg.variants ?? []
+      if (variants.length < 2) {
+        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "variants", message: "Randomizer needs at least 2 variants." });
+      }
+      if (variants.length > 6) {
+        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "variants", message: "Randomizer allows at most 6 variants." });
+      }
+      const ids = new Set<string>()
+      let sum = 0
+      variants.forEach((v, idx) => {
+        const base = `variants.${idx}`
+        if (!v.id?.trim()) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.id`, message: `Variant ${idx + 1} needs an id.` });
+        } else if (ids.has(v.id)) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.id`, message: `Duplicate variant id "${v.id}".` });
+        } else ids.add(v.id)
+        if (!v.label?.trim()) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.label`, message: `Variant ${idx + 1} needs a label.` });
+        }
+        if (typeof v.weight !== 'number' || v.weight <= 0) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.weight`, message: `Variant ${idx + 1} weight must be > 0.` });
+        } else sum += v.weight
+        if (!v.next_node_key) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.next_node_key`, message: `Variant ${idx + 1} needs a next node.` });
+        } else if (!knownKeys.has(v.next_node_key)) {
+          issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: `${base}.next_node_key`, message: `Variant ${idx + 1} points to non-existent node "${v.next_node_key}".` });
+        }
+      })
+      if (variants.length >= 2 && Math.abs(sum - 100) > 0.01) {
+        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "variants", message: `Variant weights must sum to 100 (got ${sum}).` });
+      }
+      if (cfg.mode !== undefined && cfg.mode !== 'sticky' && cfg.mode !== 'random') {
+        issues.push({ severity: "error", scope: "node", node_key: node.node_key, field: "mode", message: 'Randomizer mode must be "sticky" or "random".' });
       }
       break;
     }
@@ -799,6 +921,37 @@ function validateNode(
   }
 
   return issues;
+}
+
+export function findCycle(entryKey: string, nodes: NodeInput[]): string[] | null {
+  const byKey = new Map<string, NodeInput>();
+  for (const n of nodes) byKey.set(n.node_key, n);
+  const visited = new Set<string>();
+  const stack = new Set<string>();
+  const path: string[] = [];
+
+  function dfs(key: string): string[] | null {
+    if (stack.has(key)) {
+      const idx = path.indexOf(key);
+      return [...path.slice(idx), key];
+    }
+    if (visited.has(key)) return null;
+    visited.add(key);
+    stack.add(key);
+    path.push(key);
+    const node = byKey.get(key);
+    if (node) {
+      for (const next of outgoingEdges(node)) {
+        const cycle = dfs(next);
+        if (cycle) return cycle;
+      }
+    }
+    stack.delete(key);
+    path.pop();
+    return null;
+  }
+
+  return dfs(entryKey);
 }
 
 // ============================================================
@@ -837,6 +990,10 @@ function outgoingEdges(node: NodeInput): string[] {
     case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];
+    }
+    case "randomizer": {
+      const cfg = node.config as { variants?: Array<{ next_node_key?: string }> };
+      return (cfg.variants ?? []).map((v) => v.next_node_key).filter((k): k is string => !!k);
     }
     case "condition": {
       const cfg = node.config as {

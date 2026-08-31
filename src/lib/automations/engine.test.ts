@@ -45,7 +45,16 @@ vi.mock("./admin-client", () => {
       }
       return { data: null, error: null };
     }
-    if (table === "automations") return { data: state.automations, error: null };
+    if (table === "automations") {
+      // Respect the trigger_type + account_id filters that runAutomationsForTrigger applies
+      let filtered = state.automations as Record<string, unknown>[]
+      for (const [op, key, val] of ops.filters) {
+        if (op === "eq" && (key === "trigger_type" || key === "account_id" || key === "is_active")) {
+          filtered = filtered.filter((a) => (a as Record<string, unknown>)[key] === val)
+        }
+      }
+      return { data: filtered, error: null }
+    }
     if (table === "automation_logs") {
       if (type === "insert") {
         state.logInserts.push(ops.payload as Record<string, unknown>);

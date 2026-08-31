@@ -253,6 +253,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "randomizer":
+      return (
+        <RandomizerForm
+          cfg={cfg as unknown as { variants: Array<{ id: string; label: string; weight: number; next_node_key: string }>; mode?: string }}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "handoff":
       return (
         <TextRow
@@ -298,6 +308,10 @@ function SendButtonsForm({
   t: ReturnType<typeof useTranslations>;
 }) {
   const buttons = cfg.buttons ?? [];
+  const channelTarget = (cfg as unknown as { channel_target?: string }).channel_target
+  const isTelegram = channelTarget === 'telegram'
+  const maxButtons = isTelegram ? 10 : 3
+  const channelLabel = isTelegram ? 'Telegram' : 'WhatsApp'
   const updateButton = (
     idx: number,
     patch: Partial<NonNullable<SendButtonsCfg["buttons"]>[number]>,
@@ -391,7 +405,10 @@ function SendButtonsForm({
             </div>
           ))}
         </div>
-        {buttons.length < 3 && (
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          {buttons.length}/{maxButtons} ({channelLabel} max)
+        </div>
+        {buttons.length < maxButtons && (
           <Button
             variant="ghost"
             size="sm"
@@ -401,6 +418,11 @@ function SendButtonsForm({
             <Plus className="h-3.5 w-3.5" />
             {t("addButton")}
           </Button>
+        )}
+        {buttons.length >= maxButtons && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {channelLabel} limit reached ({maxButtons} buttons). Switch channel or remove a button to add more.
+          </p>
         )}
       </div>
     </>
@@ -907,6 +929,7 @@ function SetTagForm({
 interface WaitCfg {
   amount?: number;
   unit?: "minutes" | "hours" | "days";
+  until?: string;
   next_node_key?: string;
 }
 
@@ -921,33 +944,66 @@ function WaitForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const hasUntil = typeof cfg.until === 'string' && cfg.until.trim() !== ''
+  const mode = hasUntil ? 'datetime' : 'duration'
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="mb-3">
+        <label className="mb-1 block text-xs text-muted-foreground">Wait Type</label>
+        <Select
+          value={mode}
+          onValueChange={(v) => {
+            if (v === 'datetime') onUpdateConfig({ until: new Date(Date.now() + 3600000).toISOString().slice(0, 16), amount: undefined, unit: undefined } as unknown as Record<string, unknown>)
+            else onUpdateConfig({ until: undefined, amount: 1, unit: 'hours' } as unknown as Record<string, unknown>)
+          }}
+        >
+          <SelectTrigger className="bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="duration">Duration</SelectItem>
+            <SelectItem value="datetime">Until Date/Time</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {mode === 'duration' ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Amount</label>
+            <Input
+              type="number"
+              min={1}
+              value={cfg.amount ?? 1}
+              onChange={(e) => onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })}
+              className="bg-muted"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Unit</label>
+            <Select value={cfg.unit ?? "hours"} onValueChange={(v) => onUpdateConfig({ unit: v as WaitCfg["unit"] })}>
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">Minutes</SelectItem>
+                <SelectItem value="hours">Hours</SelectItem>
+                <SelectItem value="days">Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ) : (
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Amount</label>
+          <label className="mb-1 block text-xs text-muted-foreground">Until (local time)</label>
           <Input
-            type="number"
-            min={1}
-            value={cfg.amount ?? 1}
-            onChange={(e) => onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })}
+            type="datetime-local"
+            value={cfg.until ? String(cfg.until).slice(0, 16) : ''}
+            onChange={(e) => onUpdateConfig({ until: e.target.value ? new Date(e.target.value).toISOString() : '' })}
             className="bg-muted"
           />
+          <p className="mt-1 text-[11px] text-muted-foreground">Resumes when this time is reached. Durable via pending table.</p>
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Unit</label>
-          <Select value={cfg.unit ?? "hours"} onValueChange={(v) => onUpdateConfig({ unit: v as WaitCfg["unit"] })}>
-            <SelectTrigger className="bg-muted">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="minutes">Minutes</SelectItem>
-              <SelectItem value="hours">Hours</SelectItem>
-              <SelectItem value="days">Days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      )}
       <NextNodeRow
         value={cfg.next_node_key ?? ""}
         allNodes={allNodes}
@@ -957,6 +1013,66 @@ function WaitForm({
       />
     </>
   );
+}
+
+function RandomizerForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: { variants: Array<{ id: string; label: string; weight: number; next_node_key: string }>; mode?: string };
+  allNodes: import('../shared').BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const variants = cfg.variants ?? []
+  const mode = cfg.mode ?? 'random'
+  const total = variants.reduce((s, v) => s + (v.weight ?? 0), 0)
+  const updateVariant = (idx: number, patch: Partial<{ id: string; label: string; weight: number; next_node_key: string }>) =>
+    onUpdateConfig({ variants: variants.map((v, i) => (i === idx ? { ...v, ...patch } : v)) })
+  const addVariant = () =>
+    onUpdateConfig({ variants: [...variants, { id: `v${variants.length + 1}`, label: `Variant ${String.fromCharCode(65 + variants.length)}`, weight: 10, next_node_key: '' }] })
+  const removeVariant = (idx: number) => onUpdateConfig({ variants: variants.filter((_, i) => i !== idx) })
+  return (
+    <>
+      <div className="mb-3">
+        <label className="mb-1 block text-xs text-muted-foreground">Mode</label>
+        <Select value={mode} onValueChange={(v) => onUpdateConfig({ mode: v })}>
+          <SelectTrigger className="bg-muted"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="random">Random each time</SelectItem>
+            <SelectItem value="sticky">Sticky (same contact always same)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="mb-2 text-xs text-muted-foreground">Total weight: {total} (must be 100) — {variants.length} variants</div>
+      <div className="space-y-3">
+        {variants.map((v, idx) => (
+          <div key={idx} className="rounded-md border border-border bg-muted/20 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Label</label>
+                <Input value={v.label} onChange={(e) => updateVariant(idx, { label: e.target.value })} className="bg-muted" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Weight %</label>
+                <Input type="number" min={1} value={v.weight} onChange={(e) => updateVariant(idx, { weight: Math.max(1, Number(e.target.value) || 1) })} className="bg-muted" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <NextNodeRow value={v.next_node_key ?? ''} allNodes={allNodes} currentKey={currentKey} onChange={(val) => updateVariant(idx, { next_node_key: val ?? '' })} label={`Then variant ${idx + 1} →`} />
+            </div>
+            {variants.length > 2 && (
+              <Button variant="ghost" size="sm" onClick={() => removeVariant(idx)} className="mt-2 text-red-400 hover:bg-red-500/10"><Trash2 className="h-3 w-3" /> Remove</Button>
+            )}
+          </div>
+        ))}
+      </div>
+      {variants.length < 6 && <Button variant="ghost" size="sm" onClick={addVariant} className="mt-2"><Plus className="h-3 w-3" /> Add variant</Button>}
+      {Math.abs(total - 100) > 0.01 && <p className="mt-2 text-xs text-amber-400">Weights must sum to 100 (currently {total}).</p>}
+    </>
+  )
 }
 
 // ============================================================
