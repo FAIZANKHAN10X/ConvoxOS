@@ -884,7 +884,11 @@
         "wait": "대기",
         "condition": "조건 (If/Else)",
         "send_webhook": "웹훅 보내기",
-        "close_conversation": "대화 닫기"
+        "close_conversation": "대화 닫기",
+        "create_task": "Create Task",
+        "randomizer": "Randomizer",
+        "goal": "Goal",
+        "enroll_in_sequence": "Enroll in Sequence"
       },
       "triggers": {
         "new_message_received": {
@@ -918,6 +922,34 @@
         "time_based": {
           "label": "시간 기반",
           "hint": "반복 일정에 따라"
+        },
+        "contact_changed": {
+          "label": "Contact Changed",
+          "hint": "When a contact field changes"
+        },
+        "note_added": {
+          "label": "Note Added",
+          "hint": "When a note is added to a contact"
+        },
+        "task_added": {
+          "label": "Task Added",
+          "hint": "When a task is created"
+        },
+        "customer_replied": {
+          "label": "Customer Replied",
+          "hint": "When contact replies (any message)"
+        },
+        "opportunity_created": {
+          "label": "Opportunity Created",
+          "hint": "When an opportunity is created"
+        },
+        "pipeline_stage_changed": {
+          "label": "Pipeline Stage Changed",
+          "hint": "When opportunity moves stage"
+        },
+        "inbound_webhook": {
+          "label": "Inbound Webhook",
+          "hint": "When webhook is received"
         }
       },
       "trigger": "트리거",
