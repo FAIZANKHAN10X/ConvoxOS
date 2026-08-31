@@ -17,6 +17,7 @@ export default function SequencesPage() {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load() }, [])
 
   async function create() {

@@ -795,7 +795,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         const parsed = new Date(interpolate(String(cfg.due_at), args))
         if (!Number.isNaN(parsed.getTime())) dueAt = parsed.toISOString()
       }
-      let assignedTo: string | null = cfg.assigned_to ?? null
+      const assignedTo: string | null = cfg.assigned_to ?? null
       if (assignedTo) {
         const { data: member } = await db
           .from('profiles')

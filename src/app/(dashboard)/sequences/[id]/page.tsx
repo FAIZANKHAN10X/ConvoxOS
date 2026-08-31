@@ -28,6 +28,7 @@ export default function SequenceEditPage() {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load() }, [id])
 
   function addStep(type: string) {
