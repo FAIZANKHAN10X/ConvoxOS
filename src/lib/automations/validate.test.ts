@@ -18,7 +18,7 @@ describe("validateStepsForActivation", () => {
 
   it("passes a fully-populated step set", () => {
     const issues = validateStepsForActivation([
-      { step_type: "send_message", step_config: { text: "hi" } },
+      { step_type: "send_message", step_config: { text: "hi", channel_target: "current" } },
       {
         step_type: "wait",
         step_config: { amount: 5, unit: "minutes" },
@@ -31,7 +31,7 @@ describe("validateStepsForActivation", () => {
 
   it("flags every required field that is missing", () => {
     const issues = validateStepsForActivation([
-      { step_type: "send_message", step_config: { text: "  " } },
+      { step_type: "send_message", step_config: { text: "  ", channel_target: "current" } },
       { step_type: "send_template", step_config: {} },
       { step_type: "add_tag", step_config: { tag_id: "" } },
     ]);
@@ -128,6 +128,7 @@ describe("validateStepsForActivation", () => {
           kind: "buttons",
           body: "Pick one",
           buttons: [{ id: "yes", title: "Yes" }],
+          channel_target: "current",
         },
       },
     ]);
@@ -145,6 +146,7 @@ describe("validateStepsForActivation", () => {
             { id: "c", title: "C" },
             { id: "d", title: "D" },
           ],
+          channel_target: "current",
         },
       },
     ]);
@@ -175,7 +177,7 @@ describe("validateStepsForActivation", () => {
           no: [
             {
               step_type: "send_message",
-              step_config: { text: "" },
+              step_config: { text: "", channel_target: "current" },
             },
           ],
         },

@@ -65,14 +65,15 @@ function ChannelTargetRow({
   value: string | undefined;
   onChange: (v: ChannelTarget) => void;
 }) {
-  // Legacy nodes without channel_target → whatsapp (preserve WhatsApp flows)
-  const display = (value as ChannelTarget) ?? "whatsapp";
+  // New builder-created records always produce explicit current|telegram|whatsapp.
+  // Legacy NULL → whatsapp is handled in engine read path only.
+  const display = (value as string) ?? "";
   return (
     <div>
       <label className="mb-1 block text-xs text-muted-foreground">Channel</label>
       <Select value={display} onValueChange={(v) => onChange(v as ChannelTarget)}>
         <SelectTrigger className="bg-muted">
-          <SelectValue />
+          <SelectValue placeholder="Select channel…" />
         </SelectTrigger>
         <SelectContent>
           {CHANNEL_OPTIONS.map((o) => (

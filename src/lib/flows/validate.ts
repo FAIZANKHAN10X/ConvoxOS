@@ -25,6 +25,12 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
+const ALLOWED_CHANNEL_TARGETS = new Set(["current", "telegram", "whatsapp"]);
+
+function isValidChannel(v: unknown): boolean {
+  return typeof v === "string" && ALLOWED_CHANNEL_TARGETS.has(v);
+}
+
 export interface ValidationIssue {
   severity: "error" | "warning";
   scope: "flow" | "trigger" | "node";
@@ -211,8 +217,8 @@ function validateNode(
       break;
     }
 
-    case "send_message": {
-      const cfg = node.config as { text?: string; next_node_key?: string };
+     case "send_message": {
+      const cfg = node.config as { text?: string; next_node_key?: string; channel_target?: string };
       if (!cfg.text?.trim()) {
         issues.push({
           severity: "error",
@@ -238,6 +244,18 @@ function validateNode(
           field: "next_node_key",
           message: `Send-message points to non-existent node "${cfg.next_node_key}".`,
         });
+      }
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target;
+        if (!isValidChannel(ch)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "channel_target",
+            message: 'Channel must be "current", "whatsapp" or "telegram".',
+          });
+        }
       }
       break;
     }
@@ -297,6 +315,18 @@ function validateNode(
           field: "next_node_key",
           message: `Send-media points to non-existent node "${cfg.next_node_key}".`,
         });
+      }
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target;
+        if (!isValidChannel(ch)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "channel_target",
+            message: 'Channel must be "current", "whatsapp" or "telegram".',
+          });
+        }
       }
       break;
     }
@@ -396,6 +426,18 @@ function validateNode(
           });
         }
       });
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target;
+        if (!isValidChannel(ch)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "channel_target",
+            message: 'Channel must be "current", "whatsapp" or "telegram".',
+          });
+        }
+      }
       break;
     }
 
@@ -529,6 +571,18 @@ function validateNode(
           }
         });
       });
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target;
+        if (!isValidChannel(ch)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "channel_target",
+            message: 'Channel must be "current", "whatsapp" or "telegram".',
+          });
+        }
+      }
       break;
     }
 
@@ -580,6 +634,18 @@ function validateNode(
           field: "next_node_key",
           message: `Collect-input points to non-existent node "${cfg.next_node_key}".`,
         });
+      }
+      {
+        const ch = (cfg as unknown as { channel_target?: string }).channel_target;
+        if (!isValidChannel(ch)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "channel_target",
+            message: 'Channel must be "current", "whatsapp" or "telegram".',
+          });
+        }
       }
       break;
     }

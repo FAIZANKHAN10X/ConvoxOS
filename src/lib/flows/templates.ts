@@ -91,6 +91,7 @@ const WELCOME_MENU: FlowTemplate = {
       config: {
         text: "Hi! 👋 Welcome to support. Are you an existing customer or new here?",
         footer_text: "Tap a button below to continue.",
+        channel_target: "current",
         buttons: [
           {
             reply_id: "existing",
@@ -103,7 +104,7 @@ const WELCOME_MENU: FlowTemplate = {
             next_node_key: "new_handoff",
           },
         ],
-      } as SendButtonsNodeConfig,
+      } as unknown as SendButtonsNodeConfig,
     },
     {
       node_key: "existing_handoff",
@@ -149,6 +150,7 @@ const FAQ_BOT: FlowTemplate = {
       config: {
         text: "What can I help you with?",
         button_label: "View topics",
+        channel_target: "current",
         sections: [
           {
             title: "Common questions",
@@ -189,7 +191,8 @@ const FAQ_BOT: FlowTemplate = {
       config: {
         text: "We're open Mon–Fri, 9am–6pm local time. Weekend support is limited to urgent issues.",
         next_node_key: "end",
-      } as SendMessageNodeConfig,
+        channel_target: "current",
+      } as unknown as SendMessageNodeConfig,
     },
     {
       node_key: "answer_pricing",
@@ -197,7 +200,8 @@ const FAQ_BOT: FlowTemplate = {
       config: {
         text: "Our pricing starts at $9/mo. Visit https://example.com/pricing for the full breakdown.",
         next_node_key: "end",
-      } as SendMessageNodeConfig,
+        channel_target: "current",
+      } as unknown as SendMessageNodeConfig,
     },
     {
       node_key: "answer_refunds",
@@ -205,7 +209,8 @@ const FAQ_BOT: FlowTemplate = {
       config: {
         text: "Refunds are honored within 30 days of purchase. Reply with your order number and we'll process it.",
         next_node_key: "end",
-      } as SendMessageNodeConfig,
+        channel_target: "current",
+      } as unknown as SendMessageNodeConfig,
     },
     {
       node_key: "human_handoff",
@@ -246,7 +251,8 @@ const LEAD_CAPTURE: FlowTemplate = {
       config: {
         text: "Welcome! 👋 I'll ask a few quick questions so we can get you to the right person.",
         next_node_key: "ask_name",
-      } as SendMessageNodeConfig,
+        channel_target: "current",
+      } as unknown as SendMessageNodeConfig,
     },
     {
       node_key: "ask_name",
@@ -255,7 +261,8 @@ const LEAD_CAPTURE: FlowTemplate = {
         prompt_text: "What's your name?",
         var_key: "name",
         next_node_key: "ask_email",
-      } as CollectInputNodeConfig,
+        channel_target: "current",
+      } as unknown as CollectInputNodeConfig,
     },
     {
       node_key: "ask_email",
@@ -264,7 +271,8 @@ const LEAD_CAPTURE: FlowTemplate = {
         prompt_text: "Thanks {{vars.name}}! What's your work email?",
         var_key: "email",
         next_node_key: "ask_company",
-      } as CollectInputNodeConfig,
+        channel_target: "current",
+      } as unknown as CollectInputNodeConfig,
     },
     {
       node_key: "ask_company",
@@ -273,7 +281,8 @@ const LEAD_CAPTURE: FlowTemplate = {
         prompt_text: "Almost done — what's your company name?",
         var_key: "company",
         next_node_key: "handoff",
-      } as CollectInputNodeConfig,
+        channel_target: "current",
+      } as unknown as CollectInputNodeConfig,
     },
     {
       node_key: "handoff",

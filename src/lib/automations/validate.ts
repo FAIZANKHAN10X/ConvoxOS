@@ -51,12 +51,25 @@ function walk(steps: StepLike[], prefix: string, issues: ValidationIssue[]): voi
   })
 }
 
+const ALLOWED_CHANNEL_TARGETS = new Set(["current", "whatsapp", "telegram"])
+function isValidChannel(v: unknown): boolean {
+  return typeof v === "string" && ALLOWED_CHANNEL_TARGETS.has(v)
+}
+
 function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): void {
   const c = step.step_config ?? {}
   switch (step.step_type) {
     case 'send_message':
       if (!nonEmpty(c.text)) {
         issues.push({ path: `${path}.text`, message: 'message text is required' })
+      }
+      {
+        const ch = (c as unknown as { channel_target?: string }).channel_target
+        if (ch != null && ch !== "" && !isValidChannel(ch)) {
+          issues.push({ path: `${path}.channel_target`, message: 'channel must be "current", "whatsapp" or "telegram"' })
+        } else if (!isValidChannel(ch)) {
+          issues.push({ path: `${path}.channel_target`, message: 'channel is required' })
+        }
       }
       break
     case 'send_buttons':
@@ -66,6 +79,14 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       const result = validateInteractivePayload(c)
       if (!result.ok) {
         issues.push({ path: `${path}.interactive`, message: result.error })
+      }
+      {
+        const ch = (c as unknown as { channel_target?: string }).channel_target
+        if (ch != null && ch !== "" && !isValidChannel(ch)) {
+          issues.push({ path: `${path}.channel_target`, message: 'channel must be "current", "whatsapp" or "telegram"' })
+        } else if (!isValidChannel(ch)) {
+          issues.push({ path: `${path}.channel_target`, message: 'channel is required' })
+        }
       }
       break
     }

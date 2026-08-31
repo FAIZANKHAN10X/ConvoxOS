@@ -1174,6 +1174,7 @@
       "categories": {
         "messaging": "Messaging",
         "logic": "Logic & data",
+        "timing": "Timing",
         "flow": "Flow control"
       },
       "nodes": {
@@ -1183,7 +1184,7 @@
         },
         "send_message": {
           "label": "Send message",
-          "blurb": "Sends a WhatsApp text message"
+          "blurb": "Sends a text message"
         },
         "send_buttons": {
           "label": "Send buttons",
@@ -1208,6 +1209,10 @@
         "set_tag": {
           "label": "Tag contact",
           "blurb": "Adds or removes a contact tag"
+        },
+        "wait": {
+          "label": "Wait",
+          "blurb": "Pauses — minutes / hours / days"
         },
         "handoff": {
           "label": "Handoff to agent",

@@ -15,6 +15,7 @@ const validNodes = [
     node_type: "send_buttons",
     config: {
       text: "How can we help?",
+      channel_target: "current",
       buttons: [
         { reply_id: "a", title: "A", next_node_key: "ho" },
         { reply_id: "b", title: "B", next_node_key: "ho" },
@@ -424,7 +425,7 @@ describe("validateFlowForActivation — send_media", () => {
   const baseFlow = { ...validFlow, entry_node_id: "s" };
   const nodesWith = (mediaConfig: Record<string, unknown>) => [
     { node_key: "s", node_type: "start", config: { next_node_key: "m" } },
-    { node_key: "m", node_type: "send_media", config: mediaConfig },
+    { node_key: "m", node_type: "send_media", config: { channel_target: "current", ...mediaConfig } },
     { node_key: "h", node_type: "handoff", config: {} },
   ];
 
@@ -437,6 +438,7 @@ describe("validateFlowForActivation — send_media", () => {
         caption: "Your invoice",
         filename: "invoice.pdf",
         next_node_key: "h",
+        channel_target: "current",
       }),
     );
     expect(issues).toEqual([]);

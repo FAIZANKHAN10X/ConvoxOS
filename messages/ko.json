@@ -1174,6 +1174,7 @@
       "categories": {
         "messaging": "메시징",
         "logic": "로직 & 데이터",
+        "timing": "타이밍",
         "flow": "플로우 제어"
       },
       "nodes": {
@@ -1183,7 +1184,7 @@
         },
         "send_message": {
           "label": "메시지 보내기",
-          "blurb": "WhatsApp 텍스트 메시지를 보냅니다"
+          "blurb": "텍스트 메시지를 보냅니다"
         },
         "send_buttons": {
           "label": "버튼 보내기",
@@ -1208,6 +1209,10 @@
         "set_tag": {
           "label": "연락처 태그 지정",
           "blurb": "연락처 태그를 추가하거나 제거합니다"
+        },
+        "wait": {
+          "label": "대기",
+          "blurb": "일시 중지 — 분 / 시간 / 일"
         },
         "handoff": {
           "label": "상담원에게 인계",

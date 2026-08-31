@@ -501,20 +501,29 @@ export function FlowEditorProvider({
         const node_key = uniqueNodeKey(base, s.nodes);
         createdKey = node_key;
         const baseConfig = defaultConfigFor(type);
-        // Seed new send nodes with authoring channel as channel_target
-        // (current for universal, explicit for specific). Keep legacy
-        // WhatsApp semantics inside defaultConfigFor for old flows.
-        const withChannel =
-          (type === "send_message" ||
-            type === "send_buttons" ||
-            type === "send_list" ||
-            type === "send_media" ||
-            type === "collect_input") &&
-          authoringChannel !== "any"
-            ? { channel_target: authoringChannel === "whatsapp" || authoringChannel === "telegram" ? authoringChannel : "current" }
-            : type.startsWith("send_") || type === "collect_input"
-              ? { channel_target: "current" }
-              : {};
+        // Channel default contract (Phase 8):
+        // conversational triggers (keyword/first_inbound) → current
+        // non-conversational (manual) → no default, require explicit telegram/whatsapp
+        // authoringChannel is ephemeral UI hint, not persisted.
+        const isChannelNode =
+          type === "send_message" ||
+          type === "send_buttons" ||
+          type === "send_list" ||
+          type === "send_media" ||
+          type === "collect_input";
+        let withChannel: Record<string, unknown> = {};
+        if (isChannelNode) {
+          if (s.trigger_type === "manual") {
+            withChannel = {};
+          } else if (authoringChannel !== "any") {
+            withChannel = {
+              channel_target:
+                authoringChannel === "whatsapp" || authoringChannel === "telegram" ? authoringChannel : "current",
+            };
+          } else {
+            withChannel = { channel_target: "current" };
+          }
+        }
         const next: BuilderNode = {
           node_key,
           node_type: type,
@@ -523,8 +532,6 @@ export function FlowEditorProvider({
         return {
           ...s,
           nodes: [...s.nodes, next],
-          // If this is the first node and it's a start, pick it as
-          // the entry automatically. Saves a click.
           entry_node_id:
             s.entry_node_id ??
             (type === "start" ? node_key : s.entry_node_id ?? null),

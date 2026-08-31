@@ -654,14 +654,26 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   function addStepAt(parent: ParentScope, index: number, type: AutomationStepType) {
-    const node: BuilderStep = {
-      cid: cid(),
-      step_type: type,
-      step_config: blankConfig(type),
-      branches: type === "condition" ? { yes: [], no: [] } : undefined,
-    }
-    setState((s) => ({ ...s, steps: insertAt(s.steps, parent, index, node) }))
-    setExpandedId(node.cid)
+    let createdCid: string | null = null
+    setState((s) => {
+      const base = blankConfig(type)
+      const isChannelStep = ["send_message", "send_buttons", "send_list", "send_template"].includes(type)
+      if (isChannelStep) {
+        const conversational = ["keyword_match", "new_message_received", "first_inbound_message", "interactive_reply"].includes(s.trigger_type)
+        if (conversational && !(base as Record<string, unknown>).channel_target) {
+          ;(base as Record<string, unknown>).channel_target = "current"
+        }
+      }
+      const node: BuilderStep = {
+        cid: cid(),
+        step_type: type,
+        step_config: base,
+        branches: type === "condition" ? { yes: [], no: [] } : undefined,
+      }
+      createdCid = node.cid
+      return { ...s, steps: insertAt(s.steps, parent, index, node) }
+    })
+    if (createdCid) setExpandedId(createdCid)
   }
 
   function deleteStepAt(path: StepPath) {
@@ -1329,10 +1341,13 @@ function StepEditor({
         <>
           <FieldBlock label="Channel">
             <select
-              value={(cfg.channel_target as string) ?? "whatsapp"}
+              value={(cfg.channel_target as string) ?? ""}
               onChange={(e) => set({ channel_target: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
             >
+              <option value="" disabled>
+                Select channel…
+              </option>
               <option value="current">Current Conversation</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="telegram">Telegram</option>
@@ -1356,10 +1371,13 @@ function StepEditor({
         <>
           <FieldBlock label="Channel">
             <select
-              value={(cfg.channel_target as string) ?? "whatsapp"}
+              value={(cfg.channel_target as string) ?? ""}
               onChange={(e) => set({ channel_target: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
             >
+              <option value="" disabled>
+                Select channel…
+              </option>
               <option value="current">Current Conversation</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="telegram">Telegram</option>

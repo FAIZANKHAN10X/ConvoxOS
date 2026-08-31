@@ -45,7 +45,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_type: 'send_message',
         step_config: {
           text: "Hi! 👋 Thanks for reaching out. We'll get back to you shortly.",
-        },
+          channel_target: "current",
+        } as unknown as AutomationStepConfig,
       },
       {
         step_type: 'add_tag',
@@ -70,9 +71,9 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_message',
         step_config: {
-          text:
-            "Thanks for your message! Our team is offline right now (9am–6pm) and will reply first thing tomorrow.",
-        },
+          text: "Thanks for your message! Our team is offline right now (9am–6pm) and will reply first thing tomorrow.",
+          channel_target: "current",
+        } as unknown as AutomationStepConfig,
         parent_index: 0,
         branch: 'yes',
       },
@@ -91,9 +92,9 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_message',
         step_config: {
-          text:
-            "Great — happy to help with pricing! Quick question: roughly how many seats are you looking for?",
-        },
+          text: "Great — happy to help with pricing! Quick question: roughly how many seats are you looking for?",
+          channel_target: "current",
+        } as unknown as AutomationStepConfig,
       },
       {
         step_type: 'wait',
@@ -119,9 +120,9 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       {
         step_type: 'send_message',
         step_config: {
-          text:
-            "Just circling back — did you have any other questions for us? Happy to help!",
-        },
+          text: "Just circling back — did you have any other questions for us? Happy to help!",
+          channel_target: "current",
+        } as unknown as AutomationStepConfig,
       },
     ],
   },

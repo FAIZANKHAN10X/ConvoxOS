@@ -411,18 +411,40 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (channel === 'whatsapp') {
         const check = validateInteractivePayload(payload)
         if (!check.ok) throw new Error(check.error)
-      } else {
-        // Telegram inline keyboard validation will happen inside dispatch (via keyboard.ts)
-        // For Telegram, map WhatsApp buttons/list payload to inline keyboard if needed
-        // Keep payload as-is for socket dispatchInteractive which handles both
       }
       const conversationId = await resolveConversationId(args)
+      // For Telegram, convert canonical InteractiveMessagePayload (WhatsApp shape) to Telegram inline keyboard
+      // using the same mapping as Flow engine (src/lib/flows/engine.ts) — reuse canonical payload, not a new contract
+      if (channel === 'telegram') {
+        const p = payload as unknown as import('@/lib/whatsapp/interactive').InteractiveMessagePayload
+        let inlineKeyboard: import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup
+        let text: string
+        if (p.kind === 'buttons') {
+          inlineKeyboard = { inline_keyboard: p.buttons.map((b) => [{ text: b.title, callback_data: b.id }]) } as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup
+          text = p.body || 'Choose an option:'
+        } else if (p.kind === 'list') {
+          inlineKeyboard = { inline_keyboard: p.sections.flatMap((s) => s.rows.map((r) => [{ text: r.title, callback_data: r.id }])) } as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup
+          text = p.body || 'Choose an option:'
+        } else {
+          inlineKeyboard = { inline_keyboard: [] } as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup
+          text = (p as unknown as { body?: string }).body || 'Choose an option:'
+        }
+        const { providerMessageId } = await dispatchChannelText({
+          db,
+          accountId: args.automation.account_id,
+          conversationId,
+          channel: 'telegram',
+          text,
+          inlineKeyboard,
+        })
+        return `interactive sent via ${channel} (${providerMessageId})`
+      }
       const { providerMessageId } = await dispatchChannelInteractive({
         db,
         accountId: args.automation.account_id,
         conversationId,
         channel,
-        payload: payload as unknown as import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | import('@/lib/whatsapp/interactive').InteractiveMessagePayload,
+        payload: payload as unknown as import('@/lib/whatsapp/interactive').InteractiveMessagePayload,
       })
       return `interactive sent via ${channel} (${providerMessageId})`
     }
