@@ -2,15 +2,14 @@
 
 import { GitFork, List } from "lucide-react";
 import { FlowCanvas } from "@/components/flows/flow-canvas";
-import { FlowBuilder } from "@/components/flows/flow-builder";
 import { AutomationEditorProvider, useAutomationEditor } from "./provider";
 import { AutomationEditorHeader } from "./header";
-import { ValidationPanel } from "@/components/flows/validation-panel";
+import { AutomationBasicView } from "./basic-view";
 import { NODE_META, nodeColors, type NodeType } from "@/components/flows/shared";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { BuilderInitial } from "@/components/automations/automation-builder";
-import { useFlowEditor, FlowEditorProvider } from "@/components/flows/flow-editor-state";
+import { FlowEditorProvider } from "@/components/flows/flow-editor-state";
 import { DEFAULT_FALLBACK_POLICY, type FlowRow, type FlowNodeRow } from "@/lib/flows/types";
 
 // Inner shell content — toggle + stage + validation
@@ -42,7 +41,7 @@ function ShellChrome() {
           <FlowCanvasBridge />
         ) : (
           <div className="absolute inset-0 overflow-y-auto">
-            <BasicBridge />
+            <AutomationBasicView />
           </div>
         )}
       </div>
@@ -105,33 +104,6 @@ function FlowCanvasBridge() {
     <FlowEditorProvider initialFlow={syntheticFlow} initialNodes={syntheticNodes}>
       <FlowCanvas />
     </FlowEditorProvider>
-  );
-}
-
-function BasicBridge() {
-  const { state, setState } = useAutomationEditor();
-  // Render linear list using existing FlowBuilder but fed with derived state.
-  // For Phase 1, reuse automation-builder's StepList pattern via FlowBuilder bridge:
-  // We render a simple linear representation here and delegate edits to setState.
-  return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="rounded-lg border border-dashed border-border bg-card p-6 text-center">
-        <p className="text-sm font-medium text-foreground">Basic Builder (linear)</p>
-        <p className="mt-1 text-xs text-muted-foreground">Starting Step + {state.steps.length} steps — linear view shares state with Flow view. Editing here updates Flow.</p>
-        <div className="mt-4 space-y-2 text-left">
-          <div className="rounded-md border border-border bg-muted p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Starting Step</p>
-            <p className="text-xs text-muted-foreground">Trigger: {state.trigger_type} {JSON.stringify(state.trigger_config).slice(0,60)}</p>
-          </div>
-          {state.steps.map((s, i) => (
-            <div key={s.cid} className="rounded-md border border-border bg-card p-3">
-              <p className="text-xs font-medium text-foreground">{i+1}. {s.step_type}</p>
-              <p className="text-xs text-muted-foreground truncate">{JSON.stringify(s.step_config).slice(0,80)}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
 

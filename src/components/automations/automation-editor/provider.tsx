@@ -9,6 +9,7 @@ import type { BuilderStep, BuilderInitial } from "@/components/automations/autom
 import { stepsToNodes, nodesToSteps } from "@/lib/automations/automation-editor-adapter";
 import type { BuilderNode } from "@/components/flows/shared";
 import { validateFlowForActivation, type ValidationIssue } from "@/lib/flows/validate";
+import { validateStepsForActivation } from "@/lib/automations/validate";
 
 export type AutomationStatus = "draft" | "active" | "paused" | "archived";
 export type EditorView = "flow" | "basic";
@@ -38,6 +39,10 @@ export interface AutomationEditorContextValue {
   deleteAutomation: () => Promise<void>;
   flashKey: string | null;
   requestFlash: (key: string) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const Ctx = createContext<AutomationEditorContextValue | null>(null);
@@ -63,10 +68,38 @@ export function AutomationEditorProvider({ initial, children }: { initial: Build
   }));
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const historyRef = useRef<AutomationEditorState[]>([initial as unknown as AutomationEditorState]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const setState = useCallback<typeof setStateRaw>((updater) => {
     setDirty(true);
-    setStateRaw(updater as never);
-  }, []);
+    setStateRaw((prev) => {
+      const next = typeof updater === "function" ? (updater as (p: AutomationEditorState) => AutomationEditorState)(prev) : (updater as AutomationEditorState);
+      const hist = historyRef.current.slice(0, historyIndex + 1);
+      hist.push(next);
+      if (hist.length > 50) hist.shift();
+      historyRef.current = hist;
+      setHistoryIndex(hist.length - 1);
+      return next;
+    });
+  }, [historyIndex]);
+  const undo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const nextIdx = historyIndex - 1;
+    const prev = historyRef.current[nextIdx];
+    setStateRaw(prev);
+    setHistoryIndex(nextIdx);
+    setDirty(JSON.stringify(prev) !== JSON.stringify(historyRef.current[0]));
+  }, [historyIndex]);
+  const redo = useCallback(() => {
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const nextIdx = historyIndex + 1;
+    const next = historyRef.current[nextIdx];
+    setStateRaw(next);
+    setHistoryIndex(nextIdx);
+    setDirty(JSON.stringify(next) !== JSON.stringify(historyRef.current[0]));
+  }, [historyIndex]);
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
 
   const [view, setViewRaw] = useState<EditorView>(() => {
     try {
@@ -104,13 +137,32 @@ export function AutomationEditorProvider({ initial, children }: { initial: Build
 
   const deferred = useDeferredValue(state);
   const issues = useMemo<ValidationIssue[]>(() => {
-    // Adapt steps → nodes for existing validator (keeps one validator)
-    const nodes = stepsToNodes(deferred.steps);
-    // Empty Starting Step is represented as no trigger config → validator will flag entry
-    return validateFlowForActivation(
-      { name: deferred.name, trigger_type: "keyword" as never, trigger_config: deferred.trigger_config, entry_node_id: nodes[0]?.node_key ?? null },
-      nodes as never
-    );
+    const triggerIssues: ValidationIssue[] = [];
+    if (!deferred.trigger_type || (deferred.trigger_type as string).trim() === "") {
+      triggerIssues.push({ severity: "error", scope: "trigger", field: "trigger_type", message: "Select a trigger for the Starting Step" });
+    } else {
+      // Use flow validator for trigger shape where applicable, fallback to steps
+      try {
+        const flowTrigger = validateFlowForActivation(
+          { name: deferred.name, trigger_type: deferred.trigger_type as never, trigger_config: deferred.trigger_config, entry_node_id: deferred.steps[0]?.cid ?? null },
+          stepsToNodes(deferred.steps) as never
+        ).filter((i) => i.scope === "trigger");
+        triggerIssues.push(...flowTrigger);
+      } catch {}
+    }
+    // Steps validation via automation validator
+    let stepIssues: ValidationIssue[] = [];
+    try {
+      const raw = validateStepsForActivation(deferred.steps as unknown as never[]);
+      stepIssues = raw.map((r) => ({ severity: "error" as const, scope: "node" as const, message: r.message, field: r.path }));
+    } catch {
+      const nodes = stepsToNodes(deferred.steps);
+      stepIssues = validateFlowForActivation(
+        { name: deferred.name, trigger_type: deferred.trigger_type as never, trigger_config: deferred.trigger_config, entry_node_id: nodes[0]?.node_key ?? null },
+        nodes as never
+      ).filter((i) => i.scope !== "trigger");
+    }
+    return [...triggerIssues, ...stepIssues];
   }, [deferred]);
 
   const canPublish = useMemo(() => issues.every((i) => i.severity !== "error"), [issues]);
@@ -163,7 +215,8 @@ export function AutomationEditorProvider({ initial, children }: { initial: Build
     state, setState, dirty, saving,
     view: effectiveView, setView,
     derivedNodes, issues, canPublish, save, setStatus, deleteAutomation, flashKey, requestFlash,
-  }), [initial.id, state, setState, dirty, saving, effectiveView, setView, derivedNodes, issues, canPublish, save, setStatus, deleteAutomation, flashKey, requestFlash]);
+    undo, redo, canUndo, canRedo,
+  }), [initial.id, state, setState, dirty, saving, effectiveView, setView, derivedNodes, issues, canPublish, save, setStatus, deleteAutomation, flashKey, requestFlash, undo, redo, canUndo, canRedo]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

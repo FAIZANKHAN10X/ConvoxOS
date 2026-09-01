@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export function AutomationEditorHeader() {
   const router = useRouter();
-  const { state, setState, dirty, saving, canPublish, save, setStatus, deleteAutomation } = useAutomationEditor();
+  const { state, setState, dirty, saving, canPublish, save, setStatus, deleteAutomation, undo, redo, canUndo, canRedo } = useAutomationEditor();
   const statusLabel = state.is_active ? "Active" : "Draft";
   const setLiveLabel = state.is_active ? "Update" : "Set Live";
 
@@ -23,8 +23,8 @@ export function AutomationEditorHeader() {
       <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", state.is_active ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-300" : "border-border bg-muted text-muted-foreground")}>{statusLabel}</span>
       {dirty && <span className="hidden items-center gap-1 text-xs text-amber-400 sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Edited</span>}
       <div className="ml-auto flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Undo (soon)" disabled><Undo2 className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Redo (soon)" disabled><Redo2 className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Undo" onClick={undo} disabled={!canUndo}><Undo2 className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Redo" onClick={redo} disabled={!canRedo}><Redo2 className="h-4 w-4" /></Button>
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:bg-muted">
             <Eye className="h-3.5 w-3.5" /> Preview
