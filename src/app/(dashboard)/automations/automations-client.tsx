@@ -427,53 +427,57 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
   const showTemplates = unified.length < 3
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      {/* Header — Manychat: title + primary CTA, no subtitle clutter */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Automations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Build once, run on every channel</p>
-        </div>
-        <GatedButton canAct={canCreate} gateReason="create automations" onClick={() => setCreateOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus className="h-4 w-4" />
-          {t("create")}
-        </GatedButton>
+    <div className="-m-6 flex min-h-[calc(100vh-4rem)]">
+      {/* Left nav — Manychat second column: My Automations / Basic / Sequences */}
+      <div className="hidden w-56 shrink-0 border-r border-border bg-[#f8f9fb] p-4 sm:block">
+        <nav className="space-y-1">
+          <button className="flex w-full items-center gap-2 rounded-md bg-[#e8f0fe] px-3 py-2 text-sm font-medium text-[#1a73e8]">
+            <span className="h-4 w-4 rounded bg-[#1a73e8]/20" /> My Automations
+          </button>
+          <button disabled className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground opacity-60">
+            <span className="h-4 w-4 rounded bg-muted" /> Basic
+          </button>
+          <Link href="/sequences" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span className="h-4 w-4 rounded bg-muted" /> Sequences
+          </Link>
+        </nav>
       </div>
 
-      {/* Sub-navigation — My Automations is default, others placeholder/disabled */}
-      <div className="flex items-center gap-1 border-b border-border">
-        <button className="border-b-2 border-primary px-3 py-2 text-sm font-medium text-foreground">My Automations</button>
-        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Basic</button>
-        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Keywords</button>
-        <Link href="/sequences" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Sequences</Link>
-        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Rules</button>
-      </div>
-
-      {/* Toolbar — search + filters + folder controls placeholder */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2">
-          {(["all", "active", "draft", "archived"] as const).map((s) => (
-            <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", statusFilter === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted")}>
-              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <div className="relative hidden sm:block">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or trigger…" className="w-64 bg-muted pl-8" />
+      {/* Main — light gray like Manychat, centered */}
+      <div className="flex-1 bg-[#f8f9fb] p-6">
+        <div className="mx-auto max-w-5xl space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold text-foreground">My Automations</h1>
+            <GatedButton canAct={canCreate} gateReason="create automations" onClick={() => setCreateOpen(true)} className="bg-[#1a73e8] text-white hover:bg-[#1557b0] shadow-sm">
+              <Plus className="h-4 w-4" />
+              New Automation
+            </GatedButton>
           </div>
-          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Folders (soon)</span>
-            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Trash</span>
-            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Grid / List</span>
-          </span>
-        </div>
-      </div>
-      <div className="relative sm:hidden">
-        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or trigger…" className="w-full bg-muted pl-8" />
-      </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all Automations" className="w-64 bg-white pl-8 shadow-sm" />
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="hidden items-center gap-2 sm:flex">
+                {(["all", "active", "draft", "archived"] as const).map((s) => (
+                  <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", statusFilter === s ? "border-[#1a73e8] bg-[#1a73e8] text-white" : "border-border bg-white text-muted-foreground hover:bg-muted")}>
+                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button type="button" onClick={() => setCreateOpen(true)} className="flex w-full max-w-xs items-center justify-center gap-2 rounded-lg border border-dashed border-[#1a73e8]/40 bg-white px-4 py-2.5 text-sm font-medium text-[#1a73e8] hover:bg-[#1a73e8]/5">
+            <Plus className="h-4 w-4" /> New Folder
+          </button>
+          <div className="flex justify-end">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Trash2 className="h-3.5 w-3.5" /> Trash
+            </span>
+          </div>
 
       {showTemplates && (
         <section>
@@ -602,7 +606,9 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
+  </div>
   )
 }
 

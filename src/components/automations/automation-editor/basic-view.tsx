@@ -30,76 +30,86 @@ export function AutomationBasicView() {
   // Consider keyword_match with empty keywords as no trigger (Starting Step blank)
   const isBlankTrigger = state.trigger_type === "keyword_match" && Array.isArray((state.trigger_config as { keywords?: string[] })?.keywords) && (state.trigger_config as { keywords?: string[] }).keywords!.length === 0;
 
+  const selectedStep = expanded ? state.steps.find((s) => s.cid === expanded) ?? null : null;
+  const selectedIdx = expanded ? state.steps.findIndex((s) => s.cid === expanded) : -1;
+  const allNodesForSelected = selectedStep ? stepsToNodes(state.steps) : [];
+  const selectedNode: BuilderNode | null = selectedStep && selectedIdx >= 0 ? { node_key: selectedStep.cid, node_type: (allNodesForSelected[selectedIdx]?.node_type ?? "send_message") as BuilderNode["node_type"], config: selectedStep.step_config, position_x: 0, position_y: 0 } : null;
+
   return (
-    <div className="mx-auto max-w-2xl p-6 space-y-6">
-      {/* Starting Step — Manychat: dashed placeholder, + New Trigger centered */}
-      <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Starting Step</p>
-          <p className="text-xs text-muted-foreground">What starts this automation</p>
-        </div>
-        <div className="p-4">
+    <div className="flex h-full min-h-0">
+      {/* Left — step list (Manychat: 280px, Starting Step + Create New Step) */}
+      <div className="w-[300px] shrink-0 border-r border-[#e5e7eb] bg-white p-3">
+        <p className="px-2 py-2 text-xs font-medium text-muted-foreground">Starting Step</p>
+        <div className="space-y-2">
           {!hasTrigger || isBlankTrigger ? (
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center">
-              <p className="text-sm font-medium text-foreground">No trigger yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">Pick how this automation starts — required before publishing</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {TRIGGER_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => setState((s) => ({ ...s, trigger_type: opt.value as never, trigger_config: opt.value === "keyword_match" ? { keywords: ["hello"], match_type: "contains" } : {} }))} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button onClick={() => setState((s) => ({ ...s, trigger_type: "keyword_match" as never, trigger_config: { keywords: ["hello"], match_type: "contains" } }))} className="flex w-full items-center justify-center rounded-lg border border-dashed border-[#1a73e8]/40 bg-[#f8f9fb] px-3 py-3 text-sm font-medium text-[#1a73e8] hover:bg-[#e8f0fe]">
+              + New Trigger
+            </button>
           ) : (
-            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{state.trigger_type}</p>
-                <p className="truncate text-xs text-muted-foreground">{JSON.stringify(state.trigger_config)}</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setState((s) => ({ ...s, trigger_type: "" as never, trigger_config: {} }))}>Change</Button>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-sm font-medium text-emerald-800">{state.trigger_type}</p>
+              <p className="truncate text-xs text-emerald-600">{JSON.stringify(state.trigger_config).slice(0,40)}</p>
+              <button onClick={() => setState((s) => ({ ...s, trigger_type: "" as never, trigger_config: {} }))} className="mt-1 text-xs text-emerald-700 hover:underline">Change</button>
             </div>
           )}
+          {state.steps.map((step, idx) => (
+            <button key={step.cid} onClick={() => setExpanded(step.cid)} className={cn("flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left", expanded === step.cid ? "border-[#1a73e8] bg-[#e8f0fe] text-[#1a73e8]" : "border-[#e5e7eb] bg-white hover:bg-gray-50", flashKey === step.cid && "ring-2 ring-amber-400")}>
+              <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium">{idx + 1}</span>
+              <span className="truncate text-sm font-medium">{step.step_type}</span>
+            </button>
+          ))}
+          <button onClick={() => setExpanded(null)} className="flex w-full items-center justify-center rounded-lg border border-dashed border-[#e5e7eb] bg-white px-3 py-2.5 text-sm text-muted-foreground hover:bg-gray-50">
+            + Create New Step
+          </button>
         </div>
       </div>
 
-      {/* Steps — clean linear, consistent spacing, no card soup */}
-      <div className="space-y-3">
-        {state.steps.map((step, idx) => {
-          const allNodes = stepsToNodes(state.steps);
-          const node: BuilderNode = { node_key: step.cid, node_type: (allNodes[idx]?.node_type ?? "send_message") as BuilderNode["node_type"], config: step.step_config, position_x: 0, position_y: 0 };
-          return (
-          <div key={step.cid} className={cn("rounded-xl border bg-card shadow-sm", flashKey === step.cid && "ring-2 ring-amber-400 border-amber-400")}>
-            <button type="button" onClick={() => setExpanded(expanded === step.cid ? null : step.cid)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">{idx + 1}</span>
-              <span className="text-sm font-medium text-foreground">{step.step_type}</span>
-              <span className="ml-auto hidden truncate text-xs text-muted-foreground sm:block max-w-[200px]">{JSON.stringify(step.step_config).slice(0,60)}</span>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded === step.cid && "rotate-180")} />
-            </button>
-            {expanded === step.cid && (
-              <div className="border-t border-border p-4 space-y-4">
-                <NodeConfigForm node={node} allNodes={allNodes} showAdvanced={false} onUpdateConfig={(patch) => setState((s) => ({ ...s, steps: s.steps.map((x, i) => i===idx ? { ...x, step_config: { ...x.step_config, ...patch } } : x) }))} />
-                <div className="flex items-center justify-between border-t border-border pt-3">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={idx===0} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[idx]; a[idx]=a[idx-1]; a[idx-1]=t; return {...s, steps: a}; })}><ArrowUp className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={idx===state.steps.length-1} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[idx]; a[idx]=a[idx+1]; a[idx+1]=t; return {...s, steps: a}; })}><ArrowDown className="h-4 w-4" /></Button>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-600" onClick={() => setState((s) => ({ ...s, steps: s.steps.filter((_, i) => i!==idx) }))}><Trash2 className="mr-1 h-4 w-4" /> Delete step</Button>
+      {/* Middle — selected step config (Manychat: content blocks) */}
+      <div className="flex-1 overflow-y-auto bg-[#f8f9fb] p-6">
+        {selectedStep && selectedNode ? (
+          <div className="mx-auto max-w-[560px] rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] bg-[#e8f0fe] px-4 py-3">
+              <h3 className="text-sm font-semibold text-[#1a73e8]">{selectedStep.step_type}</h3>
+            </div>
+            <div className="p-4">
+              <NodeConfigForm node={selectedNode} allNodes={allNodesForSelected} showAdvanced={false} onUpdateConfig={(patch) => setState((s) => ({ ...s, steps: s.steps.map((x, i) => i===selectedIdx ? { ...x, step_config: { ...x.step_config, ...patch } } : x) }))} />
+              <div className="mt-4 flex items-center justify-between border-t border-[#e5e7eb] pt-3">
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={selectedIdx===0} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[selectedIdx]; a[selectedIdx]=a[selectedIdx-1]; a[selectedIdx-1]=t; setExpanded(a[selectedIdx-1].cid); return {...s, steps: a}; })}><ArrowUp className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={selectedIdx===state.steps.length-1} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[selectedIdx]; a[selectedIdx]=a[selectedIdx+1]; a[selectedIdx+1]=t; setExpanded(a[selectedIdx+1].cid); return {...s, steps: a}; })}><ArrowDown className="h-4 w-4" /></Button>
                 </div>
+                <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => { setState((s) => ({ ...s, steps: s.steps.filter((_, i) => i!==selectedIdx) })); setExpanded(null); }}><Trash2 className="mr-1 h-4 w-4" /> Delete</Button>
               </div>
-            )}
+            </div>
           </div>
-        )})}
-
-        <div className="flex justify-center pt-2">
-          <div className="flex flex-wrap justify-center gap-2">
+        ) : (
+          <div className="mx-auto max-w-[560px] rounded-xl border border-dashed border-[#e5e7eb] bg-white p-12 text-center">
+            <p className="text-sm font-medium text-foreground">Select a step to edit</p>
+            <p className="mt-1 text-xs text-muted-foreground">Tap a step on the left or create a new one</p>
+          </div>
+        )}
+        {!selectedStep && (
+          <div className="mx-auto mt-6 max-w-[560px] flex flex-wrap justify-center gap-2">
             {["send_message","send_buttons","condition","wait"].map((tp) => (
-              <button key={tp} onClick={() => setState((s) => ({ ...s, steps: [...s.steps, { cid: `c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, step_type: tp as BuilderStep["step_type"], step_config: tp==="send_message" ? {text:""} : tp==="condition" ? {subject:"tag_presence", operand:"", value:""} : tp==="wait" ? {amount:1, unit:"hours"} : {}}] }))} className="rounded-full border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+              <button key={tp} onClick={() => { const cid=`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`; setState((s) => ({ ...s, steps: [...s.steps, { cid, step_type: tp as BuilderStep["step_type"], step_config: tp==="send_message" ? {text:""} : tp==="condition" ? {subject:"tag_presence", operand:"", value:""} : tp==="wait" ? {amount:1, unit:"hours"} : {}}] })); setExpanded(cid); }} className="rounded-full border border-[#e5e7eb] bg-white px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-gray-50">
                 <Plus className="mr-1 inline h-3 w-3" /> {tp.replace("_"," ")}
               </button>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Right — phone preview (Manychat: white phone) */}
+      <div className="hidden w-[360px] shrink-0 border-l border-[#e5e7eb] bg-[#f8f9fb] p-6 lg:block">
+        <div className="mx-auto w-[280px] rounded-[32px] border border-[#e5e7eb] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>9:41</span><span>● ● ●</span>
+          </div>
+          <div className="min-h-[320px] rounded-xl bg-muted/30 p-3 text-xs text-muted-foreground">
+            Preview — messages appear here
+          </div>
         </div>
+        <p className="mt-3 text-center text-xs text-muted-foreground">Add content blocks to see preview</p>
       </div>
     </div>
   );

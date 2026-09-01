@@ -18,47 +18,38 @@ function ShellChrome() {
   const t = useTranslations("Flows.builder");
   const LEGEND_TYPES = Object.keys(NODE_META) as NodeType[];
 
-  // We reuse Flow validation panel for now; issues are adapted via provider
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-[#f8f9fb]">
       <AutomationEditorHeader />
-      <div className="flex items-center gap-4 px-6 py-3.5">
-        <div role="group" aria-label="Editor view" className="inline-flex gap-0.5 rounded-lg border border-border bg-muted p-0.5">
-          <SegButton active={view === "flow"} onClick={() => setView("flow")} icon={<GitFork className="h-3.5 w-3.5" />} label={t("canvasView")} />
-          <SegButton active={view === "basic"} onClick={() => setView("basic")} icon={<List className="h-3.5 w-3.5" />} label={t("listView")} />
-        </div>
-        <div className="ml-auto hidden flex-wrap items-center gap-x-3.5 gap-y-1.5 lg:flex">
-          {LEGEND_TYPES.map((tt) => (
-            <span key={tt} className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: nodeColors(tt).solid }} />
-              {t(`nodes.${tt}.label`)}
-            </span>
-          ))}
+      {/* View switch — Manychat: pill top-right Go To Basic/Flow Builder, not segmented middle */}
+      <div className="flex justify-end px-4 py-2">
+        <div role="group" aria-label="Editor view" className="inline-flex gap-0.5 rounded-full border border-border bg-white p-0.5 shadow-sm">
+          <SegButton active={view === "flow"} onClick={() => setView("flow")} icon={<GitFork className="h-3.5 w-3.5" />} label="Flow" />
+          <SegButton active={view === "basic"} onClick={() => setView("basic")} icon={<List className="h-3.5 w-3.5" />} label="Basic" />
         </div>
       </div>
-      <div className="relative mx-6 min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card-2">
+      {/* Workspace — no artificial card, occupies available area */}
+      <div className="min-h-0 flex-1 overflow-hidden bg-[#f8f9fb]">
         {view === "flow" ? (
           <FlowCanvasBridge />
         ) : (
-          <div className="absolute inset-0 overflow-y-auto">
+          <div className="h-full overflow-y-auto bg-[#f8f9fb]">
             <AutomationBasicView />
           </div>
         )}
       </div>
       {issues.length > 0 && (
-        <div className="px-6 pb-5 pt-3">
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Needs attention before publishing</p>
-            <ul className="mt-2 space-y-1">
-              {issues.map((iss, i) => (
-                <li key={i} className={cn("text-xs", iss.severity === "error" ? "text-red-500" : "text-amber-600")}>
-                  <button onClick={() => iss.node_key && requestFlash(iss.node_key)} className="text-left hover:underline">
-                    {iss.severity === "error" ? "• " : "• "}{iss.message} {iss.node_key ? `→ ${iss.node_key}` : ""}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="border-t border-amber-200 bg-amber-50 px-6 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Needs attention before publishing</p>
+          <ul className="mt-2 space-y-1">
+            {issues.map((iss, i) => (
+              <li key={i} className={cn("text-xs", iss.severity === "error" ? "text-red-600" : "text-amber-700")}>
+                <button onClick={() => iss.node_key && requestFlash(iss.node_key)} className="text-left hover:underline">
+                  {iss.severity === "error" ? "• " : "• "}{iss.message} {iss.node_key ? `→ ${iss.node_key}` : ""}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
