@@ -45,24 +45,22 @@ function ShellChrome() {
           </div>
         )}
       </div>
-      <div className="px-6 pb-5 pt-3">
-        <div className="rounded-lg border border-border bg-card p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Validation</p>
-          <ul className="mt-2 space-y-1">
-            {issues.length === 0 ? (
-              <li className="text-xs text-muted-foreground">No issues — ready to publish</li>
-            ) : (
-              issues.map((iss, i) => (
-                <li key={i} className={cn("text-xs", iss.severity === "error" ? "text-red-400" : "text-amber-400")}>
+      {issues.length > 0 && (
+        <div className="px-6 pb-5 pt-3">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Needs attention before publishing</p>
+            <ul className="mt-2 space-y-1">
+              {issues.map((iss, i) => (
+                <li key={i} className={cn("text-xs", iss.severity === "error" ? "text-red-500" : "text-amber-600")}>
                   <button onClick={() => iss.node_key && requestFlash(iss.node_key)} className="text-left hover:underline">
-                    {iss.severity === "error" ? "Error" : "Warning"}: {iss.message} {iss.node_key ? `(${iss.node_key})` : ""}
+                    {iss.severity === "error" ? "• " : "• "}{iss.message} {iss.node_key ? `→ ${iss.node_key}` : ""}
                   </button>
                 </li>
-              ))
-            )}
-          </ul>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

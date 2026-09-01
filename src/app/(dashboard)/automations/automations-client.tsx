@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -426,50 +427,52 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
   const showTemplates = unified.length < 3
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Header — Manychat: title + primary CTA, no subtitle clutter */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Automations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Build once, run on every channel</p>
         </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create automations"
-          onClick={() => setCreateOpen(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
+        <GatedButton canAct={canCreate} gateReason="create automations" onClick={() => setCreateOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
           <Plus className="h-4 w-4" />
           {t("create")}
         </GatedButton>
       </div>
 
+      {/* Sub-navigation — My Automations is default, others placeholder/disabled */}
+      <div className="flex items-center gap-1 border-b border-border">
+        <button className="border-b-2 border-primary px-3 py-2 text-sm font-medium text-foreground">My Automations</button>
+        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Basic</button>
+        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Keywords</button>
+        <Link href="/sequences" className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Sequences</Link>
+        <button disabled className="px-3 py-2 text-sm text-muted-foreground opacity-60">Rules</button>
+      </div>
+
+      {/* Toolbar — search + filters + folder controls placeholder */}
       <div className="flex flex-wrap items-center gap-2">
-        {(["all", "active", "draft", "archived"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatusFilter(s)}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-              statusFilter === s
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search automations…"
-              className="w-56 bg-muted pl-8"
-            />
-          </div>
+        <div className="flex items-center gap-2">
+          {(["all", "active", "draft", "archived"] as const).map((s) => (
+            <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", statusFilter === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted")}>
+              {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
         </div>
+        <div className="ml-auto flex items-center gap-3">
+          <div className="relative hidden sm:block">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or trigger…" className="w-64 bg-muted pl-8" />
+          </div>
+          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Folders (soon)</span>
+            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Trash</span>
+            <span className="rounded border border-border bg-card px-2 py-1 opacity-50">Grid / List</span>
+          </span>
+        </div>
+      </div>
+      <div className="relative sm:hidden">
+        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or trigger…" className="w-full bg-muted pl-8" />
       </div>
 
       {showTemplates && (
