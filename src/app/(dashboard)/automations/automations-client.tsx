@@ -145,6 +145,7 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
   const [deleting, setDeleting] = useState(false)
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft" | "archived">("all")
   const [search, setSearch] = useState("")
+  const [activeTab, setActiveTab] = useState<"my" | "basic">("my")
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState("")
   const [creating, setCreating] = useState(false)
@@ -424,17 +425,15 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
     )
   }
 
-  const showTemplates = unified.length < 3
-
   return (
     <div className="-m-6 flex min-h-[calc(100vh-4rem)]">
-      {/* Left nav — Manychat second column: My Automations / Basic / Sequences */}
+      {/* Left nav — My Automations / Basic / Sequences */}
       <div className="hidden w-56 shrink-0 border-r border-border bg-[#f8f9fb] p-4 sm:block">
         <nav className="space-y-1">
-          <button className="flex w-full items-center gap-2 rounded-md bg-[#e8f0fe] px-3 py-2 text-sm font-medium text-[#1a73e8]">
+          <button onClick={() => setActiveTab("my")} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium", activeTab === "my" ? "bg-[#e8f0fe] text-[#1a73e8]" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
             <span className="h-4 w-4 rounded bg-[#1a73e8]/20" /> My Automations
           </button>
-          <button disabled className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground opacity-60">
+          <button onClick={() => setActiveTab("basic")} className={cn("flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium", activeTab === "basic" ? "bg-[#e8f0fe] text-[#1a73e8]" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
             <span className="h-4 w-4 rounded bg-muted" /> Basic
           </button>
           <Link href="/sequences" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -447,64 +446,69 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
       <div className="flex-1 bg-[#f8f9fb] p-6">
         <div className="mx-auto max-w-5xl space-y-5">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl font-semibold text-foreground">My Automations</h1>
-            <GatedButton canAct={canCreate} gateReason="create automations" onClick={() => setCreateOpen(true)} className="bg-[#1a73e8] text-white hover:bg-[#1557b0] shadow-sm">
-              <Plus className="h-4 w-4" />
-              New Automation
-            </GatedButton>
+            <h1 className="text-xl font-semibold text-foreground">{activeTab === "basic" ? "Basic" : "My Automations"}</h1>
+            {activeTab === "my" && (
+              <GatedButton canAct={canCreate} gateReason="create automations" onClick={() => setCreateOpen(true)} className="bg-[#1a73e8] text-white hover:bg-[#1557b0] shadow-sm">
+                <Plus className="h-4 w-4" />
+                New Automation
+              </GatedButton>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all Automations" className="w-64 bg-white pl-8 shadow-sm" />
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <div className="hidden items-center gap-2 sm:flex">
-                {(["all", "active", "draft", "archived"] as const).map((s) => (
-                  <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", statusFilter === s ? "border-[#1a73e8] bg-[#1a73e8] text-white" : "border-border bg-white text-muted-foreground hover:bg-muted")}>
-                    {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                ))}
+          {activeTab === "basic" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">System automations that run automatically. Configure them once, they work for every contact.</p>
+              <div className="grid gap-3">
+                <div className="flex items-center gap-4 rounded-xl border border-border bg-white p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8f0fe] text-[#1a73e8]">
+                    <MessageCircle className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Default Reply</p>
+                    <p className="text-xs text-muted-foreground">Replies when no other automation matches</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => toast.info("Default Reply — coming soon")}>Set Up</Button>
+                </div>
+                <div className="flex items-center gap-4 rounded-xl border border-border bg-white p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8f0fe] text-[#1a73e8]">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">Welcome Message</p>
+                    <p className="text-xs text-muted-foreground">Greets new contacts on first interaction</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => toast.info("Welcome Message — coming soon")}>Set Up</Button>
+                </div>
               </div>
             </div>
-          </div>
-
-          <button type="button" onClick={() => setCreateOpen(true)} className="flex w-full max-w-xs items-center justify-center gap-2 rounded-lg border border-dashed border-[#1a73e8]/40 bg-white px-4 py-2.5 text-sm font-medium text-[#1a73e8] hover:bg-[#1a73e8]/5">
-            <Plus className="h-4 w-4" /> New Folder
-          </button>
-          <div className="flex justify-end">
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Trash2 className="h-3.5 w-3.5" /> Trash
-            </span>
-          </div>
-
-      {showTemplates && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("templatesTitle")}</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {TEMPLATE_ORDER.map((slug) => {
-              const tpl = AUTOMATION_TEMPLATES[slug]
-              const Icon = TEMPLATE_ICON[slug]
-              return (
-                <button
-                  key={slug}
-                  onClick={() => startFromTemplate(slug)}
-                  className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-card/80"
-                >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/15">
-                    <Icon className="h-5 w-5" />
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search all Automations" className="w-64 bg-white pl-8 shadow-sm" />
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="hidden items-center gap-2 sm:flex">
+                    {(["all", "active", "draft", "archived"] as const).map((s) => (
+                      <button key={s} type="button" onClick={() => setStatusFilter(s)} className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors", statusFilter === s ? "border-[#1a73e8] bg-[#1a73e8] text-white" : "border-border bg-white text-muted-foreground hover:bg-muted")}>
+                        {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </button>
+                    ))}
                   </div>
-                  <div className="text-sm font-semibold text-foreground">{tpl.name}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">{tpl.description}</p>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-      )}
+                </div>
+              </div>
 
-      {filtered.length === 0 ? (
+              <button type="button" onClick={() => setCreateOpen(true)} className="flex w-full max-w-xs items-center justify-center gap-2 rounded-lg border border-dashed border-[#1a73e8]/40 bg-white px-4 py-2.5 text-sm font-medium text-[#1a73e8] hover:bg-[#1a73e8]/5">
+                <Plus className="h-4 w-4" /> New Folder
+              </button>
+              <div className="flex justify-end">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Trash2 className="h-3.5 w-3.5" /> Trash
+                </span>
+              </div>
+
+              {filtered.length === 0 ? (
         unified.length === 0 ? (
           <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -532,7 +536,9 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
             />
           ))}
         </ul>
-      )}
+              )}
+            </>
+          )}
 
       <Dialog open={createOpen} onOpenChange={(v) => { if (!v) { setCreateOpen(false); setNewName("") } }}>
         <DialogContent className="sm:max-w-3xl bg-popover text-popover-foreground">

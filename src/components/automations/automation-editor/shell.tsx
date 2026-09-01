@@ -5,18 +5,16 @@ import { FlowCanvas } from "@/components/flows/flow-canvas";
 import { AutomationEditorProvider, useAutomationEditor } from "./provider";
 import { AutomationEditorHeader } from "./header";
 import { AutomationBasicView } from "./basic-view";
-import { NODE_META, nodeColors, type NodeType } from "@/components/flows/shared";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { BuilderInitial } from "@/components/automations/automation-builder";
 import { FlowEditorProvider } from "@/components/flows/flow-editor-state";
 import { DEFAULT_FALLBACK_POLICY, type FlowRow, type FlowNodeRow } from "@/lib/flows/types";
 
-// Inner shell content — toggle + stage + validation
+// Inner shell content — toggle + stage (no persistent validation)
 function ShellChrome() {
-  const { view, setView, issues, requestFlash } = useAutomationEditor();
+  const { view, setView } = useAutomationEditor();
   const t = useTranslations("Flows.builder");
-  const LEGEND_TYPES = Object.keys(NODE_META) as NodeType[];
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fb]">
@@ -28,7 +26,7 @@ function ShellChrome() {
           <SegButton active={view === "basic"} onClick={() => setView("basic")} icon={<List className="h-3.5 w-3.5" />} label="Basic" />
         </div>
       </div>
-      {/* Workspace — no artificial card, occupies available area */}
+      {/* Workspace — no artificial card, occupies available area; no persistent validation */}
       <div className="min-h-0 flex-1 overflow-hidden bg-[#f8f9fb]">
         {view === "flow" ? (
           <FlowCanvasBridge />
@@ -38,20 +36,6 @@ function ShellChrome() {
           </div>
         )}
       </div>
-      {issues.length > 0 && (
-        <div className="border-t border-amber-200 bg-amber-50 px-6 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Needs attention before publishing</p>
-          <ul className="mt-2 space-y-1">
-            {issues.map((iss, i) => (
-              <li key={i} className={cn("text-xs", iss.severity === "error" ? "text-red-600" : "text-amber-700")}>
-                <button onClick={() => iss.node_key && requestFlash(iss.node_key)} className="text-left hover:underline">
-                  {iss.severity === "error" ? "• " : "• "}{iss.message} {iss.node_key ? `→ ${iss.node_key}` : ""}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

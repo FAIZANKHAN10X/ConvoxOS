@@ -192,7 +192,13 @@ export function AutomationEditorProvider({ initial, children }: { initial: Build
   }, [state, initial.id, router]);
 
   const setStatus = useCallback(async (next: AutomationStatus) => {
-    if (next === "active" && !canPublish) { toast.error("Fix validation errors before publishing"); return; }
+    if (next === "active" && !canPublish) {
+      const first = issues.find((i) => i.severity === "error");
+      toast.error(first ? first.message : "Fix validation errors before publishing", {
+        description: first?.field ? `at ${first.field}` : undefined,
+      });
+      return;
+    }
     if (next === "active") await save();
     // For now status maps to is_active; archived via separate delete/folder later
     const is_active = next === "active";
@@ -200,7 +206,7 @@ export function AutomationEditorProvider({ initial, children }: { initial: Build
     setDirty(true);
     // Persist via save after
     toast.success(next === "active" ? "Published" : next === "paused" ? "Paused" : "Draft");
-  }, [canPublish, save]);
+  }, [canPublish, save, issues]);
 
   const deleteAutomation = useCallback(async () => {
     if (!initial.id) return;
