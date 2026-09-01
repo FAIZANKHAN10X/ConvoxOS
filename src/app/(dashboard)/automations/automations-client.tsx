@@ -346,22 +346,59 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
   }
 
   async function handleUseFlowTemplate(slug: string) {
+    // Canonical creation: flow templates are adapters to Automation, never create flows table rows.
+    // Resolve flow template client-side, map to automation payload, then POST /api/automations.
     setCreating(true)
     try {
-      const res = await fetch("/api/flows", {
+      // Dynamic import to avoid cycle; fall back to server fetch if needed
+      const { getFlowTemplate } = await import("@/lib/flows/templates")
+      const tpl = getFlowTemplate(slug)
+      if (!tpl) throw new Error("Template not found")
+      // Map trigger: keyword → keyword_match, first_inbound_message stays
+      const triggerMap: Record<string, string> = { keyword: "keyword_match", first_inbound_message: "first_inbound_message", manual: "manual" }
+      const trigger_type = (triggerMap[tpl.trigger_type] ?? tpl.trigger_type) as string
+      // Map flow nodes → automation steps (closest taxonomy)
+      const nodeToStep: Record<string, string> = {
+        send_message: "send_message",
+        send_buttons: "send_buttons",
+        send_list: "send_list",
+        send_media: "send_template",
+        collect_input: "send_message",
+        condition: "condition",
+        set_tag: "add_tag",
+        handoff: "assign_conversation",
+        end: "close_conversation",
+        wait: "wait",
+        randomizer: "randomizer",
+        start: "send_message",
+      }
+      const steps = tpl.nodes
+        .filter((n) => n.node_type !== "start" && n.node_type !== "end")
+        .map((n) => ({
+          step_type: (nodeToStep[n.node_type] ?? "send_message") as string,
+          step_config: n.config as Record<string, unknown>,
+        }))
+      const res = await fetch("/api/automations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ template_slug: slug }),
+        body: JSON.stringify({
+          name: tpl.name,
+          description: tpl.description,
+          trigger_type,
+          trigger_config: tpl.trigger_config,
+          is_active: false,
+          steps,
+        }),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        throw new Error(j.error ?? `Clone failed: ${res.status}`)
+        throw new Error(j.error ?? `Create failed: ${res.status}`)
       }
-      const j = (await res.json()) as { flow: { id: string } }
+      const j = (await res.json()) as { automation: { id: string } }
       setCreateOpen(false)
-      router.push(`/automations/${j.flow.id}`)
+      router.push(`/automations/${j.automation.id}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Clone failed")
+      toast.error(err instanceof Error ? err.message : "Create failed")
     } finally {
       setCreating(false)
     }
@@ -493,51 +530,55 @@ export function AutomationsClient({ initialAutomations, initialFlows, initialTem
       <Dialog open={createOpen} onOpenChange={(v) => { if (!v) { setCreateOpen(false); setNewName("") } }}>
         <DialogContent className="sm:max-w-3xl bg-popover text-popover-foreground">
           <DialogHeader>
-            <DialogTitle>Create automation</DialogTitle>
-            <DialogDescription>Start from a template or blank.</DialogDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle>New Automation</DialogTitle>
+                <DialogDescription>Pick a template or start from scratch — both open the same editor.</DialogDescription>
+              </div>
+              <button type="button" onClick={handleCreateBlank} disabled={creating} className="shrink-0 text-xs font-medium text-primary hover:underline disabled:opacity-50">Start From Scratch →</button>
+            </div>
           </DialogHeader>
 
-          {flowTemplates.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Templates</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {flowTemplates.map((tpl) => {
-                  const Icon = FLOW_ICON[tpl.icon] ?? FileText
-                  return (
-                    <button
-                      key={tpl.slug}
-                      type="button"
-                      onClick={() => handleUseFlowTemplate(tpl.slug)}
-                      disabled={creating}
-                      className="flex flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted disabled:opacity-50"
-                    >
-                      <Icon className="h-5 w-5 text-primary" />
-                      <span className="text-sm font-semibold text-popover-foreground">{tpl.name}</span>
-                      <span className="text-xs leading-relaxed text-muted-foreground">{tpl.description}</span>
-                      <span className="mt-auto border-t border-border pt-2 text-[11px] text-muted-foreground">{tpl.node_count} nodes</span>
-                    </button>
-                  )
-                })}
-              </div>
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Ready-to-go templates (initial state only)</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {TEMPLATE_ORDER.map((slug) => {
+                const tpl = AUTOMATION_TEMPLATES[slug]
+                const Icon = TEMPLATE_ICON[slug]
+                return (
+                  <button key={slug} type="button" onClick={() => startFromTemplate(slug)} disabled={creating} className="flex flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted disabled:opacity-50">
+                    <Icon className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-semibold text-popover-foreground">{tpl.name}</span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">{tpl.description}</span>
+                  </button>
+                )
+              })}
+              {flowTemplates.map((tpl) => {
+                const Icon = FLOW_ICON[tpl.icon] ?? FileText
+                return (
+                  <button key={`flow-${tpl.slug}`} type="button" onClick={() => handleUseFlowTemplate(tpl.slug)} disabled={creating} className="flex flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted disabled:opacity-50">
+                    <Icon className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-semibold text-popover-foreground">{tpl.name}</span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">{tpl.description}</span>
+                    <span className="mt-auto border-t border-border pt-2 text-[11px] text-muted-foreground">{tpl.node_count} nodes</span>
+                  </button>
+                )
+              })}
             </div>
-          )}
+            <p className="text-xs text-muted-foreground">Templates are starting state only — you choose Flow or Basic after opening.</p>
+            <div className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">Create with AI — coming soon (describe your automation → generate). Reserved footer, not built.</div>
+          </div>
 
           <div className="space-y-2 border-t border-border pt-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Or start blank</p>
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Welcome menu"
-              className="bg-muted"
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreateBlank() }}
-            />
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Or name and create blank now</p>
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Welcome menu" className="bg-muted" onKeyDown={(e) => { if (e.key === "Enter") handleCreateBlank() }} />
           </div>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
             <Button onClick={handleCreateBlank} disabled={!newName.trim() || creating}>
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Create blank automation
+              Create automation
             </Button>
           </DialogFooter>
         </DialogContent>
