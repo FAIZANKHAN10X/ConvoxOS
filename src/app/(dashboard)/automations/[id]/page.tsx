@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 
-import { AutomationBuilder, fromServerSteps, type BuilderInitial, type ServerStepNode } from "@/components/automations/automation-builder"
+import { fromServerSteps, type BuilderInitial, type ServerStepNode } from "@/components/automations/automation-builder"
+import { AutomationEditorShell } from "@/components/automations/automation-editor/shell"
 import { FlowEditorShell } from "@/components/flows/flow-editor-shell"
 import type { FlowRow, FlowNodeRow } from "@/lib/flows/types"
 import type { AutomationTriggerType } from "@/types"
@@ -99,7 +100,7 @@ export default function UnifiedAutomationPage({ params }: { params: Promise<{ id
   }
 
   if (automationInitial) {
-    return <AutomationBuilder initial={automationInitial} />
+    return <AutomationEditorShell initial={automationInitial} />
   }
 
   return null
