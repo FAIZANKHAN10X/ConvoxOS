@@ -11,13 +11,19 @@ interface Turn {
   content: string;
   /** assistant-only: the agent signalled a human handoff on this turn. */
   handoff?: boolean;
+  toolCalls?: Array<{ name: string; args: unknown }>;
+  sources?: Array<{ title: string; type: string }>;
 }
 
-export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
+export function AiPlayground({ onGoToSetup, initialInput }: { onGoToSetup?: () => void; initialInput?: string }) {
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialInput ?? '');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialInput) setInput(initialInput);
+  }, [initialInput]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -61,6 +67,8 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
               ? data.reply
               : '',
           handoff: Boolean(data.handoff),
+          toolCalls: Array.isArray(data.toolCalls) ? data.toolCalls : undefined,
+          sources: Array.isArray(data.sources) ? data.sources : undefined,
         },
       ]);
     } catch {
@@ -144,11 +152,30 @@ export function AiPlayground({ onGoToSetup }: { onGoToSetup?: () => void }) {
               )}
             >
               {t.content && <p className="whitespace-pre-wrap">{t.content}</p>}
+              {t.toolCalls && t.toolCalls.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1 border-t border-border/50 pt-1.5">
+                  {t.toolCalls.map((tc, idx) => (
+                    <span key={idx} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                      {tc.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {t.sources && t.sources.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <span className="text-xs text-muted-foreground">Sources:</span>
+                  {t.sources.map((s, idx) => (
+                    <span key={idx} className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+                      {s.title}
+                    </span>
+                  ))}
+                </div>
+              )}
               {t.role === 'assistant' && t.handoff && (
                 <p
                   className={cn(
                     'flex items-center gap-1 text-xs text-amber-500',
-                    t.content && 'mt-1.5 border-t border-border/50 pt-1.5',
+                    (t.content || (t.toolCalls && t.toolCalls.length > 0)) && 'mt-1.5 border-t border-border/50 pt-1.5',
                   )}
                 >
                   <UserCircle2 className="h-3.5 w-3.5" />

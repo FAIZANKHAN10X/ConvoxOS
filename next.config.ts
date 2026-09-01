@@ -68,6 +68,23 @@ const nextConfig: NextConfig = {
   // Docker image can run without node_modules or the Next CLI.
   // Harmless outside Docker: `next start` keeps working as before.
   output: "standalone",
+  poweredByHeader: false,
+  compress: true,
+  typedRoutes: true,
+  reactCompiler: true,
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],
+  },
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "recharts",
+      "date-fns",
+      "@xyflow/react",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+    ],
+  },
 
   /**
    * Compatibility redirects for unified Automations product.

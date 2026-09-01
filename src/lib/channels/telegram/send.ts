@@ -2,6 +2,8 @@
 // Text-only, no media/templates/interactive. Keeps WhatsApp path untouched.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+import type { Json } from '@/types/database';
 import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 
@@ -169,8 +171,7 @@ export async function sendTelegramText(
 
   // Persist — distinguish provider success vs DB failure
   const hasKeyboard = !!inlineKeyboard;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const msgInsert: any = {
+  const msgInsert: Database['public']['Tables']['messages']['Insert'] = {
     conversation_id: conversationId,
     sender_type: 'agent',
     content_type: hasKeyboard ? 'interactive' : 'text',
@@ -179,7 +180,9 @@ export async function sendTelegramText(
     message_id: providerMessageId,
     status: 'sent',
     reply_to_message_id: replyToInternalId,
-    ...(hasKeyboard ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } } : {}),
+    ...(hasKeyboard
+      ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } as unknown as never }
+      : {}),
   };
   const { data: messageRecord, error: msgError } = await db.from('messages').insert(msgInsert).select().single();
 

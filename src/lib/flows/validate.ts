@@ -24,12 +24,7 @@
  */
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
-
-const ALLOWED_CHANNEL_TARGETS = new Set(["current", "telegram", "whatsapp"]);
-
-function isValidChannel(v: unknown): boolean {
-  return typeof v === "string" && ALLOWED_CHANNEL_TARGETS.has(v);
-}
+import { isValidChannel } from "@/lib/validation/shared";
 
 export interface ValidationIssue {
   severity: "error" | "warning";

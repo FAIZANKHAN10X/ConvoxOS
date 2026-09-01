@@ -55,6 +55,8 @@ export type ActivityKind =
   | 'automation'
   | 'contact'
 
+import type { Route } from 'next'
+
 export interface ActivityItem {
   id: string
   kind: ActivityKind
@@ -63,5 +65,5 @@ export interface ActivityItem {
   /** ISO timestamp the item happened at, drives relative-time + sort. */
   at: string
   /** Optional deep-link for the whole row (not all items have a target). */
-  href?: string
+  href?: Route
 }

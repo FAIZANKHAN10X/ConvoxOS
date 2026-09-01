@@ -2,6 +2,7 @@
 // Keeps WhatsApp path untouched (sendMessageToConversation).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { SendTelegramError } from './send';
@@ -198,8 +199,7 @@ export async function sendTelegramMedia(
           : mediaKind === 'voice'
             ? 'audio/ogg'
             : 'application/octet-stream';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mediaInsert: any = {
+  const mediaInsert: Database['public']['Tables']['messages']['Insert'] = {
     conversation_id: conversationId,
     sender_type: 'agent',
     content_type: contentType,
@@ -210,7 +210,9 @@ export async function sendTelegramMedia(
     message_id: providerMessageId,
     status: 'sent',
     reply_to_message_id: replyToInternalId,
-    ...(hasKeyboard ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } } : {}),
+    ...(hasKeyboard
+      ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } as unknown as never }
+      : {}),
   };
   const { data: messageRecord, error: msgError } = await db.from('messages').insert(mediaInsert).select().single();
   if (msgError) {

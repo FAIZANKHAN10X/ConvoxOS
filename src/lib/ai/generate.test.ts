@@ -3,18 +3,29 @@ import { generateReply, parseGeneration } from './generate'
 import { AiError, type AiConfig } from './types'
 
 function config(overrides: Partial<AiConfig> = {}): AiConfig {
-  return {
+  const base: AiConfig = {
     provider: 'openai',
     model: 'gpt-test',
     apiKey: 'sk-test',
     systemPrompt: null,
     isActive: true,
     autoReplyEnabled: false,
+    status: 'paused',
+    identity: {},
+    behaviour: {},
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,
-    ...overrides,
+  };
+  const merged = { ...base, ...overrides } as AiConfig;
+  if (overrides.status === undefined) {
+    if (merged.isActive && merged.autoReplyEnabled) merged.status = 'live';
+    else if (merged.isActive) merged.status = 'paused';
+    else merged.status = 'draft';
   }
+  if (overrides.identity === undefined) merged.identity = base.identity;
+  if (overrides.behaviour === undefined) merged.behaviour = base.behaviour;
+  return merged;
 }
 
 function okResponse(json: unknown): Response {

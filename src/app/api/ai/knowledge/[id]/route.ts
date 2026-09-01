@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: Params) {
     const { id } = await params
     const { data, error } = await supabase
       .from('ai_knowledge_documents')
-      .select('id, title, content, updated_at')
+      .select('id, title, content, source_type, source_url, status, char_count, chunk_count, updated_at, created_at')
       .eq('account_id', accountId)
       .eq('id', id)
       .maybeSingle()

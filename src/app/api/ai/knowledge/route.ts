@@ -6,7 +6,7 @@ import {
 } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadEmbeddingsKey } from '@/lib/ai/config'
-import { ingestDocument } from '@/lib/ai/knowledge'
+import { ingestDocument, fetchUrlContent, extractFileText, KNOWLEDGE_MAX_CHARS, validateKnowledgeContent, normalizeContent } from '@/lib/ai/knowledge'
 import { AiError } from '@/lib/ai/types'
 
 /**
@@ -19,7 +19,7 @@ export async function GET() {
     const { supabase, accountId } = await getCurrentAccount()
     const { data, error } = await supabase
       .from('ai_knowledge_documents')
-      .select('id, title, updated_at')
+      .select('id, title, source_type, source_url, status, char_count, chunk_count, updated_at, created_at')
       .eq('account_id', accountId)
       .order('updated_at', { ascending: false })
     if (error) {
@@ -47,19 +47,75 @@ export async function POST(request: Request) {
     const limit = checkRateLimit(`ai-kb:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
 
-    const body = await request.json().catch(() => null)
-    const title = typeof body?.title === 'string' ? body.title.trim() : ''
-    const content = typeof body?.content === 'string' ? body.content.trim() : ''
-    if (!title || !content) {
-      return NextResponse.json(
-        { error: 'title and content are required' },
-        { status: 400 },
-      )
+    // Support both JSON (text/url) and multipart (file)
+    const contentType = request.headers.get('content-type') ?? ''
+    let title = ''
+    let content = ''
+    let sourceType: 'text' | 'url' | 'file' = 'text'
+    let sourceUrl: string | null = null
+    let fileName: string | null = null
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData()
+      title = typeof form.get('title') === 'string' ? (form.get('title') as string).trim() : ''
+      sourceType = 'file'
+      const file = form.get('file') as File | null
+      if (!file || !(file instanceof File)) {
+        return NextResponse.json({ error: 'file is required' }, { status: 400 })
+      }
+      fileName = file.name
+      if (!title) title = file.name.replace(/\.[^/.]+$/, '') || 'Untitled'
+      const parsed = await extractFileText(file)
+      if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 })
+      content = parsed.content
+    } else {
+      const body = await request.json().catch(() => null)
+      title = typeof body?.title === 'string' ? body.title.trim() : ''
+      const rawType = typeof body?.source_type === 'string' ? body.source_type.trim() : 'text'
+      if (['text', 'url', 'file'].includes(rawType)) sourceType = rawType as typeof sourceType
+      if ((sourceType as string) === 'url') {
+        sourceUrl = typeof body?.source_url === 'string' ? body.source_url.trim() : ''
+        if (!sourceUrl) return NextResponse.json({ error: 'source_url is required for url source' }, { status: 400 })
+        // Validate and fetch URL content server-side
+        const fetched = await fetchUrlContent(sourceUrl)
+        if (fetched.error) return NextResponse.json({ error: fetched.error }, { status: 400 })
+        content = fetched.content
+        if (!title) {
+          try {
+            title = new URL(sourceUrl).hostname
+          } catch {
+            title = sourceUrl
+          }
+        }
+      } else {
+        content = typeof body?.content === 'string' ? body.content.trim() : ''
+        if (body?.source_url && typeof body.source_url === 'string') sourceUrl = body.source_url.trim() || null
+      }
+      if ((sourceType as string) === 'file' && !content) {
+        return NextResponse.json({ error: 'file content is required' }, { status: 400 })
+      }
     }
+
+    if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
+    if (!content) return NextResponse.json({ error: 'content is required' }, { status: 400 })
+
+    content = normalizeContent(content)
+    const validation = validateKnowledgeContent(content)
+    if (!validation.ok) return NextResponse.json({ error: validation.error }, { status: 400 })
 
     const { data: doc, error } = await supabase
       .from('ai_knowledge_documents')
-      .insert({ account_id: accountId, created_by: userId, title, content })
+      .insert({
+        account_id: accountId,
+        created_by: userId,
+        title: title.slice(0, 200),
+        content,
+        source_type: sourceType,
+        source_url: sourceUrl,
+        status: 'processing',
+        char_count: content.length,
+        chunk_count: 0,
+      })
       .select('id')
       .single()
     if (error || !doc) {

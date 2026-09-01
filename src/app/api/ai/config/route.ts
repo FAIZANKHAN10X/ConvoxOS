@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
+        'provider, model, system_prompt, is_active, auto_reply_enabled, status, identity, behaviour, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -77,19 +77,109 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== 'object') return bad('Invalid request body')
 
-    const provider = body.provider as AiProvider
-    if (provider !== 'openai' && provider !== 'anthropic') {
-      return bad('provider must be "openai" or "anthropic"')
+    // Load existing for partial updates (e.g. status-only or identity-only)
+    const { data: existingEarly } = await supabase.from('ai_configs').select('id, provider, model, api_key').eq('account_id', accountId).maybeSingle()
+    const hasProvider = 'provider' in body
+    const hasModel = 'model' in body
+    let provider: AiProvider | null = null
+    let model: string | null = null
+    if (hasProvider) {
+      const p = body.provider as AiProvider
+      if (p !== 'openai' && p !== 'anthropic') return bad('provider must be "openai" or "anthropic"')
+      provider = p
+    } else if (existingEarly) {
+      provider = existingEarly.provider as AiProvider
     }
-    const model = typeof body.model === 'string' ? body.model.trim() : ''
-    if (!model) return bad('model is required')
+    if (hasModel) {
+      const m = typeof body.model === 'string' ? body.model.trim() : ''
+      if (!m) return bad('model is required')
+      model = m
+    } else if (existingEarly) {
+      model = existingEarly.model
+    }
+    // For create (no existing), provider/model are required
+    if (!existingEarly && (!provider || !model)) return bad('provider and model are required')
 
     const systemPrompt =
       typeof body.system_prompt === 'string' && body.system_prompt.trim()
         ? body.system_prompt.trim()
         : null
-    const isActive = body.is_active === true
-    const autoReplyEnabled = body.auto_reply_enabled === true
+    // New canonical lifecycle — prefer `status` over legacy booleans
+    const rawStatus = typeof body.status === 'string' ? body.status.trim() : ''
+    const validStatuses = new Set(['draft', 'paused', 'live'])
+    let status: string | null = null
+    let isActive: boolean
+    let autoReplyEnabled: boolean
+    if (rawStatus) {
+      if (!validStatuses.has(rawStatus)) return bad('status must be draft, paused or live')
+      status = rawStatus
+      isActive = status !== 'draft'
+      autoReplyEnabled = status === 'live'
+    } else {
+      isActive = body.is_active === true
+      autoReplyEnabled = body.auto_reply_enabled === true
+      if (isActive && autoReplyEnabled) status = 'live'
+      else if (isActive) status = 'paused'
+      else status = 'draft'
+    }
+
+    // Identity: { name, role, description } — all optional strings
+    let identity: Record<string, unknown> | null = null
+    if ('identity' in body && body.identity != null) {
+      if (typeof body.identity !== 'object' || Array.isArray(body.identity)) return bad('identity must be an object')
+      const raw = body.identity as Record<string, unknown>
+      identity = {}
+      if ('name' in raw) {
+        if (typeof raw.name !== 'string') return bad('identity.name must be a string')
+        const n = raw.name.trim()
+        if (n.length > 80) return bad('identity.name too long (max 80)')
+        if (n) identity.name = n
+      }
+      if ('role' in raw) {
+        const r = typeof raw.role === 'string' ? raw.role.trim() : ''
+        if (r && !['support', 'sales', 'concierge'].includes(r)) return bad('identity.role must be support, sales or concierge')
+        if (r) identity.role = r
+      }
+      if ('description' in raw) {
+        if (typeof raw.description !== 'string') return bad('identity.description must be a string')
+        const d = raw.description.trim()
+        if (d.length > 500) return bad('identity.description too long (max 500)')
+        if (d) identity.description = d
+      }
+    }
+
+    // Behaviour: { tone, responseLength, instructions }
+    let behaviour: Record<string, unknown> | null = null
+    let instructionsFromBehaviour: string | null = null
+    if ('behaviour' in body && body.behaviour != null) {
+      if (typeof body.behaviour !== 'object' || Array.isArray(body.behaviour)) return bad('behaviour must be an object')
+      const raw = body.behaviour as Record<string, unknown>
+      behaviour = {}
+      if ('tone' in raw) {
+        const t = typeof raw.tone === 'string' ? raw.tone.trim() : ''
+        if (t && !['friendly', 'professional', 'concise'].includes(t)) return bad('behaviour.tone must be friendly, professional or concise')
+        if (t) behaviour.tone = t
+      }
+      if ('responseLength' in raw) {
+        const rl = typeof raw.responseLength === 'string' ? raw.responseLength.trim() : ''
+        if (rl && !['short', 'medium', 'long'].includes(rl)) return bad('behaviour.responseLength must be short, medium or long')
+        if (rl) behaviour.responseLength = rl
+      }
+      if ('instructions' in raw) {
+        if (typeof raw.instructions !== 'string') return bad('behaviour.instructions must be a string')
+        const ins = raw.instructions.trim()
+        if (ins.length > 8000) return bad('behaviour.instructions too long (max 8000)')
+        if (ins) {
+          behaviour.instructions = ins
+          instructionsFromBehaviour = ins
+        }
+      }
+      // Persist even if empty object to clear?
+      if (Object.keys(behaviour).length === 0) behaviour = {}
+    }
+
+    // If behaviour.instructions was supplied, keep system_prompt in sync for runtime compat
+    const effectiveSystemPrompt = instructionsFromBehaviour ?? systemPrompt
 
     let maxPer = Number(body.auto_reply_max_per_conversation)
     if (!Number.isFinite(maxPer)) maxPer = 3
@@ -126,11 +216,7 @@ export async function POST(request: Request) {
     const clearEmbeddingsKey = body.embeddings_api_key === null
 
     // Reuse the stored key when the form didn't send a fresh one.
-    const { data: existing } = await supabase
-      .from('ai_configs')
-      .select('id, provider, model, api_key')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    const existing = existingEarly
 
     let apiKeyPlain: string
     if (rawKey) {
@@ -158,12 +244,15 @@ export async function POST(request: Request) {
     if (credentialsChanged) {
       try {
         await validateAiCredentials({
-          provider,
-          model,
+          provider: provider as import('@/lib/ai/types').AiProvider,
+          model: model as string,
           apiKey: apiKeyPlain,
           systemPrompt,
           isActive,
           autoReplyEnabled,
+          status: status as import('@/lib/ai/types').AiStatus,
+          identity: {},
+          behaviour: {},
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           embeddingsApiKey: null,
@@ -201,11 +290,14 @@ export async function POST(request: Request) {
     const shared: Record<string, unknown> = {
       provider,
       model,
-      system_prompt: systemPrompt,
+      system_prompt: effectiveSystemPrompt,
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
+      status,
       auto_reply_max_per_conversation: maxPer,
     }
+    if (identity !== null) shared.identity = identity
+    if (behaviour !== null) shared.behaviour = behaviour
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId

@@ -15,6 +15,16 @@ const eslintConfig = defineConfig([
     // Vendored minified opus-recorder encoder worker (served statically).
     "public/opus/**",
   ]),
+  // Flow canvas legitimately syncs derived ReactFlow nodes via
+  // useEffect — flagged by react-hooks/set-state-in-effect.
+  // The sync is guarded (equality check) and intentional for drag
+  // performance; suppress for this file only.
+  {
+    files: ["src/components/flows/flow-canvas.tsx"],
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

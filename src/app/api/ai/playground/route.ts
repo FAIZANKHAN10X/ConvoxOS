@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { loadAiConfig } from '@/lib/ai/config'
-import { retrieveKnowledge } from '@/lib/ai/knowledge'
+import { retrieveKnowledge, retrieveKnowledgeWithSources } from '@/lib/ai/knowledge'
 import { generateReply } from '@/lib/ai/generate'
 import { buildSystemPrompt } from '@/lib/ai/defaults'
 import { latestUserMessage } from '@/lib/ai/query'
 import { AiError, type ChatMessage } from '@/lib/ai/types'
+import { createAgentTools } from '@/lib/ai/tools'
+import { runAgent } from '@/lib/ai/agent'
 
 // Keep the tested transcript bounded, mirroring the live context window.
 const MAX_TURNS = 20
@@ -72,20 +74,44 @@ export async function POST(request: Request) {
       )
     }
 
-    const knowledge = await retrieveKnowledge(
-      supabase,
-      accountId,
-      config,
-      latestUserMessage(messages),
-    )
-    const systemPrompt = buildSystemPrompt({
-      userPrompt: config.systemPrompt,
-      mode: 'auto_reply',
-      knowledge,
-    })
-
-    const { text, handoff } = await generateReply({ config, systemPrompt, messages })
-    return NextResponse.json({ reply: text, handoff })
+    // Try agent with tools (knowledge + handoff) for playground, fallback to simple generate
+    let text: string
+    let handoff = false
+    let toolCalls: unknown[] = []
+    let sources: Array<{ title: string; type: string }> = []
+    try {
+      const withSources = await retrieveKnowledgeWithSources(supabase, accountId, config, latestUserMessage(messages), 3)
+      const knowledge = withSources.map((s) => s.content)
+      sources = withSources.map((s) => ({ title: s.sourceTitle ?? 'Knowledge', type: s.sourceType ?? 'text' }))
+      const systemPrompt = buildSystemPrompt({
+        userPrompt: config.behaviour?.instructions ?? config.systemPrompt,
+        mode: 'auto_reply',
+        knowledge,
+      })
+      const registry = createAgentTools()
+      // Playground has no real contact/conversation — provide minimal context
+      const run = await runAgent({
+        config,
+        systemPrompt,
+        messages,
+        registry,
+        context: { accountId, supabase },
+      })
+      text = run.text
+      handoff = run.handoff
+      toolCalls = run.toolCalls
+    } catch {
+      const knowledge = await retrieveKnowledge(supabase, accountId, config, latestUserMessage(messages))
+      const systemPrompt = buildSystemPrompt({
+        userPrompt: config.behaviour?.instructions ?? config.systemPrompt,
+        mode: 'auto_reply',
+        knowledge,
+      })
+      const r = await generateReply({ config, systemPrompt, messages })
+      text = r.text
+      handoff = r.handoff
+    }
+    return NextResponse.json({ reply: text, handoff, toolCalls, sources })
   } catch (err) {
     if (err instanceof AiError) {
       return NextResponse.json(

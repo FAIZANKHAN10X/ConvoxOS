@@ -9,6 +9,10 @@ import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { assembleAgentContext } from './agentContext'
+import { createAgentTools } from './tools'
+import { runAgent } from './agent'
+import { isCaptureLeadComplete, recordGoalCompletion } from './goals'
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -48,7 +52,7 @@ export async function dispatchInboundToAiReply(
     const db = supabaseAdmin()
 
     const config = await loadAiConfig(db, accountId)
-    if (!config || !config.autoReplyEnabled) return
+    if (!config || config.status !== 'live') return
 
     // Deterministic, user-configured responders win over the LLM — the
     // caller already excludes messages a Flow consumed. Message-level
@@ -98,25 +102,31 @@ export async function dispatchInboundToAiReply(
       return
     }
 
-    // Ground the reply in the account's knowledge base (best-effort).
-    const knowledge = await retrieveKnowledge(
-      db,
-      accountId,
-      config,
-      latestUserMessage(messages),
-    )
-
-    const systemPrompt = buildSystemPrompt({
-      userPrompt: config.systemPrompt,
-      mode: 'auto_reply',
-      knowledge,
-    })
-
-    const { text, handoff, usage } = await generateReply({
-      config,
-      systemPrompt,
-      messages,
-    })
+    // Agent context: CRM-aware prompt with goals + knowledge
+    let systemPrompt: string;
+    let agentResult: { text: string; handoff: boolean; handoffReason?: string; toolCalls: Array<{ name: string; args: unknown; result: unknown }>; usage: import('./types').AiUsage | null };
+    try {
+      const agentContext = await assembleAgentContext({ supabase: db, accountId, conversationId, contactId, config });
+      const registry = createAgentTools();
+      const toolCtx = { accountId, conversationId, contactId, supabase: db };
+      const run = await runAgent({
+        config,
+        systemPrompt: agentContext.systemPrompt,
+        messages: agentContext.messages,
+        registry,
+        context: toolCtx,
+      });
+      agentResult = run;
+      systemPrompt = agentContext.systemPrompt;
+    } catch (err) {
+      console.error('[ai auto-reply] agent run failed, falling back to simple generate:', err);
+      // Fallback to simple generate
+      const knowledge = await retrieveKnowledge(db, accountId, config, latestUserMessage(messages));
+      systemPrompt = buildSystemPrompt({ userPrompt: config.behaviour?.instructions ?? config.systemPrompt, mode: 'auto_reply', knowledge });
+      const simple = await generateReply({ config, systemPrompt, messages });
+      agentResult = { text: simple.text, handoff: simple.handoff, toolCalls: [], usage: simple.usage };
+    }
+    const { text, handoff, usage } = agentResult;
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
     // never adds latency to the customer-facing send: `logAiUsage`
@@ -132,6 +142,7 @@ export async function dispatchInboundToAiReply(
       usage,
     })
 
+    const handoffReason = (agentResult as { handoffReason?: string }).handoffReason;
     if (handoff || !text) {
       // The model can't (or shouldn't) answer — stop auto-replying on
       // this thread and hand it to a human. We (a) pause the bot here
@@ -140,13 +151,12 @@ export async function dispatchInboundToAiReply(
       // and (c) leave a short internal note so whoever picks it up has
       // context. Assigning fires the `on_conversation_assigned` trigger,
       // which notifies the agent.
-      const summary = buildHandoffSummary({
-        messages,
-        replyCount: conv.ai_reply_count ?? 0,
-      })
+      const summary = handoffReason
+        ? `AI handoff (${handoffReason}): ${buildHandoffSummary({ messages, replyCount: conv.ai_reply_count ?? 0 })}`
+        : buildHandoffSummary({ messages, replyCount: conv.ai_reply_count ?? 0 });
       const update: Record<string, unknown> = {
         ai_autoreply_disabled: true,
-        ai_handoff_summary: summary,
+        ai_handoff_summary: summary.slice(0, 500),
       }
       // Only set the assignee when a target is configured AND the thread
       // isn't already owned — never stomp an existing human assignment.
@@ -187,6 +197,55 @@ export async function dispatchInboundToAiReply(
       text,
       aiGenerated: true,
     })
+
+    // Goal completion — capture_lead / share_link
+    try {
+      const { data: goalsData } = await db
+        .from('ai_goals')
+        .select('id, kind, params, ai_config_id')
+        .eq('account_id', accountId)
+        .eq('enabled', true)
+        .order('priority', { ascending: true });
+      for (const g of (goalsData as Array<{ id: string; kind: string; params: Record<string, unknown>; ai_config_id: string }> | null) ?? []) {
+        if (g.kind === 'capture_lead') {
+          const fields = (g.params.fields as string[] | undefined) ?? ['email', 'phone'];
+          const { data: contact } = await db.from('contacts').select('email, phone, name').eq('id', contactId).maybeSingle();
+          if (!contact) continue;
+          const complete = fields.every((f) => {
+            const v = (contact as Record<string, unknown>)[f];
+            return v && String(v).trim() !== '';
+          });
+          if (complete) {
+            const { error } = await db.from('ai_goal_completions').insert({
+              ai_goal_id: g.id,
+              ai_config_id: g.ai_config_id,
+              account_id: accountId,
+              conversation_id: conversationId,
+              contact_id: contactId,
+              metadata: { fields },
+            });
+            if (!error) continue;
+          }
+        } else if (g.kind === 'share_link') {
+          const url = (g.params.url as string | undefined) ?? '';
+          const sentLink = agentResult.toolCalls.some(
+            (tc) => tc.name === 'send_message' && String((tc.args as Record<string, unknown>).text ?? '').includes(url) && url,
+          );
+          if (sentLink || text.includes(url)) {
+            await db.from('ai_goal_completions').insert({
+              ai_goal_id: g.id,
+              ai_config_id: g.ai_config_id,
+              account_id: accountId,
+              conversation_id: conversationId,
+              contact_id: contactId,
+              metadata: { url },
+            });
+          }
+        }
+      }
+    } catch {
+      // non-fatal
+    }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
   }

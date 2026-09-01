@@ -1,13 +1,7 @@
 "use client"
 
 /* eslint-disable react-hooks/set-state-in-effect */
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -335,13 +329,11 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return (
-    <ResourcesContext.Provider
-      value={{ tags, members, templates, customFields, pipelines, stages }}
-    >
-      {children}
-    </ResourcesContext.Provider>
+  const value = useMemo(
+    () => ({ tags, members, templates, customFields, pipelines, stages }),
+    [tags, members, templates, customFields, pipelines, stages],
   )
+  return <ResourcesContext.Provider value={value}>{children}</ResourcesContext.Provider>
 }
 
 const SELECT_CLASS =

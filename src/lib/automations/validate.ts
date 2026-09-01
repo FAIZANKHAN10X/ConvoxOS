@@ -1,5 +1,6 @@
 import type { AutomationTriggerType } from '@/types'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
+import { validateChannelTarget, isValidChannel } from '@/lib/validation/shared'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -51,11 +52,6 @@ function walk(steps: StepLike[], prefix: string, issues: ValidationIssue[]): voi
   })
 }
 
-const ALLOWED_CHANNEL_TARGETS = new Set(["current", "whatsapp", "telegram"])
-function isValidChannel(v: unknown): boolean {
-  return typeof v === "string" && ALLOWED_CHANNEL_TARGETS.has(v)
-}
-
 function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): void {
   const c = step.step_config ?? {}
   switch (step.step_type) {
@@ -65,11 +61,8 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       }
       {
         const ch = (c as unknown as { channel_target?: string }).channel_target
-        if (ch != null && ch !== "" && !isValidChannel(ch)) {
-          issues.push({ path: `${path}.channel_target`, message: 'channel must be "current", "whatsapp" or "telegram"' })
-        } else if (!isValidChannel(ch)) {
-          issues.push({ path: `${path}.channel_target`, message: 'channel is required' })
-        }
+        const err = validateChannelTarget(ch, { required: true })
+        if (err) issues.push({ path: `${path}.channel_target`, message: err })
       }
       break
     case 'send_buttons':
@@ -86,12 +79,8 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.interactive`, message: result.error })
       }
       {
-        const ch = rawCh
-        if (ch != null && ch !== "" && !isValidChannel(ch)) {
-          issues.push({ path: `${path}.channel_target`, message: 'channel must be "current", "whatsapp" or "telegram"' })
-        } else if (!isValidChannel(ch)) {
-          issues.push({ path: `${path}.channel_target`, message: 'channel is required' })
-        }
+        const err = validateChannelTarget(rawCh, { required: true })
+        if (err) issues.push({ path: `${path}.channel_target`, message: err })
       }
       break
     }

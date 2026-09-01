@@ -13,13 +13,46 @@ export type AiProvider = 'openai' | 'anthropic'
  * `loadAiConfig` — `apiKey` is the plaintext BYO provider key
  * (stored AES-256-GCM-encrypted at rest).
  */
+export type AiStatus = 'draft' | 'paused' | 'live'
+
+export interface AiIdentity {
+  name?: string
+  role?: 'support' | 'sales' | 'concierge'
+  description?: string
+}
+
+export interface AiBehaviour {
+  tone?: 'friendly' | 'professional' | 'concise'
+  responseLength?: 'short' | 'medium' | 'long'
+  instructions?: string
+}
+
+export interface AiGoal {
+  id: string
+  aiConfigId: string
+  accountId: string
+  name: string
+  kind: 'capture_lead' | 'share_link' | 'custom'
+  description: string | null
+  params: Record<string, unknown>
+  priority: number
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface AiConfig {
   provider: AiProvider
   model: string
   apiKey: string
   systemPrompt: string | null
+  /** @deprecated — use status */
   isActive: boolean
+  /** @deprecated — use status */
   autoReplyEnabled: boolean
+  status: AiStatus
+  identity: AiIdentity
+  behaviour: AiBehaviour
   autoReplyMaxPerConversation: number
   /** Where auto-reply hands a conversation off when the model bails: an
    *  agent's `auth.users.id`, or null to leave it unassigned (drop into

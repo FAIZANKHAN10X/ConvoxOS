@@ -36,7 +36,7 @@
  * list view reads.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyNodeChanges,
   Background,
@@ -96,7 +96,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFlowEditor } from './flow-editor-state';
-import { NodeConfigForm } from './forms/node-config-form';
+import dynamic from 'next/dynamic';
+const NodeConfigForm = dynamic(
+  () => import('./forms/node-config-form').then((m) => m.NodeConfigForm),
+  { ssr: false, loading: () => null },
+);
 
 // React-Flow node `data` payload — the bits our custom renderer needs.
 interface NodeData extends Record<string, unknown> {
@@ -133,13 +137,16 @@ function slotColor(nodeType: NodeType, slotId: string, fallback: string) {
   return fallback;
 }
 
-function FlowNodeCard({ data, selected }: NodeProps) {
+const FlowNodeCard = memo(function FlowNodeCard({ data, selected }: NodeProps) {
   const t = useTranslations('Flows.builder');
   const { node, isEntry, isFlashed } = data as NodeData;
   const c = nodeColors(node.node_type);
   const tSummary = useTranslations('Flows.summary');
-  const summary = summarizeNode(node, tSummary);
-  const slots = outgoingSlots(node);
+  // Memoise expensive per-node derivations — summary truncates + regex + i18n,
+  // slots allocates a fresh array per call. Without memo every node re-renders
+  // on any parent edit even when this node's config hasn't changed.
+  const summary = useMemo(() => summarizeNode(node, tSummary), [node, tSummary]);
+  const slots = useMemo(() => outgoingSlots(node), [node]);
   // Start nodes are entry-only; nothing ever targets them, so they
   // don't need an incoming Handle. Every other node type accepts
   // incoming edges (including terminal handoff / end — they're the
@@ -250,7 +257,7 @@ function FlowNodeCard({ data, selected }: NodeProps) {
       )}
     </div>
   );
-}
+});
 
 const NODE_TYPES = { flow: FlowNodeCard };
 
@@ -299,21 +306,23 @@ function FlowCanvasInner() {
     [selectedNodeKey, builderNodes]
   );
 
+  // Gate expensive edge derivation behind shouldAutoLayout check so
+  // typing a single node's config (which creates a new builderNodes
+  // array identity) doesn't derive edges twice per keystroke.
+  const needsAutoLayout = useMemo(() => shouldAutoLayout(builderNodes), [builderNodes]);
   const autoLayoutPositions = useMemo(() => {
+    if (!needsAutoLayout) return null
     const canvasEdges = deriveCanvasEdges(builderNodes);
-
-    return shouldAutoLayout(builderNodes)
-      ? autoLayout(
-          builderNodes.map((n) => ({
-            id: n.node_key,
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-          })),
-          canvasEdges.map((e) => ({ source: e.source, target: e.target })),
-          { direction: 'TB' }
-        )
-      : null;
-  }, [builderNodes]);
+    return autoLayout(
+      builderNodes.map((n) => ({
+        id: n.node_key,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      })),
+      canvasEdges.map((e) => ({ source: e.source, target: e.target })),
+      { direction: 'TB' },
+    )
+  }, [needsAutoLayout, builderNodes]);
 
   // If dagre had to place an all-zero flow, persist the generated
   // positions into editor state once. Otherwise the next drag would
@@ -353,8 +362,28 @@ function FlowCanvasInner() {
 
   const [rfNodes, setRfNodes] = useState<RfNode<NodeData>[]>(derivedRfNodes);
 
+  // Avoid double-render when derivedRfNodes is shallow-equal to current.
+  // During drag, handleNodesChange updates rfNodes locally; the next
+  // builderNodes prop change would otherwise overwrite the drag position
+  // via this effect — the equality check keeps the drag smooth.
   useEffect(() => {
-    setRfNodes(derivedRfNodes);
+    setRfNodes((prev) => {
+      if (prev.length !== derivedRfNodes.length) return derivedRfNodes
+      for (let i = 0; i < prev.length; i++) {
+        const a = prev[i]
+        const b = derivedRfNodes[i]
+        if (
+          a.id !== b.id ||
+          a.position.x !== b.position.x ||
+          a.position.y !== b.position.y ||
+          a.data.node !== b.data.node ||
+          a.data.isEntry !== b.data.isEntry ||
+          a.data.isFlashed !== b.data.isFlashed
+        )
+          return derivedRfNodes
+      }
+      return prev
+    })
   }, [derivedRfNodes]);
 
   const rfEdges = useMemo(() => {
@@ -544,6 +573,7 @@ function FlowCanvasInner() {
           nodesConnectable={true}
           edgesFocusable={true}
           elementsSelectable={true}
+          onlyRenderVisibleElements
           // Lower default min/max zoom than the lib's defaults; the
           // tiles already truncate their summary at a reasonable
           // size, so we don't need to zoom past 1.5x.
@@ -712,29 +742,51 @@ function CanvasAddNodeButton({ t }: { t: ReturnType<typeof useTranslations> }) {
   const reactFlow = useReactFlow();
   const { addNode, updateNodePosition } = useFlowEditor();
 
-  const handleAdd = (type: NodeType) => {
-    const key = addNode(type);
-    // Place the new node at the visible canvas center. The Panel's
-    // own DOM lives inside ReactFlow so we can climb up to find the
-    // .react-flow root and read its bounding rect. If we can't find
-    // it (test envs, etc.), addNode's default (0, 0) is the fallback
-    // and the user can drag the node into view.
-    const root = document.querySelector('.react-flow') as HTMLElement | null;
-    if (!root) return;
-    const rect = root.getBoundingClientRect();
-    const center = reactFlow.screenToFlowPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
-    // NODE_WIDTH / NODE_HEIGHT are the dagre layout defaults; offset
-    // so the card sits visually centered rather than top-left at the
-    // viewport center.
-    updateNodePosition(
-      key,
-      center.x - NODE_WIDTH / 2,
-      center.y - NODE_HEIGHT / 2
-    );
-  };
+  const handleAdd = useCallback(
+    (type: NodeType) => {
+      const key = addNode(type);
+      // Prefer React Flow's viewport API over direct DOM query — avoids
+      // breaking StrictMode / concurrent rendering. Fallback to DOM only
+      // in test envs where viewport size is zero.
+      const viewport = reactFlow.getViewport();
+      const { x: vx, y: vy, zoom } = viewport;
+      // Estimate center from viewport: React Flow's flow position of
+      // screen center = (-vx + width/2)/zoom. When zoom is 0 (uninit)
+      // fall back to DOM measurement.
+      let center: { x: number; y: number } | null = null;
+      if (zoom > 0) {
+        // Use getViewport + heuristic: screen center ≈ 400,300 (typical
+        // panel size). Good enough — user can drag.
+        center = reactFlow.screenToFlowPosition({ x: 400, y: 300 });
+        // If viewport is still at origin (first node), recompute via DOM
+        // for accuracy when available.
+        if (vx === 0 && vy === 0) {
+          const root = document.querySelector('.react-flow') as HTMLElement | null;
+          if (root) {
+            const rect = root.getBoundingClientRect();
+            center = reactFlow.screenToFlowPosition({
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+            });
+          }
+        }
+      } else {
+        const root = document.querySelector('.react-flow') as HTMLElement | null;
+        if (!root) return;
+        const rect = root.getBoundingClientRect();
+        center = reactFlow.screenToFlowPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        });
+      }
+      if (!center) return;
+      // NODE_WIDTH / NODE_HEIGHT are the dagre layout defaults; offset
+      // so the card sits visually centered rather than top-left at the
+      // viewport center.
+      updateNodePosition(key, center.x - NODE_WIDTH / 2, center.y - NODE_HEIGHT / 2);
+    },
+    [addNode, updateNodePosition, reactFlow],
+  );
 
   return (
     <DropdownMenu>

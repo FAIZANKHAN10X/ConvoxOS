@@ -24,6 +24,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import type { Route } from "next";
 import type { AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
@@ -70,7 +71,7 @@ import {
 } from "@/components/ui/avatar";
 
 interface NavItem {
-  href: string;
+  href: Route;
   labelKey: string;
   icon: typeof LayoutDashboard;
   /**
@@ -96,8 +97,8 @@ const navItems: NavItem[] = [
 // Legacy route — kept for compatibility redirects; no longer shown in primary nav.
 // Flows are now accessed via /automations (307 redirects handle bookmarks).
 
-const bottomNavItems = [
-  { href: "/settings", labelKey: "settings", icon: Settings },
+const bottomNavItems: NavItem[] = [
+  { href: "/settings" as Route, labelKey: "settings", icon: Settings },
 ];
 
 interface SidebarProps {

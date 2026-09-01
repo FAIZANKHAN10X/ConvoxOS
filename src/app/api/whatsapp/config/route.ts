@@ -35,9 +35,8 @@ async function resolveAccountId(
 // phone_number_id already claimed by a *different* user — under RLS,
 // the user's own session can't see other users' rows, so the conflict
 // would be invisible without the service role.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
-function supabaseAdmin() {
+let _adminClient: ReturnType<typeof createAdminClient> | null = null
+function supabaseAdmin(): ReturnType<typeof createAdminClient> {
   if (!_adminClient) {
     _adminClient = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

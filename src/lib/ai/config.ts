@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import type { AiConfig } from './types'
+import type { AiConfig, AiStatus, AiIdentity, AiBehaviour } from './types'
 
 interface AiConfigRow {
   provider: 'openai' | 'anthropic'
@@ -9,13 +9,16 @@ interface AiConfigRow {
   system_prompt: string | null
   is_active: boolean
   auto_reply_enabled: boolean
+  status: AiStatus
+  identity: AiIdentity | null
+  behaviour: AiBehaviour | null
   auto_reply_max_per_conversation: number
   handoff_agent_id: string | null
   embeddings_api_key: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key'
+  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, status, identity, behaviour, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -46,7 +49,9 @@ export async function loadAiConfig(
   const row = data as AiConfigRow
   // The Playground passes requireActive:false so an admin can test the
   // agent before flipping the master switch on.
-  if (requireActive && !row.is_active) return null
+  // Canonical check is status !== 'draft'; keep is_active fallback for pre-migration rows.
+  const status: AiStatus = (row.status as AiStatus) ?? (row.is_active ? (row.auto_reply_enabled ? 'live' : 'paused') : 'draft')
+  if (requireActive && status === 'draft') return null
   // Defensive: the column is NOT NULL, but a partial write / manual DB
   // edit could leave it empty. Treat a missing key as "not configured"
   // rather than letting decrypt() throw on null.
@@ -76,6 +81,9 @@ export async function loadAiConfig(
     systemPrompt: row.system_prompt,
     isActive: row.is_active,
     autoReplyEnabled: row.auto_reply_enabled,
+    status,
+    identity: (row.identity as AiIdentity) ?? {},
+    behaviour: (row.behaviour as AiBehaviour) ?? {},
     autoReplyMaxPerConversation: row.auto_reply_max_per_conversation,
     handoffAgentId: row.handoff_agent_id,
     embeddingsApiKey,

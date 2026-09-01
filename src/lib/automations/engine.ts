@@ -175,6 +175,37 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
 }
 
 /**
+ * Run a single automation by ID for the AI agent. Thin adapter over the
+ * canonical execution — verifies account ownership and is_active before
+ * dispatching. Used by the `trigger_automation` tool.
+ */
+export async function runAutomationById(args: {
+  automationId: string
+  accountId: string
+  contactId?: string | null
+  context?: AutomationContext
+}): Promise<{ ok: boolean; error?: string }> {
+  const db = supabaseAdmin()
+  const { data: automation, error } = await db.from('automations').select('*').eq('id', args.automationId).eq('account_id', args.accountId).maybeSingle()
+  if (error) return { ok: false, error: 'Failed to load automation' }
+  if (!automation) return { ok: false, error: 'Automation not found for this account' }
+  if (!(automation as Automation).is_active) return { ok: false, error: 'Automation is not active' }
+  const input: DispatchInput = {
+    accountId: args.accountId,
+    triggerType: (automation as Automation).trigger_type,
+    contactId: args.contactId ?? null,
+    context: args.context ?? {},
+  }
+  try {
+    await executeAutomation(automation as Automation, input)
+    return { ok: true }
+  } catch (err) {
+    console.error('[automations] runAutomationById failed:', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Automation execution failed' }
+  }
+}
+
+/**
  * Resume a run that was parked at a wait step. Called from the cron
  * endpoint after it grabs a due `automation_pending_executions` row.
  */

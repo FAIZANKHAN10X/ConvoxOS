@@ -58,7 +58,11 @@ import {
   type BuilderNode,
   type NodeType,
 } from './shared';
-import { NodeConfigForm } from './forms/node-config-form';
+import dynamic from 'next/dynamic';
+const NodeConfigForm = dynamic(
+  () => import('./forms/node-config-form').then((m) => m.NodeConfigForm),
+  { ssr: false, loading: () => null },
+);
 import { NodeKeySelect } from './forms/fields';
 import { IssueLine } from './validation-panel';
 import { useFlowEditor, type BuilderState } from './flow-editor-state';

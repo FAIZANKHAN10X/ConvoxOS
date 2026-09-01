@@ -37,6 +37,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -339,18 +340,22 @@ export function FlowEditorProvider({
   }, [dirty]);
 
   // ---- Validation ----
+  // Defer validation so typing a node's text/channel field (which clones
+  // BuilderState) doesn't block the main thread. React keeps the typed
+  // character responsive while validation runs on the deferred snapshot.
+  const deferredState = useDeferredValue(state)
   const issues = useMemo<ValidationIssue[]>(
     () =>
       validateFlowForActivation(
         {
-          name: state.name,
-          trigger_type: state.trigger_type,
-          trigger_config: state.trigger_config,
-          entry_node_id: state.entry_node_id,
+          name: deferredState.name,
+          trigger_type: deferredState.trigger_type,
+          trigger_config: deferredState.trigger_config,
+          entry_node_id: deferredState.entry_node_id,
         },
-        state.nodes,
+        deferredState.nodes,
       ),
-    [state],
+    [deferredState],
   );
   const canActivate = useMemo(
     () => issues.every((i) => i.severity !== "error"),
