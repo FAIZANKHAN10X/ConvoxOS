@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { ChevronDown, GripVertical, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { useAutomationEditor } from "./provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { BuilderStep } from "@/components/automations/automation-builder";
+import { stepsToNodes } from "@/lib/automations/automation-editor-adapter";
+import type { BuilderNode } from "@/components/flows/shared";
+
+const NodeConfigForm = dynamic(() => import("@/components/flows/forms/node-config-form").then((m) => m.NodeConfigForm), { ssr: false });
 
 const TRIGGER_OPTIONS = [
   { value: "keyword_match", label: "Keyword" },
@@ -57,9 +62,12 @@ export function AutomationBasicView() {
         )}
       </div>
 
-      {/* Steps linear */}
+      {/* Steps linear — real NodeConfigForm via adapter */}
       <div className="space-y-3">
-        {state.steps.map((step, idx) => (
+        {state.steps.map((step, idx) => {
+          const allNodes = stepsToNodes(state.steps);
+          const node: BuilderNode = { node_key: step.cid, node_type: (allNodes[idx]?.node_type ?? "send_message") as BuilderNode["node_type"], config: step.step_config, position_x: 0, position_y: 0 };
+          return (
           <div key={step.cid} className={cn("rounded-lg border bg-card", flashKey === step.cid && "ring-2 ring-amber-400 border-amber-400")}>
             <button type="button" onClick={() => setExpanded(expanded === step.cid ? null : step.cid)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
               <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -69,8 +77,8 @@ export function AutomationBasicView() {
             </button>
             {expanded === step.cid && (
               <div className="border-t border-border p-4 space-y-3">
-                <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground">Config: {JSON.stringify(step.step_config, null, 2).slice(0,400)}</div>
-                <div className="flex justify-between">
+                <NodeConfigForm node={node} allNodes={allNodes} showAdvanced={false} onUpdateConfig={(patch) => setState((s) => ({ ...s, steps: s.steps.map((x, i) => i===idx ? { ...x, step_config: { ...x.step_config, ...patch } } : x) }))} />
+                <div className="flex justify-between border-t border-border pt-3">
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" disabled={idx===0} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[idx]; a[idx]=a[idx-1]; a[idx-1]=t; return {...s, steps: a}; })}><ArrowUp className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" disabled={idx===state.steps.length-1} onClick={() => setState((s) => { const a=[...s.steps]; const t=a[idx]; a[idx]=a[idx+1]; a[idx+1]=t; return {...s, steps: a}; })}><ArrowDown className="h-4 w-4" /></Button>
@@ -80,7 +88,7 @@ export function AutomationBasicView() {
               </div>
             )}
           </div>
-        ))}
+        )})}
 
         <div className="flex justify-center">
           <div className="flex flex-wrap gap-2">
