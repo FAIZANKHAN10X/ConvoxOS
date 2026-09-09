@@ -107,14 +107,25 @@ export function FlowCanvas({
   const draggingRef = useRef(false);
   const didFit = useRef(false);
   const lastSignature = useRef<string>('');
+  const lastCommitted = useRef<string>('');
+  const pendingCommit = useRef<{
+    nodes: Node<StepNodeData>[];
+    edges: Edge[];
+  } | null>(null);
   nodesRef.current = nodes;
   edgesRef.current = edges;
 
   const commit = useCallback(
     (nextNodes: Node<StepNodeData>[], nextEdges: Edge[]) => {
-      onChange(toGraph(nextNodes, nextEdges));
+      // Never call the parent's onChange synchronously from a React Flow
+      // change handler: React Flow may invoke those handlers during the
+      // canvas render phase, and a synchronous parent setState there
+      // triggers "Cannot update a component while rendering" plus a
+      // render→commit→render churn (runaway PATCH autosaves, CPU spin).
+      // Stage the snapshot here; the flush effect below delivers it.
+      pendingCommit.current = { nodes: nextNodes, edges: nextEdges };
     },
-    [onChange]
+    []
   );
 
   const placeAfter = useCallback((sourceId: string, sourceHandle?: string) => {
@@ -127,25 +138,25 @@ export function FlowCanvas({
       const source = current.find((node) => node.id === nodeId);
       if (!source) return;
       const id = crypto.randomUUID();
-      commit(
-        [
-          ...current,
-          {
-            ...source,
-            id,
-            selected: true,
-            position: {
-              x: source.position.x + 48,
-              y: source.position.y + 48,
-            },
-            data: {
-              nodeType: source.data.nodeType,
-              config: { ...source.data.config },
-            },
+      const nextNodes = [
+        ...current,
+        {
+          ...source,
+          id,
+          selected: true,
+          position: {
+            x: source.position.x + 48,
+            y: source.position.y + 48,
           },
-        ],
-        edgesRef.current
-      );
+          data: {
+            nodeType: source.data.nodeType,
+            config: { ...source.data.config },
+          },
+        },
+      ];
+      nodesRef.current = nextNodes;
+      setNodes(nextNodes);
+      commit(nextNodes, edgesRef.current);
       setSelectedId(id);
     },
     [commit]
@@ -153,12 +164,15 @@ export function FlowCanvas({
 
   const deleteNode = useCallback(
     (nodeId: string) => {
-      commit(
-        nodesRef.current.filter((node) => node.id !== nodeId),
-        edgesRef.current.filter(
-          (edge) => edge.source !== nodeId && edge.target !== nodeId
-        )
+      const nextNodes = nodesRef.current.filter((node) => node.id !== nodeId);
+      const nextEdges = edgesRef.current.filter(
+        (edge) => edge.source !== nodeId && edge.target !== nodeId
       );
+      nodesRef.current = nextNodes;
+      edgesRef.current = nextEdges;
+      setNodes(nextNodes);
+      setEdges(nextEdges);
+      commit(nextNodes, nextEdges);
       setSelectedId((current) => (current === nodeId ? null : current));
     },
     [commit]
@@ -179,6 +193,10 @@ export function FlowCanvas({
       (graph.nodes.length > 0 && nodesRef.current.length === 0);
     if (needsHydrate) {
       lastSignature.current = signature;
+      // The canvas now mirrors this graph, so a staged commit with the
+      // same content (e.g. re-applying an undone edit by hand) must not
+      // be mistaken for a no-op skip or a fresh change.
+      lastCommitted.current = signature;
       setNodes(
         toFlowNodes(graph).map((node) => ({
           ...node,
@@ -264,28 +282,42 @@ export function FlowCanvas({
     return () => window.cancelAnimationFrame(frame);
   }, [fitView, nodes.length]);
 
+  // Deliver staged commits outside the render phase. Drops snapshots
+  // whose content matches what the canvas already mirrors, so
+  // drag-end-without-movement and render-phase echoes from React Flow
+  // never reach the parent (and never trigger autosave PATCHes).
+  useEffect(() => {
+    if (!pendingCommit.current) return;
+    const { nodes: pendingNodes, edges: pendingEdges } =
+      pendingCommit.current;
+    pendingCommit.current = null;
+    const graph = toGraph(pendingNodes, pendingEdges);
+    const signature = graphSignature(graph);
+    if (signature === lastCommitted.current) return;
+    lastCommitted.current = signature;
+    onChange(graph);
+  });
+
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<StepNodeData>>[]) => {
       const select = changes.find((change) => change.type === 'select');
-      let persist = false;
-      setNodes((current) => {
-        const next = applyNodeChanges(changes, current);
-        persist = changes.some((change) => {
-          if (change.type === 'remove') return true;
-          if (change.type !== 'position') return false;
-          if (change.dragging) {
-            draggingRef.current = true;
-            return false;
-          }
-          if (change.dragging === false && draggingRef.current) {
-            draggingRef.current = false;
-            return true;
-          }
+      const next = applyNodeChanges(changes, nodesRef.current);
+      nodesRef.current = next;
+      setNodes(next);
+      const persist = changes.some((change) => {
+        if (change.type === 'remove') return true;
+        if (change.type !== 'position') return false;
+        if (change.dragging) {
+          draggingRef.current = true;
           return false;
-        });
-        if (persist) commit(next, edgesRef.current);
-        return next;
+        }
+        if (change.dragging === false && draggingRef.current) {
+          draggingRef.current = false;
+          return true;
+        }
+        return false;
       });
+      if (persist) commit(next, edgesRef.current);
       if (select && select.type === 'select') {
         setSelectedId(select.selected ? select.id : null);
       }
@@ -295,13 +327,12 @@ export function FlowCanvas({
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange<Edge>[]) => {
-      setEdges((current) => {
-        const next = applyEdgeChanges(changes, current);
-        if (changes.some((change) => change.type === 'remove')) {
-          commit(nodesRef.current, next);
-        }
-        return next;
-      });
+      const next = applyEdgeChanges(changes, edgesRef.current);
+      edgesRef.current = next;
+      setEdges(next);
+      if (changes.some((change) => change.type === 'remove')) {
+        commit(nodesRef.current, next);
+      }
     },
     [commit]
   );
@@ -309,10 +340,13 @@ export function FlowCanvas({
   const onConnect = useCallback(
     (connection: Connection) => {
       if (readOnly) return;
-      commit(
-        nodesRef.current,
-        addEdge({ ...connection, type: INSERT_EDGE }, edgesRef.current)
+      const nextEdges = addEdge(
+        { ...connection, type: INSERT_EDGE },
+        edgesRef.current
       );
+      edgesRef.current = nextEdges;
+      setEdges(nextEdges);
+      commit(nodesRef.current, nextEdges);
     },
     [commit, readOnly]
   );
@@ -385,18 +419,20 @@ export function FlowCanvas({
       }
     }
 
-    commit(
-      [
-        ...nodesRef.current,
-        {
-          id,
-          type: STEP_NODE,
-          position,
-          data: { nodeType: def.type, config: {} },
-        },
-      ],
-      nextEdges
-    );
+    const nextNodes: Node<StepNodeData>[] = [
+      ...nodesRef.current,
+      {
+        id,
+        type: STEP_NODE,
+        position,
+        data: { nodeType: def.type, config: {} },
+      },
+    ];
+    nodesRef.current = nextNodes;
+    edgesRef.current = nextEdges;
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    commit(nextNodes, nextEdges);
     setSelectedId(id);
     setPicker(null);
   }
@@ -486,6 +522,8 @@ export function FlowCanvas({
                   ? { ...node, data: { ...node.data, config } }
                   : node
               );
+              nodesRef.current = next;
+              setNodes(next);
               commit(next, edgesRef.current);
             }}
           />
