@@ -31,7 +31,7 @@ import {
   RESUME_SCOPES,
   type ResumeScope,
 } from '@/lib/whatsapp/broadcast-resume';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   checkRateLimit,
   rateLimitResponse,

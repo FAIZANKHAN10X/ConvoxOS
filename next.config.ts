@@ -87,26 +87,30 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Compatibility redirects for unified Automations product.
-   * /flows is no longer primary nav; bookmarks and old links 307 → /automations.
-   * 307 (temporary) preserves method and allows revert; flip to 308 permanent
-   * after one release once no traffic hits /flows.
+   * Phase 9 retirement: Automations/Flows product removed.
+   * Legacy bookmarks to /flows or /automations are redirected to /dashboard with a soft notice.
+   * When Automations v2 returns, these will point to the new product.
    */
   async redirects() {
     return [
       {
         source: "/flows",
-        destination: "/automations",
+        destination: "/dashboard",
         permanent: false,
       },
       {
         source: "/flows/:id",
-        destination: "/automations/:id",
+        destination: "/dashboard",
         permanent: false,
       },
       {
-        source: "/automations/:id/edit",
-        destination: "/automations/:id",
+        source: "/automations",
+        destination: "/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/automations/:path*",
+        destination: "/dashboard",
         permanent: false,
       },
     ];

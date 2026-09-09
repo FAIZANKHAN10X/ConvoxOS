@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { slugify } from "@/components/flows/shared";
+
+function slugify(s: string, fallback: string): string {
+  const cleaned = s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return cleaned || fallback;
+}
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 import {
   validateInteractivePayload,

@@ -5,7 +5,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { Json } from '@/types/database';
 import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 export class SendTelegramError extends Error {
   readonly code: string;
@@ -201,18 +200,8 @@ export async function sendTelegramText(
     })
     .eq('id', conversationId);
 
-  // Pause active Flow runs (best-effort, same as WA)
-  try {
-    const { error: pauseErr } = await supabaseAdmin()
-      .from('flow_runs')
-      .update({ status: 'paused_by_agent', ended_at: new Date().toISOString(), end_reason: 'agent_replied' })
-      .eq('account_id', accountId)
-      .eq('contact_id', contact.id)
-      .eq('status', 'active');
-    if (pauseErr) console.error('[telegram-send] pause flow failed:', pauseErr.message);
-  } catch (err) {
-    console.error('[telegram-send] pause flow threw:', err instanceof Error ? err.message : err);
-  }
+  // NOTE: flow_runs pause-on-agent was retired with the old flow engine
+  // (Phase 9). Manual sends no longer touch automation state.
 
   return { messageId: messageRecord.id, telegramMessageId: providerMessageId };
 }

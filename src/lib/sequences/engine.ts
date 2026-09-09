@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/automations/admin-client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { dispatchText as dispatchChannelText } from '@/lib/channels/socket'
 import type { SequenceEnrollment } from '@/types'
 
@@ -62,8 +62,9 @@ export async function enrollContactInSequence(params: {
 export async function cancelSequenceEnrollment(enrollmentId: string, accountId: string): Promise<void> {
   const db = supabaseAdmin()
   await db.from('sequence_enrollments').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', enrollmentId).eq('account_id', accountId)
-  // Also cancel any pending executions for this enrollment (stored via context)
-  await db.from('automation_pending_executions').update({ status: 'failed' }).eq('account_id', accountId).eq('status', 'pending').filter('context->>sequence_enrollment_id', 'eq', enrollmentId)
+  // NOTE: old automation_pending_executions wait rows were retired with the
+  // automation engine (Phase 9). Sequence waits are driven solely by
+  // sequence_enrollments.next_run_at + resumeDueSequenceEnrollments().
 }
 
 export async function runSequenceEnrollment(enrollmentId: string): Promise<void> {
@@ -93,7 +94,9 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
   const step = (steps as Array<{ id: string; step_type: string; step_config: Record<string, unknown>; position: number }>)[pos]
   const cfg = step.step_config as Record<string, unknown>
 
-  // Handle wait step: schedule next run via pending (reuse automation_pending_executions) or via next_run_at
+  // Handle wait step: schedule next run via next_run_at polling.
+  // (The old automation_pending_executions durable queue was retired with
+  // the automation engine; sequences use next_run_at + resumeDueSequenceEnrollments.)
   if (step.step_type === 'wait') {
     const until = cfg.until as string | undefined
     let runAt: string
@@ -105,23 +108,8 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
       const ms = unit === 'days' ? 86400000 : unit === 'minutes' ? 60000 : 3600000
       runAt = new Date(Date.now() + amount * ms).toISOString()
     }
-    // Use next_run_at for simple polling, and also create a pending execution for durable resume
+    // Use next_run_at for polling resume via resumeDueSequenceEnrollments().
     await db.from('sequence_enrollments').update({ next_run_at: runAt, current_position: pos + 1 }).eq('id', enrollmentId)
-    // Also create a pending execution that will resume this enrollment
-    await db.from('automation_pending_executions').insert({
-      automation_id: null,
-      flow_run_id: null,
-      account_id: en.account_id,
-      user_id: (en as unknown as { user_id?: string }).user_id ?? en.account_id, // fallback
-      contact_id: en.contact_id,
-      log_id: null,
-      parent_step_id: null,
-      branch: null,
-      next_step_position: pos + 1,
-      context: { sequence_enrollment_id: enrollmentId, sequence_id: en.sequence_id },
-      run_at: runAt,
-      status: 'pending',
-    } as unknown as Record<string, unknown>)
     return
   }
 

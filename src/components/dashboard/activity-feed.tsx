@@ -7,7 +7,6 @@ import {
   UserPlus,
   Briefcase,
   Radio,
-  Zap,
   Inbox,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -35,7 +34,6 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
   contact: { icon: UserPlus, badge: 'bg-primary/10 text-primary' },
   deal: { icon: Briefcase, badge: 'bg-primary/10 text-primary' },
   broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-400' },
-  automation: { icon: Zap, badge: 'bg-rose-500/10 text-rose-400' },
 }
 
 import { useTranslations } from 'next-intl'

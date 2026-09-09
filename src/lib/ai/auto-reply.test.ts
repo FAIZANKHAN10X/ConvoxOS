@@ -10,7 +10,6 @@ const h = vi.hoisted(() => ({
   engineSendText: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
-    autoResponders: [] as { id: string }[],
     claim: true as boolean,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
@@ -21,21 +20,11 @@ vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('./context', () => ({ buildConversationContext: h.buildConversationContext }))
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
-vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('@/lib/messaging/channel', () => ({ engineSendText: h.engineSendText }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
-      if (table === 'automations') {
-        // .select().eq().eq().in().limit() → active auto-responders
-        const chain = {
-          select: () => chain,
-          eq: () => chain,
-          in: () => chain,
-          limit: () =>
-            Promise.resolve({ data: h.state.autoResponders, error: null }),
-        }
-        return chain
-      }
+      void table
       // conversations
       return {
         select: () => ({
@@ -98,7 +87,6 @@ beforeEach(() => {
     ai_autoreply_disabled: false,
     ai_reply_count: 0,
   }
-  h.state.autoResponders = []
   h.state.claim = true
   h.state.updatePayload = null
   h.state.rpcCalls = []
@@ -131,11 +119,9 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     expect(systemPrompt).toContain('Returns accepted within 30 days.')
   })
 
-  it('stands down when an active message-level automation exists', async () => {
-    h.state.autoResponders = [{ id: 'auto-1' }]
+  it('replies whenever eligibility gates pass (no automation stand-down exists)', async () => {
     await dispatchInboundToAiReply(ARGS)
-    expect(h.generateReply).not.toHaveBeenCalled()
-    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(h.generateReply).toHaveBeenCalled()
   })
 
   it('does not send when the atomic slot claim loses the race', async () => {

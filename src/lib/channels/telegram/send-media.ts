@@ -4,7 +4,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { SendTelegramError } from './send';
 import type { TelegramInlineMarkup } from './keyboard';
 import { validateTelegramInlineMarkup, toTelegramReplyMarkup } from './keyboard';
@@ -228,17 +227,8 @@ export async function sendTelegramMedia(
     updated_at: new Date().toISOString(),
   }).eq('id', conversationId);
 
-  try {
-    const { error: pauseErr } = await supabaseAdmin()
-      .from('flow_runs')
-      .update({ status: 'paused_by_agent', ended_at: new Date().toISOString(), end_reason: 'agent_replied' })
-      .eq('account_id', accountId)
-      .eq('contact_id', contact.id)
-      .eq('status', 'active');
-    if (pauseErr) console.error('[telegram-send-media] pause flow failed:', pauseErr.message);
-  } catch (err) {
-    console.error('[telegram-send-media] pause flow threw:', err instanceof Error ? err.message : err);
-  }
+  // NOTE: flow_runs pause-on-agent was retired with the old flow engine
+  // (Phase 9). Manual sends no longer touch automation state.
 
   return { messageId: messageRecord.id, telegramMessageId: providerMessageId };
 }

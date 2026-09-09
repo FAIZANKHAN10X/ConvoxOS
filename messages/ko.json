@@ -22,8 +22,6 @@
     "contacts": "연락처",
     "pipelines": "파이프라인",
     "broadcasts": "브로드캐스트",
-    "automations": "자동화",
-    "flows": "플로우",
     "aiAgents": "AI 에이전트",
     "settings": "설정",
     "beta": "베타",
@@ -47,7 +45,6 @@
     "contacts": "연락처",
     "pipelines": "파이프라인",
     "broadcasts": "브로드캐스트",
-    "automations": "자동화",
     "settings": "설정",
     "openMenu": "메뉴 열기",
     "openAccountMenu": "계정 메뉴 열기",
@@ -70,7 +67,7 @@
   "Dashboard": {
     "page": {
       "title": "대시보드",
-      "description": "대화, 연락처, 딜, 브로드캐스트, 자동화 전반의 실시간 분석입니다.",
+      "description": "대화, 연락처, 딜, 브로드캐스트 전반의 실시간 분석입니다.",
       "activeConversations": "진행 중인 대화",
       "newContactsToday": "오늘의 신규 연락처",
       "openDealsValue": "진행 중인 딜 금액",
@@ -83,14 +80,13 @@
     "quickActions": {
       "newContact": "새 연락처",
       "newDeal": "새 딜",
-      "newBroadcast": "새 브로드캐스트",
-      "newAutomation": "새 자동화"
+      "newBroadcast": "새 브로드캐스트"
     },
     "activityFeed": {
       "title": "최근 활동",
       "viewAll": "전체 보기 →",
       "noActivity": "아직 활동이 없습니다",
-      "noActivityHint": "메시지, 딜, 브로드캐스트, 자동화 관련 활동이 여기에 표시됩니다.",
+      "noActivityHint": "메시지, 연락처, 딜, 브로드캐스트 관련 활동이 여기에 표시됩니다.",
       "showingOf": "{totalLoaded}개 중 {visible}개 표시{plus}",
       "show": "표시",
       "timeS": "{sec}초 전",
@@ -497,7 +493,7 @@
     },
     "customFields": {
       "title": "커스텀 필드",
-      "desc": "추가 연락처 필드를 정의하세요 (예: 우편번호, 리드 출처). 모든 연락처와 \"연락처 필드 업데이트\" 자동화 액션에 표시됩니다.",
+      "desc": "추가 연락처 필드를 정의하세요 (예: 우편번호, 리드 출처). 모든 연락처에 표시됩니다.",
       "addField": "추가",
       "fieldName": "새 필드 이름…",
       "loading": "불러오는 중…",
@@ -817,480 +813,6 @@
       }
     }
   },
-  "Automations": {
-    "list": {
-      "title": "자동화",
-      "subtitle": "WhatsApp® 이벤트에 자동으로 반응하는 워크플로를 만드세요.",
-      "create": "자동화 만들기",
-      "retry": "다시 시도",
-      "templatesTitle": "빠른 시작 템플릿",
-      "emptyTitle": "아직 자동화가 없습니다",
-      "emptyDesc": "위의 템플릿을 선택하거나 처음부터 새로 만드세요.",
-      "runs": "실행 {count}회",
-      "runsPlural": "실행 {count}회",
-      "lastRun": "마지막 실행 {time}",
-      "activate": "활성화",
-      "deactivate": "비활성화",
-      "edit": "수정",
-      "duplicate": "복제",
-      "viewLogs": "로그 보기",
-      "delete": "삭제",
-      "cancel": "취소",
-      "deleteTitle": "자동화 삭제",
-      "deleteDesc": "{name}과(와) 실행 기록이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.",
-      "toasts": {
-        "activated": "자동화가 활성화되었습니다",
-        "paused": "자동화가 일시 중지되었습니다",
-        "duplicated": "자동화가 복제되었습니다",
-        "deleted": "자동화가 삭제되었습니다",
-        "updateError": "업데이트하지 못했습니다",
-        "duplicateError": "복제하지 못했습니다",
-        "deleteError": "삭제하지 못했습니다"
-      }
-    },
-    "edit": {
-      "loading": "불러오는 중...",
-      "loadError": "불러오지 못했습니다 ({status})",
-      "back": "자동화로 돌아가기"
-    },
-    "logs": {
-      "title": "실행 로그",
-      "loadError": "로그를 불러오지 못했습니다",
-      "emptyTitle": "아직 실행 기록이 없습니다",
-      "emptyDesc": "이 자동화를 실행시켜 여기서 결과를 확인하세요.",
-      "unknownContact": "알 수 없는 연락처",
-      "step": "단계 {count}개",
-      "stepPlural": "단계 {count}개",
-      "noSteps": "기록된 단계가 없습니다.",
-      "status": {
-        "success": "성공",
-        "partial": "부분 성공",
-        "failed": "실패"
-      },
-      "back": "뒤로",
-      "backAria": "뒤로"
-    },
-    "builder": {
-      "steps": {
-        "send_message": "메시지 보내기",
-        "send_buttons": "버튼 보내기",
-        "send_list": "목록 보내기",
-        "send_template": "템플릿 보내기",
-        "add_tag": "태그 추가",
-        "remove_tag": "태그 제거",
-        "assign_conversation": "대화 담당자 지정",
-        "update_contact_field": "연락처 필드 업데이트",
-        "create_deal": "딜 생성",
-        "wait": "대기",
-        "condition": "조건 (If/Else)",
-        "send_webhook": "웹훅 보내기",
-        "close_conversation": "대화 닫기",
-        "create_task": "Create Task",
-        "randomizer": "Randomizer",
-        "goal": "Goal",
-        "enroll_in_sequence": "Enroll in Sequence"
-      },
-      "triggers": {
-        "new_message_received": {
-          "label": "새 메시지 수신",
-          "hint": "모든 수신 메시지"
-        },
-        "first_inbound_message": {
-          "label": "연락처의 첫 메시지",
-          "hint": "이 연락처가 처음으로 메시지를 보냈을 때 (수동으로 추가한 연락처에도 적용됨)"
-        },
-        "keyword_match": {
-          "label": "키워드 일치",
-          "hint": "메시지에 특정 키워드가 포함된 경우"
-        },
-        "interactive_reply": {
-          "label": "버튼 / 목록 응답",
-          "hint": "고객이 id가 일치하는 버튼이나 목록 행을 탭했을 때 — 자동화 간 메뉴를 연결할 수 있습니다"
-        },
-        "new_contact_created": {
-          "label": "새 연락처 생성됨",
-          "hint": "수신 메시지로 연락처가 자동 생성되었을 때"
-        },
-        "conversation_assigned": {
-          "label": "대화 담당자 지정됨",
-          "hint": "상담원에게 배정되었을 때"
-        },
-        "tag_added": {
-          "label": "태그 추가됨",
-          "hint": "연락처에 태그가 추가되었을 때"
-        },
-        "time_based": {
-          "label": "시간 기반",
-          "hint": "반복 일정에 따라"
-        },
-        "contact_changed": {
-          "label": "Contact Changed",
-          "hint": "When a contact field changes"
-        },
-        "note_added": {
-          "label": "Note Added",
-          "hint": "When a note is added to a contact"
-        },
-        "task_added": {
-          "label": "Task Added",
-          "hint": "When a task is created"
-        },
-        "customer_replied": {
-          "label": "Customer Replied",
-          "hint": "When contact replies (any message)"
-        },
-        "opportunity_created": {
-          "label": "Opportunity Created",
-          "hint": "When an opportunity is created"
-        },
-        "pipeline_stage_changed": {
-          "label": "Pipeline Stage Changed",
-          "hint": "When opportunity moves stage"
-        },
-        "inbound_webhook": {
-          "label": "Inbound Webhook",
-          "hint": "When webhook is received"
-        }
-      },
-      "trigger": "트리거",
-      "triggerType": "트리거 유형",
-      "keywords": "키워드",
-      "keywordsHint": "쉼표로 구분된 목록 (예: hello, help, buy)",
-      "replyIds": "응답 ID",
-      "replyIdsHint": "yes, no, more_info",
-      "replyIdsHelp": "정확히 일치시킬 버튼/목록 행 id를 쉼표로 구분해 입력하세요. 버튼 보내기 / 목록 보내기 단계에서 설정한 것과 같은 id를 사용하세요.",
-      "schedule": "일정",
-      "scheduleHint": "Cron 표현식 (예: 0 9 * * 1-5)",
-      "active": "활성",
-      "activeAria": "활성",
-      "save": "저장",
-      "saveDraft": "초안 저장",
-      "untitled": "제목 없는 자동화",
-      "backToAutomations": "자동화로 돌아가기",
-      "toasts": {
-        "saved": "자동화가 저장되었습니다",
-        "created": "자동화가 생성되었습니다",
-        "saveFailed": "저장 실패"
-      },
-      "tags": {
-        "select": "태그 선택…",
-        "placeholder": "태그 id",
-        "unknown": "{id} (알 수 없는 태그)"
-      },
-      "fields": {
-        "name": "이름",
-        "email": "이메일",
-        "company": "회사",
-        "customFields": "커스텀 필드",
-        "unknown": "{id} (알 수 없는 필드)"
-      },
-      "agents": {
-        "select": "상담원 선택…",
-        "placeholder": "상담원 id",
-        "unknown": "{id} (알 수 없는 상담원)"
-      },
-      "pipelines": {
-        "pipelineLabel": "파이프라인",
-        "pipelineIdLabel": "파이프라인 id",
-        "stageLabel": "단계",
-        "stageIdLabel": "단계 id",
-        "selectPipeline": "파이프라인 선택…",
-        "selectStage": "단계 선택…",
-        "selectPipelineFirst": "먼저 파이프라인을 선택하세요…",
-        "unknownPipeline": "{id} (알 수 없는 파이프라인)",
-        "unknownStage": "{id} (알 수 없는 단계)"
-      },
-      "templates": {
-        "templateLabel": "템플릿",
-        "templateNameLabel": "템플릿 이름",
-        "languageLabel": "언어",
-        "select": "템플릿 선택…",
-        "unknown": "{name} ({lang}) — 승인 목록에 없음",
-        "unknownLang": "알 수 없음"
-      },
-      "branches": {
-        "yes": "예",
-        "no": "아니요"
-      },
-      "addStep": "단계 추가",
-      "delete": "삭제",
-      "config": {
-        "messageText": "메시지 텍스트",
-        "placeholderMessageText": "안녕하세요! 문의해주셔서 감사합니다…",
-        "tagLabel": "태그",
-        "modeLabel": "모드",
-        "modes": {
-          "round_robin": "순차 배정",
-          "specific": "특정 상담원"
-        },
-        "agentLabel": "상담원",
-        "fieldLabel": "필드",
-        "valueLabel": "값",
-        "placeholderValue": "텍스트 또는 {{ vars.x }} / {{ message.text }}",
-        "titleLabel": "제목",
-        "amountLabel": "수치",
-        "unitLabel": "단위",
-        "units": {
-          "minutes": "분",
-          "hours": "시간",
-          "days": "일"
-        },
-        "subjectLabel": "대상",
-        "subjects": {
-          "tag_presence": "태그 존재 여부",
-          "contact_field": "연락처 필드",
-          "message_content": "메시지 내용",
-          "time_of_day": "시간대"
-        },
-        "operandLabel": "피연산자",
-        "placeholderTime": "HH:mm-HH:mm",
-        "placeholderContact": "이름 / 이메일 / 회사",
-        "placeholderTag": "태그 id",
-        "urlLabel": "URL",
-        "headersLabel": "헤더",
-        "placeholderHeaders": "{\"Authorization\": \"Bearer ...\"}",
-        "bodyTemplateLabel": "본문 템플릿",
-        "placeholderBody": "{\"id\": \"{{ contact.id }}\"}",
-        "matchType": "일치 유형",
-        "matchContains": "포함",
-        "matchWord": "단어 단위 일치",
-        "matchWordHint": "키워드가 독립된 단어일 때만 일치하므로 \"k\"가 \"thanks\"에서 실행되지 않습니다. 공백으로 단어를 구분하는 언어의 짧은 키워드에 적합하며, 공백 없이 표기하는 언어에는 \"포함\"을 사용하세요.",
-        "matchExact": "정확히 일치",
-        "closeConversationHint": "대화 상태를 \"닫힘\"으로 설정합니다. 추가 설정이 필요 없습니다."
-      }
-    }
-  },
-  "Flows": {
-    "list": {
-      "title": "플로우",
-      "beta": "베타",
-      "description": "분기하는 버튼 기반 WhatsApp 대화를 만드세요. 메뉴, FAQ, 사람이 개입하기 전 1차 응대에 유용합니다.",
-      "newFlow": "새 플로우",
-      "statusDraft": "초안",
-      "statusActive": "활성",
-      "statusArchived": "보관됨",
-      "loadError": "플로우를 불러올 수 없습니다.",
-      "createError": "플로우를 만들 수 없습니다.",
-      "cloneError": "복제 실패",
-      "deleteConfirm": "\"{name}\"을(를) 삭제하시겠습니까? 실행 중인 세션은 즉시 종료됩니다.",
-      "deleteSuccess": "플로우가 삭제되었습니다.",
-      "deleteError": "플로우를 삭제할 수 없습니다.",
-      "emptyTitle": "아직 플로우가 없습니다",
-      "emptyDesc": "첫 대화를 만들어보세요 — 환영 메뉴, 주문 조회, FAQ 봇 등. 고객이 버튼을 탭하면 봇이 알맞은 답변(또는 알맞은 상담원)으로 안내합니다.",
-      "createFirst": "첫 플로우 만들기",
-      "createTitle": "새 플로우 만들기",
-      "createDesc": "템플릿에서 시작하거나 처음부터 만드세요.",
-      "startTemplate": "템플릿에서 시작",
-      "nodeCount": "노드 {count}개",
-      "startBlank": "또는 빈 상태로 시작",
-      "placeholderName": "예: 환영 메뉴",
-      "cancel": "취소",
-      "createBlank": "빈 플로우 만들기",
-      "runCount": "실행 {count}회",
-      "edit": "수정",
-      "delete": "삭제",
-      "triggerKeywordNone": "키워드로 트리거 (설정 안 됨)",
-      "triggerKeyword": "트리거 조건: {keywords}",
-      "triggerFirstInbound": "연락처의 첫 수신 메시지에서 트리거됨",
-      "triggerManual": "수동 트리거"
-    },
-    "edit": {
-      "notFound": "플로우를 찾을 수 없습니다.",
-      "backToFlows": "← 플로우로 돌아가기",
-      "loadError": "플로우를 불러올 수 없습니다."
-    },
-    "logs": {
-      "title": "실행 기록",
-      "description": "이 플로우가 실행된 가장 최근 50건입니다. 행을 펼치면 엔진의 단계별 로그를 볼 수 있습니다.",
-      "emptyState": "아직 실행 기록이 없습니다. 개인 WhatsApp 번호로 플로우를 실행시켜 여기서 확인해보세요.",
-      "loadError": "실행 기록을 불러올 수 없습니다.",
-      "unknownContact": "알 수 없는 연락처",
-      "atNode": "{node}에서",
-      "started": "{time} 시작",
-      "reprompts": "재요청 {count}회",
-      "ranFor": "{duration} 동안 실행됨",
-      "capturedVars": "수집된 변수 ({count}개)",
-      "noEvents": "이 실행에 대해 기록된 이벤트가 없습니다.",
-      "statusActive": "실행 중",
-      "statusCompleted": "완료됨",
-      "statusHandedOff": "인계됨",
-      "statusTimedOut": "시간 초과",
-      "statusPaused": "상담원이 일시 중지함",
-      "statusFailed": "실패"
-    },
-    "builder": {
-      "triggerTitle": "트리거",
-      "whenLabel": "조건…",
-      "triggerKeywordTitle": "메시지에 키워드가 포함될 때",
-      "triggerFirstInboundTitle": "고객의 첫 수신 메시지",
-      "triggerManualTitle": "수동 전용 (자동 트리거 없음)",
-      "keywordsLabel": "키워드 (쉼표로 구분)",
-      "keywordsPlaceholder": "support, help, hi",
-      "entryNodeTitle": "시작 노드:",
-      "entryNodePlaceholder": "첫 노드를 선택하세요…",
-      "nodesTitle": "노드 ({count}개)",
-      "nodesEmpty": "<strong>시작</strong> 노드를 추가한 뒤 <strong>버튼 보내기</strong> 노드, 그다음 <strong>인계</strong> 노드를 추가하세요 — 브리프에 나온 환영 메뉴 구조입니다.",
-      "addNode": "노드 추가",
-      "setAsEntry": "시작 노드로 설정",
-      "removeNode": "노드 제거",
-      "showAdvanced": "고급 설정 표시",
-      "hideAdvanced": "고급 설정 숨기기",
-      "nodeKeyLabel": "노드 키 (내부 식별자 — 분석을 위해 값을 고정하세요)",
-      "replyIdsHint": "각 옵션의 응답 ID는 위에 인라인으로 표시됩니다. 고객이 탭했을 때 WhatsApp이 반환하는 값이며, 보통 직접 수정할 필요는 없습니다.",
-      "badgeEntry": "시작",
-      "noNodesYet": "아직 노드가 없습니다.",
-      "deleteNode": "노드 삭제",
-      "canvasView": "캔버스",
-      "listView": "목록",
-      "noNodeSelected": "선택된 노드가 없습니다",
-      "noNodeDesc": "캔버스에서 노드를 선택해 설정을 편집하세요.",
-      "form": {
-        "advancesTo": "다음 진행",
-        "textToCustomer": "고객에게 전송되는 텍스트",
-        "promptToCustomer": "고객에게 전송되는 질문",
-        "varKeyLabel": "변수 키 (flow_runs.vars에 저장됨; 영숫자 + 밑줄만 사용)",
-        "varKeyPlaceholder": "예: name, email, company",
-        "varKeyHelp": "다음과 같이 이후 프롬프트와 인계 메모에서 참조할 수 있습니다",
-        "advanceAfterCapture": "수집 후 다음 진행",
-        "internalNote": "내부 메모 (인계받는 상담원용)",
-        "endNodeHelp": "종료 노드입니다. 러너가 이 노드에 도달하면 실행이 완료로 표시됩니다. 추가 설정이 필요 없습니다.",
-        "bodyText": "본문 텍스트",
-        "footerText": "푸터 (선택, 60자)",
-        "buttonsHelp": "버튼 (1–3개) — 각 버튼은 서로 다른 다음 노드로 연결됩니다",
-        "optionTitlePlaceholder": "표시될 제목 (20자 이하)",
-        "nextNodePlaceholder": "다음 노드…",
-        "addButton": "버튼 추가",
-        "buttonLabel": "탭하여 펼치는 버튼 라벨 (20자 이하)",
-        "rowsHelp": "행 (모든 섹션 합쳐 1–10개)",
-        "sectionTitlePlaceholder": "섹션 {count} 제목 (선택)",
-        "rowTitlePlaceholder": "행 제목 (24자 이하)",
-        "addRow": "행 추가",
-        "addSection": "섹션 추가",
-        "ifLabel": "만약",
-        "capturedVariable": "수집된 변수",
-        "contactHasTag": "연락처에 태그가 있음",
-        "contactField": "연락처 필드",
-        "varName": "변수 이름",
-        "tagLabel": "태그",
-        "fieldLabel": "필드",
-        "pickTag": "태그 선택…",
-        "pickField": "필드 선택…",
-        "operatorLabel": "연산자",
-        "isPresent": "존재함",
-        "isAbsent": "존재하지 않음",
-        "equals": "일치함",
-        "contains": "포함함",
-        "valueLabel": "값",
-        "ifTrueAdvance": "참일 경우 → 다음 진행",
-        "ifFalseAdvance": "거짓일 경우 → 다음 진행",
-        "actionLabel": "액션",
-        "addTag": "태그 추가",
-        "removeTag": "태그 제거",
-        "tagUuidPlaceholder": "태그 UUID",
-        "thenAdvanceTo": "이후 다음 진행",
-        "mediaTypeLabel": "미디어 유형",
-        "imageLabel": "이미지 (PNG, JPEG, WebP)",
-        "videoLabel": "동영상 (MP4, 3GP)",
-        "documentLabel": "문서 (PDF, Word, Excel, PowerPoint, TXT)",
-        "fileLabel": "파일",
-        "removeFile": "파일 제거",
-        "uploading": "업로드 중…",
-        "clickToUpload": "클릭하여 업로드 (최대 16MB)",
-        "captionLabel": "캡션 (선택, 미디어 아래에 표시됨)",
-        "filenameLabel": "고객에게 표시될 파일명 (문서 전용)",
-        "filenamePlaceholder": "invoice.pdf",
-        "advanceAfterSending": "전송 후 다음 진행",
-        "pickNextNode": "다음 노드를 선택하세요…",
-        "none": "— 없음 —"
-      },
-      "categories": {
-        "messaging": "메시징",
-        "logic": "로직 & 데이터",
-        "timing": "타이밍",
-        "flow": "플로우 제어"
-      },
-      "nodes": {
-        "start": {
-          "label": "시작",
-          "blurb": "플로우의 진입점"
-        },
-        "send_message": {
-          "label": "메시지 보내기",
-          "blurb": "텍스트 메시지를 보냅니다"
-        },
-        "send_buttons": {
-          "label": "버튼 보내기",
-          "blurb": "빠른 응답 버튼을 보냅니다"
-        },
-        "send_list": {
-          "label": "목록 보내기",
-          "blurb": "탭 가능한 옵션 목록을 보냅니다"
-        },
-        "send_media": {
-          "label": "미디어 보내기",
-          "blurb": "이미지, 동영상, 문서를 보냅니다"
-        },
-        "collect_input": {
-          "label": "입력 수집",
-          "blurb": "질문을 하고 응답을 저장합니다"
-        },
-        "condition": {
-          "label": "만약 / 아니면",
-          "blurb": "규칙에 따라 분기합니다"
-        },
-        "set_tag": {
-          "label": "연락처 태그 지정",
-          "blurb": "연락처 태그를 추가하거나 제거합니다"
-        },
-        "wait": {
-          "label": "대기",
-          "blurb": "일시 중지 — 분 / 시간 / 일"
-        },
-        "handoff": {
-          "label": "상담원에게 인계",
-          "blurb": "대화를 사람에게 넘깁니다"
-        },
-        "end": {
-          "label": "종료",
-          "blurb": "플로우를 종료합니다"
-        },
-        "randomizer": {
-          "label": "랜덤라이저",
-          "blurb": "2–6가지로 무작위 분기"
-        }
-      }
-    },
-    "validation": {
-      "noIssues": "문제가 없습니다. 활성화할 준비가 되었습니다.",
-      "summary": "오류 {errorCount}건, 경고 {warningCount}건",
-      "jumpToNode": "{key} 노드로 이동"
-    },
-    "editorState": {
-      "saved": "저장되었습니다.",
-      "fixIssues": "활성화하기 전에 아래 문제를 해결하세요.",
-      "statusActivated": "플로우가 활성화되었습니다.",
-      "statusArchived": "보관되었습니다.",
-      "statusDraft": "초안으로 저장되었습니다."
-    },
-    "summary": {
-      "options": "옵션 {count}개",
-      "optionsAcrossSections": "{sectionCount}개 섹션에 걸쳐 옵션 {rowCount}개",
-      "noFile": "{label} (업로드된 파일 없음)",
-      "media": "미디어",
-      "image": "이미지",
-      "video": "동영상",
-      "document": "문서",
-      "audio": "오디오",
-      "hasTag": "{tag} 태그 있음",
-      "opContains": "포함함",
-      "opExists": "존재함",
-      "opMissing": "존재하지 않음",
-      "modeAdd": "추가",
-      "modeRemove": "제거",
-      "tagPicked": "{tag} 태그 {mode}…",
-      "tagNone": "태그 {mode} (선택된 태그 없음)"
-    }
-  },
   "Settings": {
     "pageTitle": "설정",
     "pageDesc": "계정과 워크스페이스에 관한 모든 것을 한곳에서 관리하세요. 관리할 섹션을 선택하세요.",
@@ -1376,7 +898,7 @@
       "tagsTitle": "태그",
       "tagsDesc": "연락처를 그룹화하고 필터링하기 위한 색상 라벨입니다.",
       "fieldsTitle": "커스텀 필드",
-      "fieldsDesc": "추가 연락처 필드입니다 (예: 우편번호, 리드 출처). 모든 연락처와 \"연락처 필드 업데이트\" 자동화 액션에 표시됩니다.",
+      "fieldsDesc": "추가 연락처 필드입니다 (예: 우편번호, 리드 출처). 모든 연락처에 표시됩니다.",
       "adminRole": "관리자",
       "failedToLoadTags": "태그를 불러오지 못했습니다",
       "nameRequired": "태그 이름은 필수입니다",

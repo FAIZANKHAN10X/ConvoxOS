@@ -1,13 +1,9 @@
 /**
- * Shared validation kernel for flows / automations.
+ * Shared validation kernel for CRM messaging targets.
  *
- * Extracted from the duplicated logic in:
- * - src/lib/flows/validate.ts  (1033 lines)
- * - src/lib/automations/validate.ts (404 lines)
- *
- * Each function encapsulates ONE domain rule where the two products
- * were copying the same check. The rule has a single canonical
- * implementation here; both validators delegate to it.
+ * Canonical home for small domain rules reused across builders
+ * (sequences, broadcasts): channel-target allowlist + multi-predicate
+ * condition validation. Each function encapsulates ONE domain rule.
  */
 
 export const ALLOWED_CHANNEL_TARGETS = new Set(["current", "whatsapp", "telegram"] as const)
@@ -32,7 +28,7 @@ export function validateChannelTarget(
 
 // ------------------------------------------------------------
 // Condition validation — `match: all|any` + array of predicates
-// Used by flows `condition` node and automations `condition` step.
+// Used by sequence/CRM condition builders.
 // ------------------------------------------------------------
 
 export interface ConditionPredicate {

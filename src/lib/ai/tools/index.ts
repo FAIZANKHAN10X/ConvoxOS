@@ -4,7 +4,6 @@ import { createDealTool, moveDealStageTool } from './deals';
 import { searchKnowledgeTool } from './knowledge';
 import { sendMessageTool } from './messaging';
 import { handoffTool } from './handoff';
-import { triggerAutomationTool } from './automation';
 
 export function createAgentTools() {
   const registry = createRegistry();
@@ -18,7 +17,6 @@ export function createAgentTools() {
   registry.register(searchKnowledgeTool);
   registry.register(sendMessageTool);
   registry.register(handoffTool);
-  registry.register(triggerAutomationTool);
   return registry;
 }
 

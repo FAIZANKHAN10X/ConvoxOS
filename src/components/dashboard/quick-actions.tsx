@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import type { Route } from 'next'
-import { UserPlus, Briefcase, Radio, Zap } from 'lucide-react'
+import { UserPlus, Briefcase, Radio } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 import { useTranslations } from 'next-intl'
@@ -22,7 +22,8 @@ const ACTIONS: Action[] = [
   { labelKey: 'newContact', href: '/contacts' as Route, icon: UserPlus, tint: 'text-primary' },
   { labelKey: 'newDeal', href: '/pipelines' as Route, icon: Briefcase, tint: 'text-blue-400' },
   { labelKey: 'newBroadcast', href: '/broadcasts/new' as Route, icon: Radio, tint: 'text-amber-400' },
-  { labelKey: 'newAutomation', href: '/automations/new' as Route, icon: Zap, tint: 'text-primary' },
+  // NOTE: the old `newAutomation` quick action was retired with the
+  // automation engine. It returns with Automations v2 (clean rebuild).
 ]
 
 export function QuickActions() {

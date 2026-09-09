@@ -8,17 +8,6 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   }),
   isLegacyFormat: vi.fn(() => false),
 }));
-vi.mock('@/lib/flows/admin-client', () => ({
-  supabaseAdmin: () => ({
-    from: () => {
-      const b: Record<string, unknown> = {};
-      for (const m of ['update', 'eq']) b[m] = vi.fn(() => b);
-      (b as unknown as { then: (r: (v: unknown) => unknown) => unknown }).then = (resolve) => resolve({ data: null, error: null });
-      return b;
-    },
-  }),
-}));
-
 let fetchMock: ReturnType<typeof vi.fn>;
 
 describe('sendTelegramMedia', () => {

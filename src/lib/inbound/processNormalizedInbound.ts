@@ -1,11 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { reopenClosedConversation } from '@/lib/conversations/reopen'
-import {
-  runAutomationsForTrigger,
-  checkPendingGoalsForContact,
-} from '@/lib/automations/engine'
-import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import type { Channel, NormalizedInbound } from '@/lib/channels/types'
@@ -341,52 +336,13 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
     await flagBroadcastReplyIfAny(accountId, contactRecord.id)
   }
 
-  // 13) flows — channel-aware trigger snapshot
-  const flowResult = await dispatchInboundToFlows({
-    accountId,
-    userId: configOwnerUserId,
-    contactId: contactRecord.id,
-    conversationId: conversation.id,
-    message: interactiveReplyId
-      ? { kind: 'interactive_reply', reply_id: interactiveReplyId, reply_title: contentText ?? '', meta_message_id: providerMessageId }
-      : { kind: 'text', text: contentText ?? '', meta_message_id: providerMessageId },
-    isFirstInboundMessage,
-    channel: channel as import('@/lib/flows/types').FlowChannel,
-  })
-  const flowConsumed = flowResult.consumed
-
-  // 14) automations
+  // 13-14) Automations/Flows retired — clean inbound path is now:
+  //    normalize → contact/conversation/message → AI (if applicable) → webhook
+  //    No dead automation dispatch path remains.
   const inboundText = contentText ?? ''
-  const automationTriggers: Array<'new_contact_created' | 'first_inbound_message' | 'new_message_received' | 'keyword_match' | 'interactive_reply' | 'customer_replied'> = []
-  if (!flowConsumed) {
-    automationTriggers.push('new_message_received', 'keyword_match', 'customer_replied')
-    if (interactiveReplyId) automationTriggers.push('interactive_reply')
-  }
-  if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
-  if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
-  for (const triggerType of automationTriggers) {
-    await runAutomationsForTrigger({
-      accountId,
-      triggerType,
-      contactId: contactRecord.id,
-      context: {
-        message_text: inboundText,
-        conversation_id: conversation.id,
-        interactive_reply_id: interactiveReplyId ?? undefined,
-        trigger_channel: channel as 'whatsapp' | 'telegram' | null,
-      },
-    }).catch((err: unknown) => console.error('[automations] dispatch failed:', err))
-  }
 
-  // P2-B Goal: check pending goals that might be satisfied by this inbound (customer_replied / message_content / tag)
-  void checkPendingGoalsForContact(accountId, contactRecord.id, {
-    message_text: inboundText,
-    trigger_channel: channel as 'whatsapp' | 'telegram' | null,
-    conversation_id: conversation.id,
-  }).catch((e) => console.error('[goals] checkPendingGoalsForContact inbound failed:', e))
-
-  // 15) AI — preserve !flowConsumed && !interactiveReplyId && trim gate
-  if (!flowConsumed && !interactiveReplyId && inboundText.trim()) {
+  // 15) AI — now without flow gate (Flows retired)
+  if (!interactiveReplyId && inboundText.trim()) {
     await dispatchInboundToAiReply({
       accountId,
       conversationId: conversation.id,

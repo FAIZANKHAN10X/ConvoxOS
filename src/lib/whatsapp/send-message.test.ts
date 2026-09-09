@@ -182,17 +182,6 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   isLegacyFormat: () => false,
 }));
 
-vi.mock('@/lib/flows/admin-client', () => ({
-  // Only used for the best-effort "pause active flow run" write.
-  supabaseAdmin: () => ({
-    from: () => ({
-      update: () => ({
-        eq: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }),
-      }),
-    }),
-  }),
-}));
-
 interface CapturedWrites {
   message?: Record<string, unknown>;
   conversation?: Record<string, unknown>;

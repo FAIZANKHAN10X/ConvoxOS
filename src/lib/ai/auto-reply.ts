@@ -7,7 +7,7 @@ import { buildSystemPrompt } from './defaults'
 import { buildHandoffSummary } from './handoff'
 import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
-import { engineSendText } from '@/lib/flows/meta-send'
+import { engineSendText } from '@/lib/messaging/channel'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { assembleAgentContext } from './agentContext'
 import { createAgentTools } from './tools'
@@ -20,16 +20,15 @@ interface DispatchArgs {
   conversationId: string
   contactId: string
   /** The account's WhatsApp config owner, used for the outbound send's
-   *  audit columns (mirrors how the flow runner passes it through). */
+   *  audit columns. */
   configOwnerUserId: string
 }
 
 /**
  * AI auto-reply for a freshly-arrived inbound message.
  *
- * Invoked from the WhatsApp webhook's `after()` block, only when no
- * deterministic flow consumed the message (flows win). Mirrors the flow
- * runner's contract: it owns its try/catch and NEVER throws — a failing
+ * Invoked from the inbound pipeline, only when no human agent owns
+ * the thread. It owns its try/catch and NEVER throws — a failing
  * or slow LLM call must not affect the webhook's 200 to Meta.
  *
  * Eligibility gates (any → silent no-op):
@@ -54,22 +53,9 @@ export async function dispatchInboundToAiReply(
     const config = await loadAiConfig(db, accountId)
     if (!config || config.status !== 'live') return
 
-    // Deterministic, user-configured responders win over the LLM — the
-    // caller already excludes messages a Flow consumed. Message-level
-    // automations (`new_message_received` / `keyword_match`) are
-    // dispatched independently for this same inbound and may send their
-    // own reply, so if the account has any active one we stand down to
-    // avoid double-texting the customer. (Relationship triggers like
-    // `first_inbound_message` don't count — they're not per-message
-    // auto-responders.)
-    const { data: autoResponders } = await db
-      .from('automations')
-      .select('id')
-      .eq('account_id', accountId)
-      .eq('is_active', true)
-      .in('trigger_type', ['new_message_received', 'keyword_match'])
-      .limit(1)
-    if (autoResponders && autoResponders.length > 0) return
+    // (No deterministic auto-responders exist — the old automation
+    // engine was retired. When v2 domain-event automations land, they
+    // will take precedence over the LLM here.)
 
     const { data: conv, error: convErr } = await db
       .from('conversations')

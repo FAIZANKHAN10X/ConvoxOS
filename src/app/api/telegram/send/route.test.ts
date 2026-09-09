@@ -72,18 +72,6 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => supabaseMock),
 }))
 
-vi.mock('@/lib/flows/admin-client', () => ({
-  supabaseAdmin: () => ({
-    from: () => {
-      const b: Record<string, unknown> = {}
-      const chain = () => b
-      for (const m of ['update', 'eq', 'select']) b[m] = vi.fn(chain)
-      ;(b as Record<string, unknown>).then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null })
-      return b
-    },
-  }),
-}))
-
 vi.mock('@/lib/rate-limit', async () => {
   const actual = await vi.importActual('@/lib/rate-limit') as Record<string, unknown>
   return {

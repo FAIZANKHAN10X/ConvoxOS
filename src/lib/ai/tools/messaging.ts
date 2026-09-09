@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ToolDefinition } from './types';
-import { engineSendText } from '@/lib/flows/meta-send';
+import { engineSendText } from '@/lib/messaging/channel';
 
 export const sendMessageTool: ToolDefinition = {
   name: 'send_message',

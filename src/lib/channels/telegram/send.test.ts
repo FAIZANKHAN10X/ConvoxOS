@@ -5,21 +5,12 @@ const h = vi.hoisted(() => ({
   encrypt: vi.fn((v: string) => `enc-${v}`),
   isLegacyFormat: vi.fn(() => false),
   fetchMock: vi.fn(),
-  supabaseAdminUpdate: vi.fn(() => ({ eq: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }) })),
 }));
 
 vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: h.decrypt,
   encrypt: h.encrypt,
   isLegacyFormat: h.isLegacyFormat,
-}));
-
-vi.mock('@/lib/flows/admin-client', () => ({
-  supabaseAdmin: () => ({
-    from: () => ({
-      update: h.supabaseAdminUpdate,
-    }),
-  }),
 }));
 
 global.fetch = h.fetchMock as unknown as typeof fetch;

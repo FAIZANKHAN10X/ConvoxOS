@@ -1,8 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-// Lazy, shared service-role client for the AI auto-reply path.
-// The inbound webhook has no `auth.uid()`, so the bot reads config +
-// conversation state and sends through the service role.
 let _adminClient: SupabaseClient | null = null
 
 export function supabaseAdmin(): SupabaseClient {

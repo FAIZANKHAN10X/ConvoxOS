@@ -1,10 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  runAutomationsForTrigger,
-  checkPendingGoalsForContact,
-  type AutomationContext,
-} from '@/lib/automations/engine';
 import { addContactTagIfAbsent } from './tag-write';
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from './tag-chain';
 
@@ -15,7 +10,7 @@ interface AddContactTagAndDispatchInput {
   accountId: string;
   contactId: string;
   tagId: string;
-  context?: AutomationContext;
+  context?: Record<string, unknown>;
 }
 
 export interface AddContactTagResult {
@@ -25,8 +20,10 @@ export interface AddContactTagResult {
 }
 
 /**
- * Central server-side tag writer. It dispatches tag_added only for a
- * newly-created join and caps chained tag automations to avoid loops.
+ * Central server-side tag writer. Records the join for a newly-added
+ * tag and caps chained depth to avoid loops. (The old tag_added
+ * automation dispatch was retired with the automation engine; v2
+ * domain events will reintroduce it.)
  */
 export async function addContactTagAndDispatch(
   input: AddContactTagAndDispatchInput
@@ -39,35 +36,5 @@ export async function addContactTagAndDispatch(
 
   if (!added) return { added: false, dispatched: false, reason: 'duplicate' };
 
-  const depth = getTagChainDepth(input.context);
-  if (depth >= MAX_TAG_CHAIN_DEPTH) {
-    console.warn('[automations] tag_added chain depth limit reached', {
-      accountId: input.accountId,
-      contactId: input.contactId,
-      tagId: input.tagId,
-      depth,
-    });
-    return { added: true, dispatched: false, reason: 'max_depth' };
-  }
-
-  await runAutomationsForTrigger({
-    accountId: input.accountId,
-    triggerType: 'tag_added',
-    contactId: input.contactId,
-    context: {
-      ...input.context,
-      tag_id: input.tagId,
-      vars: {
-        ...(input.context?.vars ?? {}),
-        _tag_chain_depth: depth + 1,
-      },
-    },
-  });
-
-  // P2-B Goal: check pending goals that might be satisfied by this tag
-  void checkPendingGoalsForContact(input.accountId, input.contactId, { tag_id: input.tagId, ...input.context }).catch((e) =>
-    console.error('[goals] checkPendingGoalsForContact failed:', e)
-  )
-
-  return { added: true, dispatched: true };
+  return { added: true, dispatched: false };
 }

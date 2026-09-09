@@ -5,17 +5,6 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: vi.fn((s: string) => (s.startsWith('enc:') ? s.slice(4) : s)),
   isLegacyFormat: vi.fn(() => false),
 }));
-vi.mock('@/lib/flows/admin-client', () => ({
-  supabaseAdmin: () => ({
-    from: () => {
-      const b: Record<string, unknown> = {};
-      for (const m of ['update', 'eq']) b[m] = vi.fn(() => b);
-      (b as unknown as { then: (r: (v: unknown) => void) => void }).then = (resolve) => resolve({ data: null, error: null });
-      return b;
-    },
-  }),
-}));
-
 describe('sendTelegramText with inline keyboard', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(() => {

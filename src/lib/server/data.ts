@@ -24,25 +24,8 @@ export async function getTags(db: SupabaseClient) {
   return data ?? []
 }
 
-export async function getFlows(db: SupabaseClient) {
-  // Narrow: id/name/status/trigger_type/created_at for list view —
-  // config JSONB not needed until detail page.
-  const { data, error } = await db
-    .from('flows')
-    .select('id, name, status, trigger_type, entry_node_id, created_at')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data ?? []
-}
-
-export async function getAutomations(db: SupabaseClient) {
-  const { data, error } = await db
-    .from('automations')
-    .select('id, name, status, trigger_type, created_at')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data ?? []
-}
+// NOTE: getFlows / getAutomations were retired with the old automation
+// engine (Phase 9). They will return as Automations v2 — no stubs kept.
 
 // Paginated contacts helper — replaces the N+1 `contacts → contact_tags IN (ids)`
 // waterfall in `contacts/page.tsx:107-210`. Single join via PostgREST

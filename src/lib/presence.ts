@@ -58,12 +58,10 @@ export function derivePresence(
  * Relative "last seen" string for tooltips. Coarse on purpose — the
  * issue calls for relative time only, never a precise timestamp.
  *
- * Deliberately separate from `formatRelative` in
- * src/lib/automations/trigger-meta.ts: that one reads `Date.now()`
- * internally (not injectable) and emits terse chip wording ("2h ago"),
- * whereas presence needs an injected `now` — so the dots and labels
- * advance in lockstep and the unit tests stay deterministic — plus
- * full-sentence wording for the tooltip ("Offline — last seen …").
+ * Deliberately separate from ad-hoc relative-time helpers elsewhere:
+ * presence needs an injected `now` — so the dots and labels advance in
+ * lockstep and the unit tests stay deterministic — plus full-sentence
+ * wording for the tooltip ("Offline — last seen …").
  */
 export function formatLastSeen(
   lastSeenAt: string | null | undefined,

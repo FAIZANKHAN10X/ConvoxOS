@@ -3,9 +3,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type ActivityType =
   | 'message_inbound'
   | 'message_outbound'
-  | 'automation_executed'
-  | 'automation_failed'
-  | 'flow_executed'
   | 'tag_added'
   | 'contact_updated'
   | 'task_created'
@@ -40,11 +37,11 @@ export async function getContactActivityFeed(
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100)
   const activities: ActivityItem[] = []
 
-  // Use Promise.all to fetch in parallel
+  // NOTE: automation_logs / flow_runs reads were retired with the old
+  // automation engine (Phase 9). The feed covers CRM activity only.
+  // Use Promise.all to fetch in parallel.
   const [
     messagesRes,
-    automationLogsRes,
-    flowRunsRes,
     tagsRes,
     tasksRes,
     dealsRes,
@@ -69,19 +66,6 @@ export async function getContactActivityFeed(
           .order('created_at', { ascending: false })
           .limit(limit)
       }),
-    supabase
-      .from('automation_logs')
-      .select('id, automation_id, status, trigger_event, created_at, automations!inner(name)')
-      .eq('contact_id', opts.contactId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('flow_runs')
-      .select('id, flow_id, status, started_at, ended_at, flows!inner(name)')
-      .eq('contact_id', opts.contactId)
-      .eq('account_id', opts.accountId)
-      .order('started_at', { ascending: false })
-      .limit(limit),
     supabase
       .from('contact_tags')
       .select('tag_id, created_at, tags!inner(name)')
@@ -129,33 +113,6 @@ export async function getContactActivityFeed(
       description: String(m.content_text ?? '').slice(0, 120) || `[${String(m.content_type)}]`,
       timestamp: String(m.created_at),
       metadata: { channel: m.channel, status: m.status, content_type: m.content_type },
-    })
-  }
-
-  // Automation logs
-  const logs = ((automationLogsRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const l of logs) {
-    const isFailed = l.status === 'failed'
-    activities.push({
-      id: `auto-${String(l.id)}`,
-      type: isFailed ? 'automation_failed' : 'automation_executed',
-      title: `Automation ${isFailed ? 'failed' : 'executed'}`,
-      description: String((l as unknown as { automations?: { name?: string } }).automations?.name ?? String(l.trigger_event)),
-      timestamp: String(l.created_at),
-      metadata: { status: l.status, trigger_event: l.trigger_event },
-    })
-  }
-
-  // Flow runs
-  const flows = ((flowRunsRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const f of flows) {
-    activities.push({
-      id: `flow-${String(f.id)}`,
-      type: 'flow_executed',
-      title: 'Flow executed',
-      description: String((f as unknown as { flows?: { name?: string } }).flows?.name ?? String(f.status)),
-      timestamp: String(f.started_at),
-      metadata: { status: f.status },
     })
   }
 

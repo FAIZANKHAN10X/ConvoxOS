@@ -263,9 +263,8 @@ export interface Message {
   reply_to_message_id?: string;
   /**
    * Only set when `content_type === 'interactive'` — the stable id of
-   * the button or list row the customer tapped. The Flows engine uses
-   * this to route the next node; the inbox bubble uses it as a styling
-   * cue (renders with a "↩ button reply" affordance).
+   * the button or list row the customer tapped. The inbox bubble uses
+   * it as a styling cue (renders with a "↩ button reply" affordance).
    */
   interactive_reply_id?: string;
   /**
@@ -476,293 +475,21 @@ export interface BroadcastRecipient {
 }
 
 // ============================================================
-// Automations (migration 006)
+// Automations — RETIRED (Phase 9 clean slate)
 // ============================================================
+//
+// The old automation/flow engine (migration 006 automations +
+// automation_steps + automation_logs, 010 flows + flow_nodes +
+// flow_runs) was retired by 056_retire_automations_flows.sql and is
+// NOT the foundation for Automations v2. See
+// docs/ARCHITECTURE_DECISION_AUTOMATIONS_V2.md.
+//
+// Trigger/step/log types will be reintroduced from scratch with the
+// v2 automation foundation. Do not resurrect the deleted shapes.
+//
+// Sequences below are legitimate standalone drip infrastructure and
+// were intentionally kept (056 keeps sequences/* + tasks).
 
-export type AutomationTriggerType =
-  | 'new_message_received'
-  | 'first_inbound_message'
-  | 'keyword_match'
-  | 'new_contact_created'
-  | 'conversation_assigned'
-  | 'tag_added'
-  | 'time_based'
-  /** Customer tapped a reply button / list row whose id matches; lets
-   *  multi-step menus be chained across automations. */
-  | 'interactive_reply'
-  // P1 — Contact category
-  | 'contact_changed'
-  | 'note_added'
-  | 'task_added'
-  // P1 — Conversation category
-  | 'customer_replied'
-  // P1 — Opportunity category
-  | 'opportunity_created'
-  | 'pipeline_stage_changed'
-  // P1 — Business Event
-  | 'inbound_webhook';
-
-export type AutomationStepType =
-  | 'send_message'
-  | 'send_buttons'
-  | 'send_list'
-  | 'send_template'
-  | 'add_tag'
-  | 'remove_tag'
-  | 'assign_conversation'
-  | 'update_contact_field'
-  | 'create_deal'
-  | 'create_task'
-  | 'randomizer'
-  | 'goal'
-  | 'enroll_in_sequence'
-  | 'wait'
-  | 'condition'
-  | 'send_webhook'
-  | 'close_conversation';
-
-export type AutomationLogStatus = 'success' | 'partial' | 'failed';
-
-export interface KeywordMatchTriggerConfig {
-  keywords: string[];
-  /**
-   * `contains` (the default) is a raw substring test, so a short keyword
-   * matches inside longer words — "k" fires on "thanks". `word` is the
-   * boundary-aware alternative added for issue #409; see
-   * `matchesWholeWord` in `@/lib/automations/engine` for its exact
-   * semantics. Flows carry their own keyword config and stay
-   * substring-only (`@/lib/flows/types`).
-   */
-  match_type: 'exact' | 'contains' | 'word';
-  case_sensitive?: boolean;
-  channel?: "any" | "whatsapp" | "telegram";
-}
-
-export interface TagTriggerConfig {
-  tag_id: string;
-}
-
-export interface TimeBasedTriggerConfig {
-  /** Cron expression or simple HH:mm string; engine can accept either. */
-  schedule: string;
-  timezone?: string;
-}
-
-export interface InteractiveReplyTriggerConfig {
-  /** Button / list-row ids to match, exact. Any one matching fires. */
-  reply_ids: string[];
-  channel?: "any" | "whatsapp" | "telegram";
-}
-
-// P1 — Contact category
-export interface ContactChangedTriggerConfig {
-  /** Field that must change: built-in (name|email|phone|company) or custom:<id> */
-  field: string;
-  /** Optional: only fire when new value equals this string (exact match). Omit to fire on any change. */
-  value?: string;
-}
-
-// P1 — Note category (contact_notes)
-export type NoteAddedTriggerConfig = Record<string, never>
-export type TaskAddedTriggerConfig = Record<string, never>
-
-// P1 — Conversation category (generic inbound, alias for new_message_received with channel filter)
-export interface CustomerRepliedTriggerConfig {
-  channel?: "any" | "whatsapp" | "telegram";
-}
-
-// P1 — Opportunity category
-export interface OpportunityCreatedTriggerConfig {
-  pipeline_id?: string;
-  stage_id?: string;
-}
-
-export interface PipelineStageChangedTriggerConfig {
-  pipeline_id?: string;
-  from_stage_id?: string;
-  to_stage_id?: string;
-}
-
-// P1 — Business Event
-export interface InboundWebhookTriggerConfig {
-  /** Optional path filter; if set, only webhook POSTs to this path fire. Omit for any inbound webhook. */
-  path?: string;
-}
-
-export type AutomationTriggerConfig =
-  | Record<string, never>
-  | KeywordMatchTriggerConfig
-  | TagTriggerConfig
-  | TimeBasedTriggerConfig
-  | InteractiveReplyTriggerConfig
-  | ContactChangedTriggerConfig
-  | NoteAddedTriggerConfig
-  | TaskAddedTriggerConfig
-  | CustomerRepliedTriggerConfig
-  | OpportunityCreatedTriggerConfig
-  | PipelineStageChangedTriggerConfig
-  | InboundWebhookTriggerConfig
-  | Record<string, unknown>;
-
-export type AutomationChannelTarget = "current" | "whatsapp" | "telegram";
-
-export interface SendMessageStepConfig {
-  text: string;
-  channel_target?: AutomationChannelTarget;
-}
-
-/**
- * `send_buttons` / `send_list` step configs carry the full interactive
- * payload (same shape stored on messages + quick replies). `kind` is
- * implied by the step_type but kept on the payload for a uniform shape.
- */
-export type SendButtonsStepConfig = InteractiveMessagePayload & { channel_target?: AutomationChannelTarget };
-export type SendListStepConfig = InteractiveMessagePayload & { channel_target?: AutomationChannelTarget };
-
-export interface SendTemplateStepConfig {
-  template_name: string;
-  language?: string;
-  variables?: Record<string, string>;
-  channel_target?: AutomationChannelTarget;
-}
-
-export interface TagStepConfig {
-  tag_id: string;
-}
-
-export interface AssignConversationStepConfig {
-  mode: 'specific' | 'round_robin';
-  agent_id?: string;
-}
-
-export interface UpdateContactFieldStepConfig {
-  /**
-   * Either a built-in contact column (`name` | `email` | `company`) or a
-   * custom field encoded as `custom:<custom_field_id>`. The `custom:` prefix
-   * is how the engine distinguishes a `contact_custom_values` write from a
-   * direct `contacts` column update. Older configs store the bare column name,
-   * so this stays backward compatible.
-   */
-  field: string;
-  /** Supports `{{ vars.* }}` / `{{ message.text }}` interpolation at runtime. */
-  value: string;
-}
-
-export interface CreateDealStepConfig {
-  pipeline_id: string;
-  stage_id: string;
-  title: string;
-  value?: number;
-}
-
-export interface CreateTaskStepConfig {
-  title: string;
-  description?: string;
-  due_at?: string;
-  assigned_to?: string;
-}
-
-export interface RandomizerStepConfig {
-  variants: Array<{ id: string; label: string; weight: number }>;
-  mode?: 'sticky' | 'random';
-}
-
-export interface GoalStepConfig {
-  // Condition that defines when the goal is satisfied
-  condition: ConditionStepConfig;
-  // Optional timeout in hours — if goal not met within this time, continue to next step (or fail)
-  timeout_hours?: number;
-  // Where to jump when goal is met — if omitted, just continue to next step (goal acts as wait)
-  target_step_position?: number;
-}
-
-export interface EnrollInSequenceStepConfig {
-  sequence_id: string;
-}
-
-export interface WaitStepConfig {
-  amount?: number;
-  unit?: 'minutes' | 'hours' | 'days';
-  /** ISO datetime for date/time wait — when present, wait until this time instead of duration */
-  until?: string;
-}
-
-export type ConditionSubject =
-  | 'contact_field'
-  | 'tag_presence'
-  | 'message_content'
-  | 'time_of_day';
-
-export interface ConditionStepConfig {
-  subject: ConditionSubject;
-  /** e.g. field name, tag id, substring, or "HH:mm-HH:mm" depending on subject */
-  operand?: string;
-  /** For contact_field equals / message_content contains — comparison value */
-  value?: string;
-  // P1 — multi-condition support
-  conditions?: Array<{ subject: ConditionSubject; operand?: string; value?: string }>;
-  match?: 'all' | 'any';
-}
-
-export interface SendWebhookStepConfig {
-  url: string;
-  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  headers?: Record<string, string>;
-  body_template?: string;
-  // When true, response JSON is stored in vars for downstream steps
-  store_response?: boolean;
-  response_var?: string;
-}
-
-export type AutomationStepConfig =
-  | SendMessageStepConfig
-  | SendButtonsStepConfig
-  | SendListStepConfig
-  | SendTemplateStepConfig
-  | TagStepConfig
-  | AssignConversationStepConfig
-  | UpdateContactFieldStepConfig
-  | CreateDealStepConfig
-  | CreateTaskStepConfig
-  | RandomizerStepConfig
-  | GoalStepConfig
-  | EnrollInSequenceStepConfig
-  | WaitStepConfig
-  | ConditionStepConfig
-  | SendWebhookStepConfig
-  | Record<string, never>
-  | Record<string, unknown>;
-
-export interface Automation {
-  id: string;
-  /** Account tenancy key — every automation belongs to one account
-   *  (migration 017 made the column NOT NULL). The engine looks up
-   *  active automations by this field on inbound webhook events. */
-  account_id: string;
-  /** Original author. Used for log audit + outbound message
-   *  sender-of-record, never for tenancy isolation. */
-  user_id: string;
-  name: string;
-  description?: string;
-  trigger_type: AutomationTriggerType;
-  trigger_config: AutomationTriggerConfig;
-  is_active: boolean;
-  execution_count: number;
-  last_executed_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AutomationStep {
-  id: string;
-  automation_id: string;
-  parent_step_id?: string | null;
-  branch?: 'yes' | 'no' | null;
-  step_type: AutomationStepType;
-  step_config: AutomationStepConfig;
-  position: number;
-  created_at: string;
-}
 
 export interface Sequence {
   id: string;
@@ -800,25 +527,6 @@ export interface SequenceEnrollment {
   cancelled_at: string | null;
 }
 
-export interface AutomationLogStepResult {
-  step_id: string;
-  step_type: AutomationStepType;
-  status: 'success' | 'skipped' | 'failed';
-  detail?: string;
-}
-
-export interface AutomationLog {
-  id: string;
-  automation_id: string;
-  user_id: string;
-  contact_id: string | null;
-  trigger_event: string;
-  steps_executed: AutomationLogStepResult[];
-  status: AutomationLogStatus;
-  error_message?: string | null;
-  created_at: string;
-  contact?: Contact;
-}
 
 // ============================================================
 // Quick replies — reusable snippets (migration 035)

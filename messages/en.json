@@ -22,8 +22,6 @@
     "contacts": "Contacts",
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
-    "automations": "Automations",
-    "flows": "Flows",
     "aiAgents": "AI Agents",
     "settings": "Settings",
     "beta": "Beta",
@@ -47,7 +45,6 @@
     "contacts": "Contacts",
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
-    "automations": "Automations",
     "settings": "Settings",
     "openMenu": "Open menu",
     "openAccountMenu": "Open account menu",
@@ -70,7 +67,7 @@
   "Dashboard": {
     "page": {
       "title": "Dashboard",
-      "description": "Live analytics across conversations, contacts, deals, broadcasts, and automations.",
+      "description": "Live analytics across conversations, contacts, deals, and broadcasts.",
       "activeConversations": "Active Conversations",
       "newContactsToday": "New Contacts Today",
       "openDealsValue": "Open Deals Value",
@@ -83,14 +80,13 @@
     "quickActions": {
       "newContact": "New Contact",
       "newDeal": "New Deal",
-      "newBroadcast": "New Broadcast",
-      "newAutomation": "New Automation"
+      "newBroadcast": "New Broadcast"
     },
     "activityFeed": {
       "title": "Recent Activity",
       "viewAll": "View all →",
       "noActivity": "No activity yet",
-      "noActivityHint": "Activity from messages, deals, broadcasts, and automations will appear here.",
+      "noActivityHint": "Activity from messages, contacts, deals, and broadcasts will appear here.",
       "showingOf": "Showing {visible} of {totalLoaded}{plus}",
       "show": "Show",
       "timeS": "{sec}s ago",
@@ -497,7 +493,7 @@
     },
     "customFields": {
       "title": "Custom fields",
-      "desc": "Define extra contact fields (e.g. ZIP code, lead source). They appear on every contact and in the “Update Contact Field” automation action.",
+      "desc": "Define extra contact fields (e.g. ZIP code, lead source). They appear on every contact.",
       "addField": "Add",
       "fieldName": "New field name…",
       "loading": "Loading…",
@@ -817,480 +813,6 @@
       }
     }
   },
-  "Automations": {
-    "list": {
-      "title": "Automations",
-      "subtitle": "Build workflows that react to WhatsApp® events automatically.",
-      "create": "Create Automation",
-      "retry": "Retry",
-      "templatesTitle": "Quick-start templates",
-      "emptyTitle": "No automations yet",
-      "emptyDesc": "Pick a template above or create one from scratch.",
-      "runs": "{count} run",
-      "runsPlural": "{count} runs",
-      "lastRun": "last {time}",
-      "activate": "Activate",
-      "deactivate": "Deactivate",
-      "edit": "Edit",
-      "duplicate": "Duplicate",
-      "viewLogs": "View Logs",
-      "delete": "Delete",
-      "cancel": "Cancel",
-      "deleteTitle": "Delete automation",
-      "deleteDesc": "This permanently removes {name} and its execution history. This cannot be undone.",
-      "toasts": {
-        "activated": "Automation activated",
-        "paused": "Automation paused",
-        "duplicated": "Automation duplicated",
-        "deleted": "Automation deleted",
-        "updateError": "Failed to update",
-        "duplicateError": "Failed to duplicate",
-        "deleteError": "Failed to delete"
-      }
-    },
-    "edit": {
-      "loading": "Loading...",
-      "loadError": "Failed to load ({status})",
-      "back": "Back to Automations"
-    },
-    "logs": {
-      "title": "Execution logs",
-      "loadError": "Failed to load logs",
-      "emptyTitle": "No executions yet",
-      "emptyDesc": "Trigger this automation to see runs here.",
-      "unknownContact": "Unknown contact",
-      "step": "{count} step",
-      "stepPlural": "{count} steps",
-      "noSteps": "No steps recorded.",
-      "status": {
-        "success": "success",
-        "partial": "partial",
-        "failed": "failed"
-      },
-      "back": "Back",
-      "backAria": "Back"
-    },
-    "builder": {
-      "steps": {
-        "send_message": "Send Message",
-        "send_buttons": "Send Buttons",
-        "send_list": "Send List",
-        "send_template": "Send Template",
-        "add_tag": "Add Tag",
-        "remove_tag": "Remove Tag",
-        "assign_conversation": "Assign Conversation",
-        "update_contact_field": "Update Contact Field",
-        "create_deal": "Create Deal",
-        "create_task": "Create Task",
-        "randomizer": "Randomizer",
-        "goal": "Goal",
-        "enroll_in_sequence": "Enroll in Sequence",
-        "wait": "Wait",
-        "condition": "Condition (If/Else)",
-        "send_webhook": "Send Webhook",
-        "close_conversation": "Close Conversation"
-      },
-      "triggers": {
-        "new_message_received": {
-          "label": "New Message Received",
-          "hint": "Any incoming message"
-        },
-        "first_inbound_message": {
-          "label": "First Message from Contact",
-          "hint": "First time this contact ever messages you (works for manually-added contacts too)"
-        },
-        "keyword_match": {
-          "label": "Keyword Match",
-          "hint": "Message contains specific keyword(s)"
-        },
-        "interactive_reply": {
-          "label": "Button / List Reply",
-          "hint": "Customer taps a button or list row whose id matches — chain menus across automations"
-        },
-        "new_contact_created": {
-          "label": "New Contact Created",
-          "hint": "When a contact is auto-created from an incoming message"
-        },
-        "conversation_assigned": {
-          "label": "Conversation Assigned",
-          "hint": "When assigned to an agent"
-        },
-        "tag_added": {
-          "label": "Tag Added",
-          "hint": "When a tag is added to a contact"
-        },
-        "contact_changed": {
-          "label": "Contact Changed",
-          "hint": "When a contact field changes"
-        },
-        "note_added": {
-          "label": "Note Added",
-          "hint": "When a note is added to a contact"
-        },
-        "task_added": {
-          "label": "Task Added",
-          "hint": "When a task is created"
-        },
-        "customer_replied": {
-          "label": "Customer Replied",
-          "hint": "When contact replies (any message)"
-        },
-        "opportunity_created": {
-          "label": "Opportunity Created",
-          "hint": "When an opportunity is created"
-        },
-        "pipeline_stage_changed": {
-          "label": "Pipeline Stage Changed",
-          "hint": "When opportunity moves stage"
-        },
-        "inbound_webhook": {
-          "label": "Inbound Webhook",
-          "hint": "When webhook is received"
-        },
-        "time_based": {
-          "label": "Time-Based",
-          "hint": "On a recurring schedule"
-        }
-      },
-      "trigger": "Trigger",
-      "triggerType": "Trigger type",
-      "keywords": "Keywords",
-      "keywordsHint": "Comma-separated list (e.g. hello, help, buy)",
-      "replyIds": "Reply IDs",
-      "replyIdsHint": "yes, no, more_info",
-      "replyIdsHelp": "Comma-separated button/list-row ids to match, exact. Use the same ids you set on a Send Buttons / Send List step.",
-      "schedule": "Schedule",
-      "scheduleHint": "Cron expression (e.g. 0 9 * * 1-5)",
-      "active": "Active",
-      "activeAria": "Active",
-      "save": "Save",
-      "saveDraft": "Save Draft",
-      "untitled": "Untitled automation",
-      "backToAutomations": "Back to automations",
-      "toasts": {
-        "saved": "Automation saved",
-        "created": "Automation created",
-        "saveFailed": "Save failed"
-      },
-      "tags": {
-        "select": "Select a tag…",
-        "placeholder": "Tag id",
-        "unknown": "{id} (unknown tag)"
-      },
-      "fields": {
-        "name": "Name",
-        "email": "Email",
-        "company": "Company",
-        "customFields": "Custom fields",
-        "unknown": "{id} (unknown field)"
-      },
-      "agents": {
-        "select": "Select an agent…",
-        "placeholder": "Agent id",
-        "unknown": "{id} (unknown agent)"
-      },
-      "pipelines": {
-        "pipelineLabel": "Pipeline",
-        "pipelineIdLabel": "Pipeline id",
-        "stageLabel": "Stage",
-        "stageIdLabel": "Stage id",
-        "selectPipeline": "Select a pipeline…",
-        "selectStage": "Select a stage…",
-        "selectPipelineFirst": "Select a pipeline first…",
-        "unknownPipeline": "{id} (unknown pipeline)",
-        "unknownStage": "{id} (unknown stage)"
-      },
-      "templates": {
-        "templateLabel": "Template",
-        "templateNameLabel": "Template name",
-        "languageLabel": "Language",
-        "select": "Select a template…",
-        "unknown": "{name} ({lang}) — not in approved list",
-        "unknownLang": "unknown"
-      },
-      "branches": {
-        "yes": "Yes",
-        "no": "No"
-      },
-      "addStep": "Add step",
-      "delete": "Delete",
-      "config": {
-        "messageText": "Message text",
-        "placeholderMessageText": "Hi! Thanks for reaching out…",
-        "tagLabel": "Tag",
-        "modeLabel": "Mode",
-        "modes": {
-          "round_robin": "Round-robin",
-          "specific": "Specific agent"
-        },
-        "agentLabel": "Agent",
-        "fieldLabel": "Field",
-        "valueLabel": "Value",
-        "placeholderValue": "Text or {{ vars.x }} / {{ message.text }}",
-        "titleLabel": "Title",
-        "amountLabel": "Amount",
-        "unitLabel": "Unit",
-        "units": {
-          "minutes": "Minutes",
-          "hours": "Hours",
-          "days": "Days"
-        },
-        "subjectLabel": "Subject",
-        "subjects": {
-          "tag_presence": "Tag presence",
-          "contact_field": "Contact field",
-          "message_content": "Message content",
-          "time_of_day": "Time of day"
-        },
-        "operandLabel": "Operand",
-        "placeholderTime": "HH:mm-HH:mm",
-        "placeholderContact": "name / email / company",
-        "placeholderTag": "tag id",
-        "urlLabel": "URL",
-        "headersLabel": "Headers",
-        "placeholderHeaders": "{\"Authorization\": \"Bearer ...\"}",
-        "bodyTemplateLabel": "Body template",
-        "placeholderBody": "{\"id\": \"{{ contact.id }}\"}",
-        "matchType": "Match type",
-        "matchContains": "Contains",
-        "matchWord": "Whole word",
-        "matchWordHint": "Matches the keyword only as a standalone word, so \"k\" no longer fires on \"thanks\". Best for short keywords in space-separated languages; use Contains for languages written without spaces.",
-        "matchExact": "Exact",
-        "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
-      }
-    }
-  },
-  "Flows": {
-    "list": {
-      "title": "Flows",
-      "beta": "Beta",
-      "description": "Build branching, button-driven WhatsApp conversations. Useful for menus, FAQs, and triage before a human steps in.",
-      "newFlow": "New flow",
-      "statusDraft": "Draft",
-      "statusActive": "Active",
-      "statusArchived": "Archived",
-      "loadError": "Couldn't load flows.",
-      "createError": "Couldn't create flow.",
-      "cloneError": "Clone failed",
-      "deleteConfirm": "Delete \"{name}\"? Any active runs will end immediately.",
-      "deleteSuccess": "Flow deleted.",
-      "deleteError": "Couldn't delete flow.",
-      "emptyTitle": "No flows yet",
-      "emptyDesc": "Build your first conversation — a welcome menu, an order lookup, an FAQ bot. Customers tap buttons; the bot routes them to the right answer (or the right agent).",
-      "createFirst": "Create your first flow",
-      "createTitle": "Create a new flow",
-      "createDesc": "Start from a template or build from scratch.",
-      "startTemplate": "Start from a template",
-      "nodeCount": "{count} {count, plural, =1 {node} other {nodes}}",
-      "startBlank": "Or start blank",
-      "placeholderName": "e.g. Welcome menu",
-      "cancel": "Cancel",
-      "createBlank": "Create blank flow",
-      "runCount": "{count} {count, plural, =1 {run} other {runs}}",
-      "edit": "Edit",
-      "delete": "Delete",
-      "triggerKeywordNone": "Triggers on keyword (none set)",
-      "triggerKeyword": "Triggers on: {keywords}",
-      "triggerFirstInbound": "Triggers on a contact's first-ever inbound message",
-      "triggerManual": "Manual trigger"
-    },
-    "edit": {
-      "notFound": "Flow not found.",
-      "backToFlows": "← Back to flows",
-      "loadError": "Couldn't load flow."
-    },
-    "logs": {
-      "title": "Runs",
-      "description": "The 50 most recent times this flow ran. Expand a row to see the engine's per-step log.",
-      "emptyState": "No runs yet. Trigger the flow from a personal WhatsApp number to see it appear here.",
-      "loadError": "Couldn't load runs.",
-      "unknownContact": "Unknown contact",
-      "atNode": "at {node}",
-      "started": "Started {time}",
-      "reprompts": "{count} re-prompts",
-      "ranFor": "ran for {duration}",
-      "capturedVars": "Captured vars ({count})",
-      "noEvents": "No events recorded for this run.",
-      "statusActive": "Active",
-      "statusCompleted": "Completed",
-      "statusHandedOff": "Handed off",
-      "statusTimedOut": "Timed out",
-      "statusPaused": "Paused by agent",
-      "statusFailed": "Failed"
-    },
-    "builder": {
-      "triggerTitle": "Trigger",
-      "whenLabel": "When…",
-      "triggerKeywordTitle": "A message contains a keyword",
-      "triggerFirstInboundTitle": "Customer's first ever inbound message",
-      "triggerManualTitle": "Manual only (no auto-trigger)",
-      "keywordsLabel": "Keywords (comma-separated)",
-      "keywordsPlaceholder": "support, help, hi",
-      "entryNodeTitle": "Entry node:",
-      "entryNodePlaceholder": "Pick the first node…",
-      "nodesTitle": "Nodes ({count})",
-      "nodesEmpty": "Add a <strong>Start</strong> node, then a <strong>Send buttons</strong> node, then a <strong>Handoff</strong> — that's the welcome-menu shape from the brief.",
-      "addNode": "Add node",
-      "setAsEntry": "Set as entry",
-      "removeNode": "Remove node",
-      "showAdvanced": "Show advanced",
-      "hideAdvanced": "Hide advanced",
-      "nodeKeyLabel": "Node key (internal identifier — keep stable for analytics)",
-      "replyIdsHint": "Reply IDs for each option are shown inline above. They're returned by WhatsApp when a customer taps; you usually don't need to touch them.",
-      "badgeEntry": "Entry",
-      "noNodesYet": "No nodes yet.",
-      "deleteNode": "Delete node",
-      "canvasView": "Canvas",
-      "listView": "List",
-      "noNodeSelected": "No node selected",
-      "noNodeDesc": "Select a node on the canvas to edit its configuration.",
-      "form": {
-        "advancesTo": "Advances to",
-        "textToCustomer": "Text sent to the customer",
-        "promptToCustomer": "Prompt sent to the customer",
-        "varKeyLabel": "Variable key (stored in flow_runs.vars; alphanumeric + underscore)",
-        "varKeyPlaceholder": "e.g. name, email, company",
-        "varKeyHelp": "Interpolate in downstream prompts and handoff notes with",
-        "advanceAfterCapture": "After capturing, advance to",
-        "internalNote": "Internal note (for the agent picking up)",
-        "endNodeHelp": "Terminal node. When the runner reaches this node the run is marked complete. No config needed.",
-        "bodyText": "Body text",
-        "footerText": "Footer (optional, 60 chars)",
-        "buttonsHelp": "Buttons (1–3) — each one routes to a different next node",
-        "optionTitlePlaceholder": "Visible title (≤20 chars)",
-        "nextNodePlaceholder": "Next node…",
-        "addButton": "Add button",
-        "buttonLabel": "Tap-to-expand button label (≤20 chars)",
-        "rowsHelp": "Rows (1–10 total across all sections)",
-        "sectionTitlePlaceholder": "Section {count} title (optional)",
-        "rowTitlePlaceholder": "Row title (≤24)",
-        "addRow": "Add row",
-        "addSection": "Add section",
-        "ifLabel": "If",
-        "capturedVariable": "Captured variable",
-        "contactHasTag": "Contact has tag",
-        "contactField": "Contact field",
-        "varName": "var name",
-        "tagLabel": "Tag",
-        "fieldLabel": "Field",
-        "pickTag": "Pick a tag…",
-        "pickField": "Pick a field…",
-        "operatorLabel": "Operator",
-        "isPresent": "is present",
-        "isAbsent": "is absent",
-        "equals": "equals",
-        "contains": "contains",
-        "valueLabel": "Value",
-        "ifTrueAdvance": "If true → advance to",
-        "ifFalseAdvance": "If false → advance to",
-        "actionLabel": "Action",
-        "addTag": "Add tag",
-        "removeTag": "Remove tag",
-        "tagUuidPlaceholder": "Tag UUID",
-        "thenAdvanceTo": "Then advance to",
-        "mediaTypeLabel": "Media type",
-        "imageLabel": "Image (PNG, JPEG, WebP)",
-        "videoLabel": "Video (MP4, 3GP)",
-        "documentLabel": "Document (PDF, Word, Excel, PowerPoint, TXT)",
-        "fileLabel": "File",
-        "removeFile": "Remove file",
-        "uploading": "Uploading…",
-        "clickToUpload": "Click to upload (max 16 MB)",
-        "captionLabel": "Caption (optional, shown under the media)",
-        "filenameLabel": "Filename shown to the customer (documents only)",
-        "filenamePlaceholder": "invoice.pdf",
-        "advanceAfterSending": "After sending, advance to",
-        "pickNextNode": "Pick a next node…",
-        "none": "— None —"
-      },
-      "categories": {
-        "messaging": "Messaging",
-        "logic": "Logic & data",
-        "timing": "Timing",
-        "flow": "Flow control"
-      },
-      "nodes": {
-        "start": {
-          "label": "Start",
-          "blurb": "Entry point of the flow"
-        },
-        "send_message": {
-          "label": "Send message",
-          "blurb": "Sends a text message"
-        },
-        "send_buttons": {
-          "label": "Send buttons",
-          "blurb": "Sends quick-reply buttons"
-        },
-        "send_list": {
-          "label": "Send list",
-          "blurb": "Sends a tappable list of options"
-        },
-        "send_media": {
-          "label": "Send media",
-          "blurb": "Sends an image, video, or document"
-        },
-        "collect_input": {
-          "label": "Collect input",
-          "blurb": "Asks a question, saves the reply"
-        },
-        "condition": {
-          "label": "If / else",
-          "blurb": "Branches on a rule"
-        },
-        "set_tag": {
-          "label": "Tag contact",
-          "blurb": "Adds or removes a contact tag"
-        },
-        "wait": {
-          "label": "Wait",
-          "blurb": "Pauses — minutes / hours / days"
-        },
-        "randomizer": {
-          "label": "Randomizer",
-          "blurb": "Splits randomly 2–6 ways"
-        },
-        "handoff": {
-          "label": "Handoff to agent",
-          "blurb": "Hands the conversation to a human"
-        },
-        "end": {
-          "label": "End",
-          "blurb": "Ends the flow"
-        }
-      }
-    },
-    "validation": {
-      "noIssues": "No issues. Ready to activate.",
-      "summary": "{errorCount} {errorCount, plural, =1 {error} other {errors}}, {warningCount} {warningCount, plural, =1 {warning} other {warnings}}",
-      "jumpToNode": "Jump to node {key}"
-    },
-    "editorState": {
-      "saved": "Saved.",
-      "fixIssues": "Fix the issues below before activating.",
-      "statusActivated": "Flow activated.",
-      "statusArchived": "Archived.",
-      "statusDraft": "Saved as draft."
-    },
-    "summary": {
-      "options": "{count} {count, plural, =1 {option} other {options}}",
-      "optionsAcrossSections": "{rowCount} {rowCount, plural, =1 {option} other {options}} across {sectionCount} {sectionCount, plural, =1 {section} other {sections}}",
-      "noFile": "{label} (no file uploaded)",
-      "media": "Media",
-      "image": "Image",
-      "video": "Video",
-      "document": "Document",
-      "audio": "Audio",
-      "hasTag": "has tag {tag}",
-      "opContains": "contains",
-      "opExists": "exists",
-      "opMissing": "missing",
-      "modeAdd": "Add",
-      "modeRemove": "Remove",
-      "tagPicked": "{mode} tag {tag}…",
-      "tagNone": "{mode} tag (none picked)"
-    }
-  },
   "Settings": {
     "pageTitle": "Settings",
     "pageDesc": "Everything in one place — your account and your workspace. Pick a section to manage it.",
@@ -1376,7 +898,7 @@
       "tagsTitle": "Tags",
       "tagsDesc": "Colour-coded labels for grouping and filtering contacts.",
       "fieldsTitle": "Custom fields",
-      "fieldsDesc": "Extra contact fields (e.g. ZIP code, lead source). They appear on every contact and in the “Update Contact Field” automation action.",
+      "fieldsDesc": "Extra contact fields (e.g. ZIP code, lead source). They appear on every contact.",
       "adminRole": "Admin",
       "failedToLoadTags": "Failed to load tags",
       "nameRequired": "Tag name is required",
@@ -1424,13 +946,11 @@
       "deleteLocallyAria": "Delete template locally",
       "deleteMetaLocallyTitle": "Delete from Meta and locally",
       "deleteLocallyTitle": "Delete locally",
-
       "dialogEditTitle": "Edit Message Template",
       "dialogNewTitle": "New Message Template",
       "dialogEditDesc": "Save your changes to re-submit to Meta. Status will flip back to PENDING during review.",
       "dialogNewDesc": "Build a template and submit it to Meta for approval. Once approved, you can use it in broadcasts and the inbox.",
       "authWarning": "AUTHENTICATION templates have a fixed body + OTP button shape that needs a different builder. Create them in Meta WhatsApp Manager for now and use <bold>Sync from Meta</bold> to bring them in.",
-
       "templateName": "Template Name",
       "namePlaceholder": "e.g. order_confirmation",
       "nameFixed": "Name is fixed once a template exists on Meta — create a new template to change it.",
@@ -1439,7 +959,6 @@
       "language": "Language",
       "langFixed": "Language is fixed once a template exists on Meta.",
       "langHint": "Must match the exact code on Meta — <code>en_US</code> and <code>en</code> are distinct.",
-
       "header": "Header",
       "headerNone": "None",
       "headerText": "Text",
@@ -1449,7 +968,6 @@
       "headerTextPlaceholder": "Header text (max 60 chars, optional {{1}})",
       "headerSampleAria": "Sample value for header variable",
       "headerSamplePlaceholder": "Sample value for {{1}} (required for Meta review)",
-
       "uploadImage": "Upload image",
       "uploadHint": "JPEG or PNG, ≤5 MB",
       "mediaUrlPlaceholder": "https://… (or paste a public {format} link)",
@@ -1457,17 +975,14 @@
       "mediaHint": "Must be a publicly accessible HTTPS link. Meta fetches it once during review, so it needs to stay live for ~24 hrs.",
       "videoHint": " Recommended: MP4 / 3GPP, ≤16 MB, ≤60 seconds.",
       "documentHint": " Recommended: PDF, ≤100 MB.",
-
       "bodyText": "Body Text",
       "bodyPlaceholder": "Hello {{1}}, your order {{2}} is confirmed.",
       "bodyHint": "Use {{1}}, {{2}} for variables (must be contiguous starting at {{1}}).",
       "sampleValues": "Sample values (Meta uses these to review your template)",
       "sampleAria": "Sample value for body variable {var}",
       "samplePlaceholder": "Sample for {var}",
-
       "footer": "Footer (optional)",
       "footerPlaceholder": "Optional footer text (max 60 chars)",
-
       "buttons": "Buttons (optional)",
       "addButton": "Add Button",
       "buttonsLimit": "Up to {max} buttons. QUICK_REPLY buttons must come before URL / phone / copy-code buttons.",
@@ -1480,19 +995,16 @@
       "urlSamplePlaceholder": "Example value for {{1}} (required when URL has a variable)",
       "phonePlaceholder": "+15551234567",
       "codePlaceholder": "Example code (e.g. SUMMER20)",
-
       "cancel": "Cancel",
       "saving": "Saving…",
       "submitting": "Submitting…",
       "saveResubmit": "Save & Resubmit",
       "submitApproval": "Submit for Approval",
-
       "deleteDialogTitle": "Delete template?",
       "deleteMetaDesc": "\"{name}\" will be deleted from Meta and from ConvoxOS. Active broadcasts using this template will start failing on their next send. This can't be undone.",
       "deleteLocalDesc": "\"{name}\" will be deleted from ConvoxOS. It was never submitted to Meta, so no remote cleanup is needed.",
       "deleting": "Deleting…",
       "delete": "Delete",
-
       "toastLoadFailed": "Failed to load templates",
       "toastSubmitFailed": "Failed to submit",
       "toastSubmitEditSuccess": "Edit submitted — Meta typically reviews within 24 hours.",
@@ -1694,7 +1206,6 @@
       "profileSaved": "Profile saved",
       "emailChangeFailed": "Email change failed: {message}",
       "profileSavedEmailCheck": "Profile saved — check your email to confirm the address change",
-
       "passwordTitle": "Password",
       "passwordDesc": "Use at least {min} characters. You will stay signed in on this device after changing it.",
       "currentPassword": "Current password",
@@ -1708,7 +1219,6 @@
       "currentPasswordIncorrect": "Current password is incorrect",
       "passwordUpdateFailed": "Password update failed: {message}",
       "passwordUpdated": "Password updated",
-
       "sessionsTitle": "Active sessions",
       "sessionsDesc": "Sign out of every device where you're logged in — including this one. Useful if you lost a laptop or shared your password.",
       "signOutAll": "Sign out of all devices",

@@ -22,7 +22,6 @@ import {
   Users,
   UsersRound,
   X,
-  Zap,
 } from "lucide-react";
 import type { Route } from "next";
 import type { AccountRole } from "@/lib/auth/roles";
@@ -79,7 +78,7 @@ interface NavItem {
    * Purely informational — doesn't affect routing or access.
    */
   beta?: boolean;
-  /** Optional tooltip to clarify Flows vs Automations distinction. */
+  /** Optional tooltip clarifying what the destination contains. */
   description?: string;
 }
 
@@ -90,12 +89,10 @@ const navItems: NavItem[] = [
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
-  { href: "/automations", labelKey: "automations", icon: Zap, description: "Automations — triggers → actions, branching, waits" },
+  // NOTE: the old Automations/Flows nav entry was retired with the
+  // automation engine. It returns as Automations v2 (clean rebuild).
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
-
-// Legacy route — kept for compatibility redirects; no longer shown in primary nav.
-// Flows are now accessed via /automations (307 redirects handle bookmarks).
 
 const bottomNavItems: NavItem[] = [
   { href: "/settings" as Route, labelKey: "settings", icon: Settings },

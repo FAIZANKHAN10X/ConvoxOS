@@ -52,7 +52,6 @@ export type ActivityKind =
   | 'message'
   | 'deal'
   | 'broadcast'
-  | 'automation'
   | 'contact'
 
 import type { Route } from 'next'
