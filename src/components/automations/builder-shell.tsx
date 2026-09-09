@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ReactFlowProvider } from '@xyflow/react';
 import {
   ArrowLeft,
+  Eye,
   History,
   Loader2,
   MoreHorizontal,
@@ -27,6 +28,7 @@ import { useCan } from '@/hooks/use-can';
 
 import { FlowCanvas } from './flow-canvas';
 import { HistoryPanel } from './history-panel';
+import { PreviewPanel } from './preview-panel';
 
 interface BuilderShellProps {
   initial: Automation;
@@ -43,7 +45,9 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   );
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
-  const [view, setView] = useState<'builder' | 'history'>('builder');
+  const [view, setView] = useState<'builder' | 'history' | 'preview'>(
+    'builder'
+  );
 
   const undo = useRef<AutomationGraph[]>([]);
   const redo = useRef<AutomationGraph[]>([]);
@@ -205,14 +209,32 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
               {automation.status === 'disabled' ? 'Turn on' : 'Turn off'}
             </Button>
           )}
+          {automation.status === 'published' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Live
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-200"
+            onClick={() =>
+              setView(view === 'preview' ? 'builder' : 'preview')
+            }
+            aria-label="Preview"
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </Button>
           <Button
             size="sm"
-            className="bg-[#16a34a] px-4 text-white hover:bg-[#15803d]"
+            className="bg-[#2f6fed] px-4 text-white hover:bg-[#2559c4]"
             onClick={() => void publish()}
             disabled={!canEdit || publishing}
           >
             {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
-            Set Live
+            {automation.status === 'published' ? 'Update' : 'Set Live'}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
@@ -223,7 +245,7 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
                 <History className="h-4 w-4" />
                 Run history
               </DropdownMenuItem>
-              {view === 'history' && (
+              {(view === 'history' || view === 'preview') && (
                 <DropdownMenuItem onClick={() => setView('builder')}>
                   Back to builder
                 </DropdownMenuItem>
@@ -238,12 +260,12 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
         </p>
       )}
       {view === 'history' ? (
-        <div className="flex-1 overflow-y-auto bg-[#e8edf3]">
+        <div className="flex-1 overflow-y-auto bg-[#f7f9fc]">
           <HistoryPanel automationId={automation.id} />
         </div>
       ) : (
         <>
-          <div className="hidden min-h-0 flex-1 lg:block">
+          <div className="relative hidden min-h-0 flex-1 lg:block">
             <ReactFlowProvider>
               <FlowCanvas
                 graph={graph}
@@ -252,6 +274,13 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
                 onChange={changeGraph}
               />
             </ReactFlowProvider>
+            {view === 'preview' && (
+              <PreviewPanel
+                graph={graph}
+                catalog={catalog}
+                onClose={() => setView('builder')}
+              />
+            )}
           </div>
           <div className="flex flex-1 items-center justify-center bg-[#e8edf3] p-6 lg:hidden">
             <p className="max-w-sm text-center text-sm text-slate-500">

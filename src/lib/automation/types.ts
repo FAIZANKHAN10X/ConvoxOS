@@ -207,6 +207,13 @@ export interface NodeDefinition<TConfig = unknown> {
    */
   ports?: NodePorts;
   summarize?(config: TConfig): string;
+  /**
+   * Presentation hint for the builder. Serialized into the catalog so
+   * the canvas can render richer previews without node-type switches
+   * in UI code. Currently supported: `preview: 'message'` renders the
+   * node's `text` config as a chat bubble. Omit for default rendering.
+   */
+  preview?: 'message';
   validate?(config: TConfig, graph: AutomationGraph): string[];
   match?(event: DomainEvent, config: TConfig): boolean;
   execute?(

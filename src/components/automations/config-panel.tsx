@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { X } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
@@ -15,9 +15,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { createClient } from '@/lib/supabase/client';
 
 import { CATEGORY_ACCENT, CATEGORY_ICON } from './kind-theme';
+import { useTagNames } from './use-tags';
 
 interface ConfigPanelProps {
   catalog: CatalogNode | undefined;
@@ -40,19 +40,11 @@ export function ConfigPanel({
     () => (catalog ? fieldsFromJsonSchema(catalog.jsonSchema) : []),
     [catalog]
   );
-  const [tags, setTags] = useState<Array<{ id: string; name: string }>>([]);
-
-  useEffect(() => {
-    if (!fields.some((field) => field.type === 'tag')) return;
-    const supabase = createClient();
-    void supabase
-      .from('tags')
-      .select('id, name')
-      .order('name')
-      .then(({ data }) => {
-        setTags((data as Array<{ id: string; name: string }>) ?? []);
-      });
-  }, [fields]);
+  const tagNames = useTagNames();
+  const tags = useMemo(
+    () => Object.entries(tagNames).map(([id, name]) => ({ id, name })),
+    [tagNames]
+  );
 
   if (!catalog) {
     return (

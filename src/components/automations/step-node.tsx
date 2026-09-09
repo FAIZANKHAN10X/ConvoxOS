@@ -1,13 +1,15 @@
 'use client';
 
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Copy, Plus, Trash2 } from 'lucide-react';
+import { Copy, Plus, Trash2, Zap } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
 import { cn } from '@/lib/utils';
 
 import type { StepNodeData } from './graph-map';
-import { CATEGORY_ACCENT, CATEGORY_ICON } from './kind-theme';
+import { CATEGORY_BADGE, CATEGORY_BAND, CATEGORY_ICON } from './kind-theme';
+
+const MANYCHAT_BLUE = '#2f6fed';
 
 export function StepNode({
   id,
@@ -18,6 +20,7 @@ export function StepNode({
     catalog?: CatalogNode;
     errors?: string[];
     readOnly?: boolean;
+    tagNames?: Record<string, string>;
     onAddAfter?: (nodeId: string, handle?: string) => void;
     onDuplicate?: (nodeId: string) => void;
     onDelete?: (nodeId: string) => void;
@@ -32,37 +35,35 @@ export function StepNode({
   ];
   const branched = outgoing.length > 1;
   const errors = data.errors ?? [];
-  const summary = summarize(catalog, data.config);
-  const accent = catalog ? CATEGORY_ACCENT[catalog.category] : '#2f6fed';
+  const summary = summarize(catalog, data.config, data.tagNames);
   const unconfigured = !summary && errors.length > 0;
 
   if (isTrigger) {
     return (
       <div
         className={cn(
-          'group relative w-[280px] rounded-[22px] px-5 py-4 text-white shadow-[0_10px_28px_rgba(31,41,55,0.18)]',
-          selected &&
-            'ring-2 ring-[#2f6fed] ring-offset-2 ring-offset-[#e8edf3]',
-          unconfigured && !selected && 'ring-2 ring-amber-400'
+          'group relative w-[280px] rounded-[18px] border bg-white px-5 py-4 shadow-[0_8px_24px_rgba(31,41,55,0.10)]',
+          selected
+            ? 'border-transparent ring-2 ring-[#22c55e]'
+            : 'border-slate-200',
+          unconfigured && !selected && 'border-dashed border-amber-400'
         )}
-        style={{ background: CATEGORY_ACCENT.trigger }}
       >
-        <p className="text-[10px] font-semibold tracking-[0.16em] text-white/55 uppercase">
-          Starting Step
+        <p className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-800">
+          <Zap className="h-3.5 w-3.5 text-[#16a34a]" />
+          When…
         </p>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/12">
-            <Icon className="h-4 w-4" />
+        <p className="mt-1 truncate text-[15px] font-semibold text-slate-900">
+          {catalog?.label ?? 'Trigger'}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-slate-500">
+          {summary || 'Click to add a trigger.'}
+        </p>
+        {!summary && (
+          <span className="mt-2.5 block rounded-lg border border-dashed border-[#2f6fed]/50 px-3 py-1.5 text-center text-[13px] font-semibold text-[#2f6fed]">
+            + New Trigger
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold">
-              {catalog?.label ?? 'Trigger'}
-            </p>
-            <p className="truncate text-xs text-white/65">
-              {summary || (errors[0] ?? 'Configure this trigger')}
-            </p>
-          </div>
-        </div>
+        )}
         {outgoing.map((handle, index) => (
           <Handle
             key={handle.id}
@@ -80,7 +81,7 @@ export function StepNode({
         {!data.readOnly && (
           <button
             type="button"
-            className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[#3a4150] shadow-md"
+            className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
             onClick={(event) => {
               event.stopPropagation();
               data.onAddAfter?.(id, outgoing[0]?.id);
@@ -94,12 +95,21 @@ export function StepNode({
     );
   }
 
+  const band = catalog ? CATEGORY_BAND[catalog.category] : '#ffffff';
+  const badge = catalog ? CATEGORY_BADGE[catalog.category] : MANYCHAT_BLUE;
+  const previewMessage =
+    catalog?.preview === 'message' &&
+    typeof data.config.text === 'string' &&
+    data.config.text.trim()
+      ? data.config.text.trim()
+      : null;
+
   return (
     <div
       className={cn(
-        'group relative w-[280px] rounded-[18px] bg-white shadow-[0_8px_24px_rgba(31,41,55,0.08)]',
-        selected && 'ring-2 ring-[#2f6fed]',
-        errors.length > 0 && !selected && 'ring-2 ring-red-400'
+        'group relative w-[280px] overflow-hidden rounded-[18px] border bg-white shadow-[0_8px_24px_rgba(31,41,55,0.10)]',
+        selected ? 'border-transparent ring-2 ring-[#22c55e]' : 'border-slate-200',
+        errors.length > 0 && !selected && 'border-red-300'
       )}
     >
       {catalog?.ports.incoming !== false && (
@@ -110,10 +120,10 @@ export function StepNode({
         />
       )}
       {!data.readOnly && (
-        <div className="absolute -top-3 right-3 z-10 hidden gap-1 group-hover:flex">
+        <div className="absolute top-2 right-2 z-10 hidden gap-1 group-hover:flex">
           <button
             type="button"
-            className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm"
+            className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-md"
             onClick={(event) => {
               event.stopPropagation();
               data.onDuplicate?.(id);
@@ -124,7 +134,7 @@ export function StepNode({
           </button>
           <button
             type="button"
-            className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-500 shadow-sm"
+            className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-500 shadow-md"
             onClick={(event) => {
               event.stopPropagation();
               data.onDelete?.(id);
@@ -135,26 +145,46 @@ export function StepNode({
           </button>
         </div>
       )}
-      <div className="flex items-start gap-3 px-4 pt-3.5 pb-3">
+      <div
+        className="flex items-center gap-2.5 px-4 pt-3 pb-2.5"
+        style={{ background: band }}
+      >
         <span
-          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{ background: accent }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white"
+          style={{ background: badge }}
         >
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-slate-800">
+          <p className="truncate text-[15px] font-semibold text-slate-900">
             {catalog?.label ?? data.nodeType}
           </p>
+          {band === '#ffffff' && (
+            <p className="truncate text-[11px] font-medium tracking-wide text-slate-400 uppercase">
+              {catalog?.category === 'communication'
+                ? 'Message'
+                : (catalog?.category ?? 'Step')}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="px-4 pt-2.5 pb-3">
+        {previewMessage ? (
+          <div className="rounded-xl rounded-tl-sm bg-slate-100 px-3 py-2">
+            <p className="line-clamp-4 text-[13px] leading-snug text-slate-700">
+              {previewMessage}
+            </p>
+          </div>
+        ) : (
           <p
             className={cn(
-              'mt-0.5 line-clamp-3 text-[13px] leading-snug',
+              'line-clamp-3 text-[13px] leading-snug',
               errors.length > 0 && !summary ? 'text-red-500' : 'text-slate-500'
             )}
           >
-            {summary || errors[0] || 'Click to configure'}
+            {summary || errors[0] || placeholderFor(catalog?.kind)}
           </p>
-        </div>
+        )}
       </div>
       {branched ? (
         <div className="relative px-6 pb-3">
@@ -174,7 +204,7 @@ export function StepNode({
               }}
               className={cn(
                 '!h-3 !w-3 !border-2 !border-white',
-                handle.id === 'true' ? '!bg-emerald-500' : '!bg-rose-500'
+                handle.id === 'true' ? '!bg-[#22c55e]' : '!bg-[#ef4444]'
               )}
             />
           ))}
@@ -183,7 +213,7 @@ export function StepNode({
               <button
                 key={`add-${handle.id}`}
                 type="button"
-                className="nodrag nopan absolute -bottom-3 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-md"
+                className="nodrag nopan absolute -bottom-3 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
                 style={{
                   left: `${((index + 1) / (outgoing.length + 1)) * 100}%`,
                 }}
@@ -208,7 +238,7 @@ export function StepNode({
           {!data.readOnly && (
             <button
               type="button"
-              className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-md"
+              className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
               onClick={(event) => {
                 event.stopPropagation();
                 data.onAddAfter?.(id, outgoing[0]?.id);
@@ -224,10 +254,33 @@ export function StepNode({
   );
 }
 
+function placeholderFor(kind: string | undefined): string {
+  switch (kind) {
+    case 'trigger':
+      return 'Choose a trigger to start';
+    case 'condition':
+      return 'Click to add a condition';
+    case 'wait':
+      return 'Set a delay';
+    default:
+      return 'Click to configure';
+  }
+}
+
+/**
+ * Human-readable one-line summary. Tag ids resolve through the shared
+ * tag-name lookup so database UUIDs never reach the canvas.
+ */
 function summarize(
   catalog: CatalogNode | undefined,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  tagNames?: Record<string, string>
 ): string {
+  const tagId = config.tagId;
+  if (typeof tagId === 'string' && tagId) {
+    const name = tagNames?.[tagId];
+    if (name) return name;
+  }
   const keywords = config.keywords;
   if (Array.isArray(keywords) && keywords.length > 0) {
     const matchType =
@@ -244,6 +297,9 @@ function summarize(
   const unit = config.unit;
   if (typeof amount === 'number' && typeof unit === 'string') {
     return `Wait ${amount} ${unit}`;
+  }
+  if (typeof tagId === 'string' && tagId) {
+    return 'Choose a tag';
   }
   const predicate = config.predicate ?? config.subject;
   if (typeof predicate === 'string' && predicate) {

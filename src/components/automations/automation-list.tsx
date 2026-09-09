@@ -259,12 +259,12 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
           <DialogHeader>
             <DialogTitle>New Automation</DialogTitle>
             <DialogDescription>
-              Start from a blank canvas. The first step is a trigger — then add
-              messages, actions, conditions, and waits.
+              Start from a blank canvas. The first step is a trigger — then
+              add messages, actions, conditions, and waits.
             </DialogDescription>
           </DialogHeader>
           <Button
-            className="h-auto justify-start gap-3 bg-[#3a4150] py-4 text-left text-white hover:bg-[#2c3340]"
+            className="h-auto justify-start gap-3 bg-[#2f6fed] py-4 text-left text-white hover:bg-[#2559c4]"
             onClick={() => void create()}
             disabled={creating}
           >
@@ -280,6 +280,15 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
               </span>
             </span>
           </Button>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-700">
+              Start from a template
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Ready-made flows (welcome series, abandoned chat, lead follow-up)
+              are coming soon. Templates will install as editable copies.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

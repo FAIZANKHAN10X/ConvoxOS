@@ -18,7 +18,7 @@ export function InsertEdge({
   targetPosition,
   data,
 }: EdgeProps & {
-  data?: { onInsert?: (edgeId: string) => void };
+  data?: { onInsert?: (edgeId: string) => void; sourceHandle?: string | null };
 }) {
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -28,13 +28,22 @@ export function InsertEdge({
     sourcePosition,
     targetPosition,
   });
+  // Branch paths follow the declared port: Yes → green, No → red,
+  // everything else ManyChat gray. Driven by the edge's source handle,
+  // never by node type.
+  const stroke =
+    data?.sourceHandle === 'true'
+      ? '#22c55e'
+      : data?.sourceHandle === 'false'
+        ? '#ef4444'
+        : '#b7c0cc';
 
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
-        style={{ stroke: '#b7c0cc', strokeWidth: 2 }}
+        style={{ stroke, strokeWidth: 2 }}
       />
       <EdgeLabelRenderer>
         <button

@@ -11,6 +11,7 @@ export interface CatalogNode {
   description: string;
   category: NodeCategory;
   jsonSchema: Record<string, unknown>;
+  preview?: 'message';
   ports: {
     incoming: boolean;
     outgoing: NodeHandleSpec[];
@@ -25,6 +26,7 @@ export function catalogFromRegistry(registry: NodeRegistry): CatalogNode[] {
     description: def.description,
     category: def.category,
     ports: resolvePorts(def),
+    preview: def.preview,
     jsonSchema: zodToJsonSchema(def.configSchema, {
       target: 'openApi3',
       $refStrategy: 'none',

@@ -34,11 +34,19 @@ export function NodePicker({
         node.category.toLowerCase().includes(q)
       );
     });
+    // Fixed section order keeps the picker stable as nodes are added:
+    // triggers first when the canvas has none (trigger-first creation),
+    // then message content, CRM actions, branching logic, timing.
+    const order: CatalogNode['category'][] = allowTriggers
+      ? ['trigger', 'communication', 'crm', 'logic', 'timing']
+      : ['communication', 'crm', 'logic', 'timing', 'trigger'];
     const map = new Map<CatalogNode['category'], CatalogNode[]>();
+    for (const category of order) map.set(category, []);
     for (const node of filtered) {
-      const bucket = map.get(node.category) ?? [];
-      bucket.push(node);
-      map.set(node.category, bucket);
+      map.get(node.category)?.push(node);
+    }
+    for (const [category, nodes] of [...map.entries()]) {
+      if (nodes.length === 0) map.delete(category);
     }
     return map;
   }, [allowTriggers, catalog, query]);
@@ -46,9 +54,13 @@ export function NodePicker({
   return (
     <div className="flex w-[340px] flex-col gap-3">
       <div>
-        <p className="text-[15px] font-semibold text-slate-800">Add a step</p>
+        <p className="text-[15px] font-semibold text-slate-800">
+          {allowTriggers ? 'Choose how it starts' : 'Add a step'}
+        </p>
         <p className="text-xs text-slate-500">
-          Search or pick a block for this automation.
+          {allowTriggers
+            ? 'Pick a trigger — every automation starts with one.'
+            : 'Search or pick a block for this automation.'}
         </p>
       </div>
       <div className="relative">

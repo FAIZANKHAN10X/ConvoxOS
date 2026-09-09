@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Background,
   Controls,
-  MiniMap,
   ReactFlow,
   addEdge,
   applyEdgeChanges,
@@ -43,6 +41,7 @@ import {
 import { InsertEdge } from './insert-edge';
 import { NodePicker } from './node-picker';
 import { StepNode } from './step-node';
+import { useTagNames } from './use-tags';
 
 const nodeTypes = { [STEP_NODE]: StepNode };
 const edgeTypes = { [INSERT_EDGE]: InsertEdge };
@@ -88,6 +87,7 @@ export function FlowCanvas({
   onChange,
 }: FlowCanvasProps) {
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const tagNames = useTagNames();
   const catalogRef = useRef(catalog);
   catalogRef.current = catalog;
   const catalogMap = useMemo(
@@ -188,6 +188,7 @@ export function FlowCanvas({
             catalog: catalogByType.get(node.data.nodeType),
             errors: nextIssues.get(node.id) ?? [],
             readOnly,
+            tagNames,
             onAddAfter: readOnly ? undefined : placeAfter,
             onDuplicate: readOnly ? undefined : duplicateNode,
             onDelete: readOnly ? undefined : deleteNode,
@@ -198,6 +199,7 @@ export function FlowCanvas({
         toFlowEdges(graph).map((edge) => ({
           ...edge,
           data: {
+            sourceHandle: edge.sourceHandle,
             onInsert: readOnly ? undefined : insertOnEdge,
           },
         }))
@@ -213,7 +215,12 @@ export function FlowCanvas({
         const sameErrors =
           errors.length === prevErrors.length &&
           errors.every((error, index) => error === prevErrors[index]);
-        if (sameErrors && node.data.readOnly === readOnly) return node;
+        if (
+          sameErrors &&
+          node.data.readOnly === readOnly &&
+          node.data.tagNames === tagNames
+        )
+          return node;
         changed = true;
         return {
           ...node,
@@ -221,6 +228,7 @@ export function FlowCanvas({
             ...node.data,
             errors,
             readOnly,
+            tagNames,
             catalog: catalogByType.get(node.data.nodeType),
             onAddAfter: readOnly ? undefined : placeAfter,
             onDuplicate: readOnly ? undefined : duplicateNode,
@@ -232,7 +240,7 @@ export function FlowCanvas({
     });
     // selectedId is patched separately so clicks do not rebuild the graph.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, readOnly, placeAfter, duplicateNode, deleteNode, insertOnEdge]);
+  }, [graph, readOnly, tagNames, placeAfter, duplicateNode, deleteNode, insertOnEdge]);
 
   useEffect(() => {
     setNodes((current) => {
@@ -394,7 +402,7 @@ export function FlowCanvas({
   }
 
   return (
-    <div className="relative h-full min-h-[420px] w-full bg-[#e8edf3]">
+    <div className="relative h-full min-h-[420px] w-full bg-[#f7f9fc]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -413,31 +421,23 @@ export function FlowCanvas({
           setPicker({ mode: 'free', position });
         }}
         deleteKeyCode={readOnly ? noKeys : deleteKeys}
-        className="bg-[#e8edf3]"
+        className="bg-[#f7f9fc]"
         defaultEdgeOptions={defaultEdgeOptions}
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Shift"
         panOnDrag
+        minZoom={0.4}
+        maxZoom={1.5}
       >
-        <Background gap={22} size={1} color="#c5ced8" />
-        <MiniMap
-          pannable
-          zoomable
-          className="!border-slate-200 !bg-white/90"
-          maskColor="rgb(58 65 80 / 12%)"
-        />
         <Controls
           showInteractive={!readOnly}
-          className="!border-slate-200 !bg-white !shadow-sm"
+          position="bottom-right"
+          className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
         />
       </ReactFlow>
 
       {!readOnly && (
-        <div
-          className={`absolute top-4 z-20 flex flex-col gap-2 ${
-            selected ? 'right-[400px]' : 'right-4'
-          }`}
-        >
+        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
           <Popover
             open={picker !== null}
             onOpenChange={(open) => {
@@ -445,7 +445,7 @@ export function FlowCanvas({
             }}
           >
             <PopoverTrigger
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#3a4150] text-white shadow-lg"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
               onClick={() =>
                 setPicker(
                   selectedId
@@ -473,7 +473,7 @@ export function FlowCanvas({
       )}
 
       {selected && (
-        <aside className="absolute inset-y-0 right-0 z-30 w-[min(100%,380px)] border-l border-slate-200 bg-white shadow-[-12px_0_32px_rgba(31,41,55,0.08)]">
+        <aside className="absolute inset-y-0 left-0 z-30 w-[min(100%,380px)] border-r border-slate-200 bg-white shadow-[12px_0_32px_rgba(31,41,55,0.08)]">
           <ConfigPanel
             catalog={selectedCatalog}
             config={selected.data.config}

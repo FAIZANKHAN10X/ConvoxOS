@@ -18,6 +18,7 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
   description: 'Send a text message on the contact conversation',
   category: 'communication',
   configSchema: sendTextConfig,
+  preview: 'message',
   summarize(config) {
     const text = config.text.trim();
     return text.length > 72 ? `${text.slice(0, 72)}…` : text;
