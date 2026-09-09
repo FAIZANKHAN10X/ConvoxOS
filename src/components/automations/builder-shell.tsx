@@ -49,7 +49,9 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   const redo = useRef<AutomationGraph[]>([]);
   const skipSave = useRef(true);
   const graphRef = useRef(graph);
-  graphRef.current = graph;
+  useEffect(() => {
+    graphRef.current = graph;
+  }, [graph]);
 
   const persist = useCallback(
     async (nextName: string, nextGraph: AutomationGraph) => {

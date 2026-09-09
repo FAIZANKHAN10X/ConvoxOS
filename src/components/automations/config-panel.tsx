@@ -100,7 +100,54 @@ export function ConfigPanel({
           </ul>
         )}
         {fields.map((field) => {
+          if (field.name === 'subject') return null;
           const value = config[field.name] ?? field.defaultValue ?? '';
+          if (field.type === 'stringList') {
+            const list = Array.isArray(value)
+              ? (value as string[]).join('\n')
+              : typeof value === 'string'
+                ? value
+                : '';
+            return (
+              <div key={field.name} className="space-y-1.5">
+                <Label className="text-slate-600">{field.label}</Label>
+                <Textarea
+                  rows={4}
+                  value={list}
+                  disabled={readOnly}
+                  className="border-slate-200 font-mono text-[13px]"
+                  placeholder="One keyword per line"
+                  onChange={(event) =>
+                    onChange({
+                      ...config,
+                      [field.name]: event.target.value
+                        .split('\n')
+                        .map((line) => line.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                />
+              </div>
+            );
+          }
+          if (field.type === 'boolean') {
+            return (
+              <label
+                key={field.name}
+                className="flex items-center gap-2 text-sm text-slate-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    onChange({ ...config, [field.name]: event.target.checked })
+                  }
+                />
+                {field.label}
+              </label>
+            );
+          }
           if (field.type === 'tag') {
             return (
               <div key={field.name} className="space-y-1.5">

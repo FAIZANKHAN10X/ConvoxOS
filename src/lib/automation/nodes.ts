@@ -6,7 +6,12 @@ export {
   addTagAction,
   builtinNodes,
   conditionNode,
+  contactCreatedTrigger,
+  keywordTrigger,
+  messageReceivedTrigger,
+  removeTagAction,
   sendTextAction,
   tagAddedTrigger,
+  tagRemovedTrigger,
   waitNode,
 } from './nodes/index';

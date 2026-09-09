@@ -16,6 +16,16 @@ export type DomainEventSource = 'crm' | 'automation';
 
 export type NodeKind = 'trigger' | 'action' | 'condition' | 'wait';
 
+export interface NodeHandleSpec {
+  id: string;
+  label: string;
+}
+
+export interface NodePorts {
+  incoming: boolean;
+  outgoing: NodeHandleSpec[];
+}
+
 export type NodeCategory =
   'trigger' | 'communication' | 'crm' | 'logic' | 'timing';
 
@@ -190,6 +200,13 @@ export interface NodeDefinition<TConfig = unknown> {
   description: string;
   category: NodeCategory;
   configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
+  /**
+   * Connector contract. Defaults from kind when omitted: triggers have
+   * no inbound and one Next; conditions have Yes/No; everything else
+   * has one inbound and one Next.
+   */
+  ports?: NodePorts;
+  summarize?(config: TConfig): string;
   validate?(config: TConfig, graph: AutomationGraph): string[];
   match?(event: DomainEvent, config: TConfig): boolean;
   execute?(

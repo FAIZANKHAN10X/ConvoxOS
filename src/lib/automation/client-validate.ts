@@ -40,14 +40,23 @@ export function validateDraftGraph(
         });
       }
     }
-    if (def.kind === 'condition') {
+    const requireAll = def.kind === 'condition' || def.kind === 'trigger';
+    if (requireAll && def.ports.outgoing.length > 0) {
       const outs = graph.edges.filter((e) => e.source === node.id);
-      const handles = new Set(outs.map((e) => e.sourceHandle ?? 'default'));
-      if (!handles.has('true') || !handles.has('false')) {
-        issues.push({
-          path: `nodes.${node.id}`,
-          message: 'Connect both Yes and No paths',
+      for (const handle of def.ports.outgoing) {
+        const match = outs.some((edge) => {
+          const id = edge.sourceHandle ?? 'default';
+          if (handle.id === 'default') {
+            return id === 'default' || id === 'next' || !edge.sourceHandle;
+          }
+          return id === handle.id;
         });
+        if (!match) {
+          issues.push({
+            path: `nodes.${node.id}`,
+            message: `Connect the ${handle.label} path`,
+          });
+        }
       }
     }
   }

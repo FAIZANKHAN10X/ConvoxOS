@@ -1,18 +1,15 @@
 import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { dispatchText } from '@/lib/channels/socket';
+import { ChannelSocketError, dispatchText } from '@/lib/channels/socket';
 
-import type { ExecutionContext, NodeDefinition } from '../types';
+import { NodeExecutionError } from '../types';
+import type { NodeDefinition } from '../types';
+import { asDb } from './db';
 
 const sendTextConfig = z.object({
   text: z.string().min(1),
   channel: z.enum(['current', 'whatsapp', 'telegram']).default('current'),
 });
-
-function asDb(ctx: ExecutionContext): SupabaseClient {
-  return ctx.db as SupabaseClient;
-}
 
 export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
   type: 'action.send_text',
@@ -21,6 +18,10 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
   description: 'Send a text message on the contact conversation',
   category: 'communication',
   configSchema: sendTextConfig,
+  summarize(config) {
+    const text = config.text.trim();
+    return text.length > 72 ? `${text.slice(0, 72)}…` : text;
+  },
   async execute(ctx, config) {
     const db = asDb(ctx);
     const { data: conv, error } = await db
@@ -48,21 +49,27 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
       if (last === 'telegram' || last === 'whatsapp') channel = last;
     }
 
-    const sent = await dispatchText({
-      db,
-      accountId: ctx.accountId,
-      conversationId: conv.id as string,
-      channel,
-      text: config.text,
-    });
-
-    return {
-      status: 'ok',
-      output: {
-        messageId: sent.messageId,
-        providerMessageId: sent.providerMessageId,
+    try {
+      const sent = await dispatchText({
+        db,
+        accountId: ctx.accountId,
+        conversationId: conv.id as string,
         channel,
-      },
-    };
+        text: config.text,
+      });
+      return {
+        status: 'ok',
+        output: {
+          messageId: sent.messageId,
+          providerMessageId: sent.providerMessageId,
+          channel,
+        },
+      };
+    } catch (error) {
+      if (error instanceof ChannelSocketError) {
+        throw new NodeExecutionError(error.message, true);
+      }
+      throw error;
+    }
   },
 };

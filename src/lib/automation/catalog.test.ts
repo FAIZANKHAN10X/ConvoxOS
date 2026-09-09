@@ -12,12 +12,18 @@ describe('automation catalog', () => {
     expect(types).toEqual(
       [
         'action.add_tag',
+        'action.remove_tag',
         'action.send_text',
         'logic.condition',
         'timing.wait',
+        'trigger.contact_created',
+        'trigger.keyword',
+        'trigger.message_received',
         'trigger.tag_added',
+        'trigger.tag_removed',
       ].sort()
     );
+    expect(catalog.every((node) => node.ports.outgoing.length >= 1)).toBe(true);
   });
 
   it('discovers builtins from the nodes/ folder without an engine switch', () => {
@@ -36,8 +42,11 @@ describe('automation catalog', () => {
       category: 'crm',
       configSchema: defaultRegistry.require('action.add_tag').configSchema,
     });
-    expect(catalogFromRegistry(registry).map((n) => n.type)).toEqual([
-      'action.create_deal',
+    const created = catalogFromRegistry(registry)[0];
+    expect(created?.type).toBe('action.create_deal');
+    expect(created?.ports.incoming).toBe(true);
+    expect(created?.ports.outgoing.map((handle) => handle.id)).toEqual([
+      'default',
     ]);
   });
 });
@@ -48,5 +57,12 @@ describe('schema fields', () => {
     const trigger = catalog.find((n) => n.type === 'trigger.tag_added');
     const fields = fieldsFromJsonSchema(trigger?.jsonSchema);
     expect(fields.some((field) => field.type === 'tag')).toBe(true);
+  });
+
+  it('maps keyword lists to a stringList field without a node-type switch', () => {
+    const catalog = catalogFromRegistry(defaultRegistry);
+    const keyword = catalog.find((n) => n.type === 'trigger.keyword');
+    const fields = fieldsFromJsonSchema(keyword?.jsonSchema);
+    expect(fields.some((field) => field.type === 'stringList')).toBe(true);
   });
 });

@@ -14,6 +14,9 @@ export const tagAddedTrigger: NodeDefinition<z.infer<typeof tagAddedConfig>> = {
   description: 'Starts when a tag is added to a contact',
   category: 'trigger',
   configSchema: tagAddedConfig,
+  summarize() {
+    return 'When a tag is added';
+  },
   match(event: DomainEvent, config) {
     if (event.eventType !== DOMAIN_EVENT.TAG_ADDED) return false;
     const tagId = event.payload.tag_id;

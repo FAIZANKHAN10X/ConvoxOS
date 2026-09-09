@@ -1,7 +1,8 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
+import { resolvePorts } from './ports';
 import type { NodeRegistry } from './registry';
-import type { NodeCategory, NodeKind } from './types';
+import type { NodeCategory, NodeHandleSpec, NodeKind } from './types';
 
 export interface CatalogNode {
   type: string;
@@ -10,6 +11,10 @@ export interface CatalogNode {
   description: string;
   category: NodeCategory;
   jsonSchema: Record<string, unknown>;
+  ports: {
+    incoming: boolean;
+    outgoing: NodeHandleSpec[];
+  };
 }
 
 export function catalogFromRegistry(registry: NodeRegistry): CatalogNode[] {
@@ -19,6 +24,7 @@ export function catalogFromRegistry(registry: NodeRegistry): CatalogNode[] {
     label: def.label,
     description: def.description,
     category: def.category,
+    ports: resolvePorts(def),
     jsonSchema: zodToJsonSchema(def.configSchema, {
       target: 'openApi3',
       $refStrategy: 'none',

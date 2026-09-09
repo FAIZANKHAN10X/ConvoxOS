@@ -1,7 +1,7 @@
 export interface SchemaField {
   name: string;
   label: string;
-  type: 'string' | 'number' | 'enum' | 'boolean' | 'tag';
+  type: 'string' | 'number' | 'enum' | 'boolean' | 'tag' | 'stringList';
   enumValues?: string[];
   required: boolean;
   defaultValue?: unknown;
@@ -82,6 +82,17 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
     }
 
     const jsonType = Array.isArray(prop.type) ? prop.type[0] : prop.type;
+    const items = (raw as { items?: { type?: string } }).items;
+    if (jsonType === 'array' && items?.type === 'string') {
+      fields.push({
+        name,
+        label: titleCase(name),
+        type: 'stringList',
+        required: required.has(name),
+        defaultValue: prop.default,
+      });
+      continue;
+    }
     if (jsonType === 'number' || jsonType === 'integer') {
       fields.push({
         name,

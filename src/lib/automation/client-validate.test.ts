@@ -7,11 +7,11 @@ import { defaultRegistry } from './registry';
 import './nodes';
 
 describe('validateDraftGraph', () => {
-  it('asks for a tag on the starter trigger', () => {
+  it('asks the starter trigger to connect its Next path', () => {
     const issues = validateDraftGraph(
       starterGraph(),
       catalogFromRegistry(defaultRegistry)
     );
-    expect(issues.some((issue) => issue.message.includes('Tag'))).toBe(true);
+    expect(issues.some((issue) => issue.message.includes('Next'))).toBe(true);
   });
 });

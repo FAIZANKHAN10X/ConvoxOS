@@ -27,10 +27,14 @@ export function StepNode({
   const Icon =
     (catalog && CATEGORY_ICON[catalog.category]) || CATEGORY_ICON.communication;
   const isTrigger = catalog?.kind === 'trigger';
-  const isCondition = catalog?.kind === 'condition';
+  const outgoing = catalog?.ports.outgoing ?? [
+    { id: 'default', label: 'Next' },
+  ];
+  const branched = outgoing.length > 1;
   const errors = data.errors ?? [];
   const summary = summarize(catalog, data.config);
   const accent = catalog ? CATEGORY_ACCENT[catalog.category] : '#2f6fed';
+  const unconfigured = !summary && errors.length > 0;
 
   if (isTrigger) {
     return (
@@ -38,7 +42,8 @@ export function StepNode({
         className={cn(
           'group relative w-[280px] rounded-[22px] px-5 py-4 text-white shadow-[0_10px_28px_rgba(31,41,55,0.18)]',
           selected &&
-            'ring-2 ring-[#2f6fed] ring-offset-2 ring-offset-[#e8edf3]'
+            'ring-2 ring-[#2f6fed] ring-offset-2 ring-offset-[#e8edf3]',
+          unconfigured && !selected && 'ring-2 ring-amber-400'
         )}
         style={{ background: CATEGORY_ACCENT.trigger }}
       >
@@ -58,18 +63,27 @@ export function StepNode({
             </p>
           </div>
         </div>
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!h-3 !w-3 !border-2 !border-white !bg-[#8b93a3]"
-        />
+        {outgoing.map((handle, index) => (
+          <Handle
+            key={handle.id}
+            type="source"
+            id={handle.id === 'default' ? undefined : handle.id}
+            position={Position.Bottom}
+            style={
+              outgoing.length > 1
+                ? { left: `${((index + 1) / (outgoing.length + 1)) * 100}%` }
+                : undefined
+            }
+            className="!h-3 !w-3 !border-2 !border-white !bg-[#8b93a3]"
+          />
+        ))}
         {!data.readOnly && (
           <button
             type="button"
             className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-[#3a4150] shadow-md"
             onClick={(event) => {
               event.stopPropagation();
-              data.onAddAfter?.(id);
+              data.onAddAfter?.(id, outgoing[0]?.id);
             }}
             aria-label="Add next step"
           >
@@ -88,11 +102,13 @@ export function StepNode({
         errors.length > 0 && !selected && 'ring-2 ring-red-400'
       )}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!h-3 !w-3 !border-2 !border-white !bg-[#c5ced8]"
-      />
+      {catalog?.ports.incoming !== false && (
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!h-3 !w-3 !border-2 !border-white !bg-[#c5ced8]"
+        />
+      )}
       {!data.readOnly && (
         <div className="absolute -top-3 right-3 z-10 hidden gap-1 group-hover:flex">
           <button
@@ -140,31 +156,52 @@ export function StepNode({
           </p>
         </div>
       </div>
-      {isCondition ? (
+      {branched ? (
         <div className="relative px-6 pb-3">
           <div className="flex justify-between text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
-            <span>Yes</span>
-            <span>No</span>
+            {outgoing.map((handle) => (
+              <span key={handle.id}>{handle.label}</span>
+            ))}
           </div>
-          <Handle
-            type="source"
-            id="true"
-            position={Position.Bottom}
-            style={{ left: '28%' }}
-            className="!h-3 !w-3 !border-2 !border-white !bg-emerald-500"
-          />
-          <Handle
-            type="source"
-            id="false"
-            position={Position.Bottom}
-            style={{ left: '72%' }}
-            className="!h-3 !w-3 !border-2 !border-white !bg-rose-500"
-          />
+          {outgoing.map((handle, index) => (
+            <Handle
+              key={handle.id}
+              type="source"
+              id={handle.id}
+              position={Position.Bottom}
+              style={{
+                left: `${((index + 1) / (outgoing.length + 1)) * 100}%`,
+              }}
+              className={cn(
+                '!h-3 !w-3 !border-2 !border-white',
+                handle.id === 'true' ? '!bg-emerald-500' : '!bg-rose-500'
+              )}
+            />
+          ))}
+          {!data.readOnly &&
+            outgoing.map((handle, index) => (
+              <button
+                key={`add-${handle.id}`}
+                type="button"
+                className="nodrag nopan absolute -bottom-3 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-md"
+                style={{
+                  left: `${((index + 1) / (outgoing.length + 1)) * 100}%`,
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  data.onAddAfter?.(id, handle.id);
+                }}
+                aria-label={`Add ${handle.label} step`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            ))}
         </div>
       ) : (
         <>
           <Handle
             type="source"
+            id={outgoing[0]?.id === 'default' ? undefined : outgoing[0]?.id}
             position={Position.Bottom}
             className="!h-3 !w-3 !border-2 !border-white !bg-[#c5ced8]"
           />
@@ -174,7 +211,7 @@ export function StepNode({
               className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-white text-slate-600 shadow-md"
               onClick={(event) => {
                 event.stopPropagation();
-                data.onAddAfter?.(id);
+                data.onAddAfter?.(id, outgoing[0]?.id);
               }}
               aria-label="Add next step"
             >
@@ -191,6 +228,12 @@ function summarize(
   catalog: CatalogNode | undefined,
   config: Record<string, unknown>
 ): string {
+  const keywords = config.keywords;
+  if (Array.isArray(keywords) && keywords.length > 0) {
+    const matchType =
+      typeof config.matchType === 'string' ? config.matchType : 'contains';
+    return `${matchType}: ${keywords.slice(0, 3).join(', ')}`;
+  }
   const text = config.text;
   if (typeof text === 'string' && text.trim()) {
     return text.trim().length > 72
@@ -202,9 +245,13 @@ function summarize(
   if (typeof amount === 'number' && typeof unit === 'string') {
     return `Wait ${amount} ${unit}`;
   }
-  if (catalog?.kind === 'condition') {
-    const subject = config.subject;
-    if (typeof subject === 'string') return subject.replaceAll('_', ' ');
+  const predicate = config.predicate ?? config.subject;
+  if (typeof predicate === 'string' && predicate) {
+    return predicate.replaceAll('_', ' ').replaceAll('.', ' · ');
+  }
+  const channel = config.channel;
+  if (typeof channel === 'string' && channel && channel !== 'current') {
+    return catalog?.kind === 'trigger' ? `On ${channel}` : `Via ${channel}`;
   }
   return '';
 }

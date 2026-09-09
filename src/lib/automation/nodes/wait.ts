@@ -15,24 +15,27 @@ const waitConfig = z
 export const waitNode: NodeDefinition<z.infer<typeof waitConfig>> = {
   type: 'timing.wait',
   kind: 'wait',
-  label: 'Wait',
+  label: 'Smart Delay',
   description: 'Pause the run until a later time',
   category: 'timing',
   configSchema: waitConfig,
+  summarize(config) {
+    if (config.until) return `Until ${config.until}`;
+    if (config.amount != null && config.unit) {
+      return `Wait ${config.amount} ${config.unit}`;
+    }
+    return 'Set a delay';
+  },
   execute(ctx, config) {
     if (config.until) {
-      return {
-        status: 'wait',
-        waitUntil: new Date(config.until).toISOString(),
-      };
+      const waitUntil = new Date(config.until).toISOString();
+      return { status: 'wait', waitUntil, output: { waitUntil } };
     }
     const amount = config.amount ?? 1;
     const unit = config.unit ?? 'hours';
     const ms =
       unit === 'days' ? 86_400_000 : unit === 'minutes' ? 60_000 : 3_600_000;
-    return {
-      status: 'wait',
-      waitUntil: new Date(ctx.now.getTime() + amount * ms).toISOString(),
-    };
+    const waitUntil = new Date(ctx.now.getTime() + amount * ms).toISOString();
+    return { status: 'wait', waitUntil, output: { waitUntil, amount, unit } };
   },
 };

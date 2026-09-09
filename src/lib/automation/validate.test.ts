@@ -63,8 +63,8 @@ describe('validateGraph', () => {
       ),
       registry()
     );
-    expect(
-      issues.some((i) => i.message.includes('true and false branches'))
-    ).toBe(true);
+    expect(issues.some((i) => i.message.toLowerCase().includes('yes'))).toBe(
+      true
+    );
   });
 });

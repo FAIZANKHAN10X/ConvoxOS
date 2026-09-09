@@ -1,19 +1,15 @@
 import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write';
 
 import { DOMAIN_EVENT } from '../event-types';
 import { enqueueDomainEventWithClient } from '../events';
-import type { ExecutionContext, NodeDefinition } from '../types';
+import type { NodeDefinition } from '../types';
+import { asDb } from './db';
 
 const addTagConfig = z.object({
   tagId: z.string().uuid(),
 });
-
-function asDb(ctx: ExecutionContext): SupabaseClient {
-  return ctx.db as SupabaseClient;
-}
 
 export const addTagAction: NodeDefinition<z.infer<typeof addTagConfig>> = {
   type: 'action.add_tag',
@@ -22,6 +18,9 @@ export const addTagAction: NodeDefinition<z.infer<typeof addTagConfig>> = {
   description: 'Add a tag to the contact and emit tag_added',
   category: 'crm',
   configSchema: addTagConfig,
+  summarize() {
+    return 'Add a tag';
+  },
   async execute(ctx, config) {
     const db = asDb(ctx);
     const added = await addContactTagIfAbsent(db, {

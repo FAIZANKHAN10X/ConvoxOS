@@ -1,54 +1,64 @@
 import { z } from 'zod';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { ExecutionContext, NodeDefinition } from '../types';
+import { getPredicate, listPredicates } from '../predicates';
+import type { NodeDefinition } from '../types';
+
+const predicateIdList = listPredicates().map((item) => item.id);
+const predicateEnum = z.enum(
+  predicateIdList.length > 0
+    ? (predicateIdList as [string, ...string[]])
+    : ['has_tag']
+);
 
 const conditionConfig = z.object({
-  subject: z.enum(['event.tag_id', 'has_tag']),
-  op: z.enum(['eq', 'neq']).default('eq'),
-  value: z.string().min(1),
+  predicate: predicateEnum.optional(),
+  subject: z.string().optional(),
+  op: z.enum(['eq', 'neq', 'contains']).default('eq'),
+  value: z.string().optional(),
+  tagId: z.string().uuid().optional(),
 });
-
-function asDb(ctx: ExecutionContext): SupabaseClient {
-  return ctx.db as SupabaseClient;
-}
-
-function compare(
-  left: string | undefined,
-  op: 'eq' | 'neq',
-  right: string
-): boolean {
-  const eq = left === right;
-  return op === 'eq' ? eq : !eq;
-}
 
 export const conditionNode: NodeDefinition<z.infer<typeof conditionConfig>> = {
   type: 'logic.condition',
   kind: 'condition',
   label: 'Condition',
-  description: 'Branch on event payload or contact tags',
+  description: 'Branch Yes or No based on CRM or event state',
   category: 'logic',
   configSchema: conditionConfig,
-  async execute(ctx, config) {
-    let left: string | undefined;
-    if (config.subject === 'event.tag_id') {
-      const tagId = ctx.event.payload.tag_id;
-      left = typeof tagId === 'string' ? tagId : undefined;
-    } else {
-      const db = asDb(ctx);
-      const { data } = await db
-        .from('contact_tags')
-        .select('tag_id')
-        .eq('contact_id', ctx.contactId);
-      const ids = (data ?? []).map((r) => r.tag_id as string);
-      const pass =
-        config.op === 'eq'
-          ? ids.includes(config.value)
-          : !ids.includes(config.value);
-      return { status: 'branch', branch: pass ? 'true' : 'false' };
+  summarize(config) {
+    return config.predicate ?? config.subject ?? 'Choose a condition';
+  },
+  validate(config) {
+    const id = config.predicate ?? config.subject;
+    if (!id) return ['Choose a condition'];
+    const predicate = getPredicate(id);
+    if (!predicate) return [`Unknown condition "${id}"`];
+    if (predicate.valueKind === 'tag' && !config.tagId && !config.value) {
+      return ['Choose a tag'];
     }
-
-    const pass = compare(left, config.op, config.value);
-    return { status: 'branch', branch: pass ? 'true' : 'false' };
+    if (predicate.valueKind !== 'tag' && !config.value) {
+      return ['Enter a value'];
+    }
+    if (!predicate.ops.includes(config.op)) {
+      return [`${predicate.label} does not support ${config.op}`];
+    }
+    return [];
+  },
+  async execute(ctx, config) {
+    const id = config.predicate ?? config.subject ?? 'has_tag';
+    const predicate = getPredicate(id);
+    if (!predicate) {
+      return { status: 'fail', error: `unknown condition "${id}"` };
+    }
+    const pass = await predicate.evaluate(ctx, {
+      op: config.op,
+      value: config.value,
+      tagId: config.tagId,
+    });
+    return {
+      status: 'branch',
+      branch: pass ? 'true' : 'false',
+      output: { predicate: id, pass },
+    };
   },
 };

@@ -22,7 +22,7 @@ describe('graph-map', () => {
     });
     const roundTrip = toGraph(toFlowNodes(graph), toFlowEdges(graph));
     expect(roundTrip.nodes.map((n) => n.type)).toEqual([
-      'trigger.tag_added',
+      'trigger.message_received',
       'action.send_text',
     ]);
     expect(roundTrip.edges[0]?.source).toBe('start');

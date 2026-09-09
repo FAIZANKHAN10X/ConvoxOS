@@ -1,5 +1,6 @@
-import type { NodeRegistry } from './registry';
 import { extractTrigger, getNode, outgoingEdges, triggerNodes } from './graph';
+import { resolvePorts } from './ports';
+import type { NodeRegistry } from './registry';
 import type { AutomationGraph, ValidationIssue } from './types';
 
 export function validateGraph(
@@ -86,26 +87,34 @@ export function validateGraph(
   for (const node of graph.nodes) {
     const def = registry.get(node.type);
     if (!def) continue;
+    const ports = resolvePorts(def);
+    const incoming = graph.edges.filter((edge) => edge.target === node.id);
+    if (!ports.incoming && incoming.length > 0) {
+      issues.push({
+        path: `nodes.${node.id}`,
+        message: 'this step cannot have incoming connections',
+      });
+    }
     const outs = outgoingEdges(graph, node.id);
-    if (def.kind === 'condition') {
-      const handles = new Set(outs.map((e) => e.sourceHandle ?? 'default'));
-      if (!handles.has('true') || !handles.has('false')) {
+    const requireAll = def.kind === 'condition' || def.kind === 'trigger';
+    for (const handle of ports.outgoing) {
+      const match = outs.filter((edge) => {
+        const id = edge.sourceHandle ?? 'default';
+        if (handle.id === 'default') {
+          return id === 'default' || id === 'next' || !edge.sourceHandle;
+        }
+        return id === handle.id;
+      });
+      if (requireAll && match.length === 0) {
         issues.push({
           path: `nodes.${node.id}`,
-          message: 'condition nodes need true and false branches',
+          message: `connect the ${handle.label} path`,
         });
       }
-    } else if (def.kind !== 'trigger' && outs.length > 1) {
-      const unlabeled = outs.filter(
-        (e) =>
-          !e.sourceHandle ||
-          e.sourceHandle === 'default' ||
-          e.sourceHandle === 'next'
-      );
-      if (unlabeled.length > 1) {
+      if (match.length > 1) {
         issues.push({
           path: `nodes.${node.id}`,
-          message: 'linear nodes may only have one default outgoing edge',
+          message: `${handle.label} may only have one outgoing connection`,
         });
       }
     }
