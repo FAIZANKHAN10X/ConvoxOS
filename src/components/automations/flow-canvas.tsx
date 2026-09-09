@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
@@ -46,6 +46,7 @@ import { StepNode } from './step-node';
 
 const nodeTypes = { [STEP_NODE]: StepNode };
 const edgeTypes = { [INSERT_EDGE]: InsertEdge };
+const defaultEdgeOptions = { type: INSERT_EDGE };
 
 interface FlowCanvasProps {
   graph: AutomationGraph;
@@ -78,6 +79,11 @@ export function FlowCanvas({
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [nodes, setNodes] = useState<Node<StepNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const draggingRef = useRef(false);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
 
   const commit = useCallback(
     (nextNodes: Node<StepNodeData>[], nextEdges: Edge[]) => {
@@ -92,41 +98,48 @@ export function FlowCanvas({
 
   const duplicateNode = useCallback(
     (nodeId: string) => {
-      const source = nodes.find((node) => node.id === nodeId);
+      const current = nodesRef.current;
+      const source = current.find((node) => node.id === nodeId);
       if (!source) return;
       const id = crypto.randomUUID();
       const nextNodes: Node<StepNodeData>[] = [
-        ...nodes,
+        ...current,
         {
           ...source,
           id,
+          selected: true,
           position: {
             x: source.position.x + 48,
             y: source.position.y + 48,
           },
-          selected: true,
           data: {
             nodeType: source.data.nodeType,
             config: { ...source.data.config },
           },
         },
       ];
-      commit(nextNodes, edges);
+      commit(nextNodes, edgesRef.current);
       setSelectedId(id);
     },
-    [commit, edges, nodes]
+    [commit]
   );
 
   const deleteNode = useCallback(
     (nodeId: string) => {
       commit(
-        nodes.filter((node) => node.id !== nodeId),
-        edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+        nodesRef.current.filter((node) => node.id !== nodeId),
+        edgesRef.current.filter(
+          (edge) => edge.source !== nodeId && edge.target !== nodeId
+        )
       );
       setSelectedId((current) => (current === nodeId ? null : current));
     },
-    [commit, edges, nodes]
+    [commit]
   );
+
+  const insertOnEdge = useCallback((edgeId: string) => {
+    setPicker({ mode: 'edge', edgeId });
+  }, []);
 
   useEffect(() => {
     setNodes(
@@ -148,23 +161,27 @@ export function FlowCanvas({
       toFlowEdges(graph).map((edge) => ({
         ...edge,
         data: {
-          onInsert: readOnly
-            ? undefined
-            : (edgeId: string) => setPicker({ mode: 'edge', edgeId }),
+          onInsert: readOnly ? undefined : insertOnEdge,
         },
       }))
     );
-    // selectedId is applied above; don't retrigger sync on selection only.
+    // Handlers are stable (refs). selectedId is patched in a separate
+    // effect so selecting a node does not rebuild the graph.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    catalogMap,
-    deleteNode,
-    duplicateNode,
-    graph,
-    issues,
-    placeAfter,
-    readOnly,
-  ]);
+  }, [catalogMap, graph, issues, readOnly]);
+
+  useEffect(() => {
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const selected = node.id === selectedId;
+        if (node.selected === selected) return node;
+        changed = true;
+        return { ...node, selected };
+      });
+      return changed ? next : current;
+    });
+  }, [selectedId]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<StepNodeData>>[]) => {
@@ -174,16 +191,24 @@ export function FlowCanvas({
         if (select && select.type === 'select') {
           setSelectedId(select.selected ? select.id : null);
         }
-        const persist = changes.some(
-          (change) =>
-            change.type === 'remove' ||
-            (change.type === 'position' && change.dragging === false)
-        );
-        if (persist) commit(next, edges);
+        const persist = changes.some((change) => {
+          if (change.type === 'remove') return true;
+          if (change.type !== 'position') return false;
+          if (change.dragging) {
+            draggingRef.current = true;
+            return false;
+          }
+          if (change.dragging === false && draggingRef.current) {
+            draggingRef.current = false;
+            return true;
+          }
+          return false;
+        });
+        if (persist) commit(next, edgesRef.current);
         return next;
       });
     },
-    [commit, edges]
+    [commit]
   );
 
   const onEdgesChange = useCallback(
@@ -191,20 +216,23 @@ export function FlowCanvas({
       setEdges((current) => {
         const next = applyEdgeChanges(changes, current);
         if (changes.some((change) => change.type === 'remove')) {
-          commit(nodes, next);
+          commit(nodesRef.current, next);
         }
         return next;
       });
     },
-    [commit, nodes]
+    [commit]
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
       if (readOnly) return;
-      commit(nodes, addEdge({ ...connection, type: INSERT_EDGE }, edges));
+      commit(
+        nodesRef.current,
+        addEdge({ ...connection, type: INSERT_EDGE }, edgesRef.current)
+      );
     },
-    [commit, edges, nodes, readOnly]
+    [commit, readOnly]
   );
 
   const selected = nodes.find((node) => node.id === selectedId);
@@ -290,10 +318,7 @@ export function FlowCanvas({
   return (
     <div className="relative h-full min-h-[420px] w-full bg-[#e8edf3]">
       <ReactFlow
-        nodes={nodes.map((node) => ({
-          ...node,
-          selected: node.id === selectedId,
-        }))}
+        nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -313,7 +338,7 @@ export function FlowCanvas({
         deleteKeyCode={readOnly ? [] : ['Backspace', 'Delete']}
         proOptions={{ hideAttribution: true }}
         className="bg-[#e8edf3]"
-        defaultEdgeOptions={{ type: INSERT_EDGE }}
+        defaultEdgeOptions={defaultEdgeOptions}
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Shift"
         panOnDrag

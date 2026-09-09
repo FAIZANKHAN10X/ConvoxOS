@@ -48,6 +48,8 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   const undo = useRef<AutomationGraph[]>([]);
   const redo = useRef<AutomationGraph[]>([]);
   const skipSave = useRef(true);
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
 
   const persist = useCallback(
     async (nextName: string, nextGraph: AutomationGraph) => {
@@ -105,12 +107,12 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [applyRedo, applyUndo]);
 
-  function changeGraph(next: AutomationGraph) {
-    undo.current.push(graph);
+  const changeGraph = useCallback((next: AutomationGraph) => {
+    undo.current.push(graphRef.current);
     redo.current = [];
     setGraph(next);
     setPublishError(null);
-  }
+  }, []);
 
   async function publish() {
     const issues = validateDraftGraph(graph, catalog);
