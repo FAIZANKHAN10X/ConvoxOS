@@ -47,6 +47,8 @@ import { StepNode } from './step-node';
 const nodeTypes = { [STEP_NODE]: StepNode };
 const edgeTypes = { [INSERT_EDGE]: InsertEdge };
 const defaultEdgeOptions = { type: INSERT_EDGE };
+const deleteKeys = ['Backspace', 'Delete'];
+const noKeys: string[] = [];
 
 interface FlowCanvasProps {
   graph: AutomationGraph;
@@ -60,6 +62,25 @@ type PickerTarget =
   | { mode: 'after'; sourceId: string; sourceHandle?: string | null }
   | { mode: 'edge'; edgeId: string };
 
+function graphSignature(graph: AutomationGraph): string {
+  return JSON.stringify({
+    n: graph.nodes.map((node) => [
+      node.id,
+      node.type,
+      Math.round(node.position.x),
+      Math.round(node.position.y),
+      node.data?.config ?? {},
+    ]),
+    e: graph.edges.map((edge) => [
+      edge.id,
+      edge.source,
+      edge.target,
+      edge.sourceHandle ?? '',
+      edge.targetHandle ?? '',
+    ]),
+  });
+}
+
 export function FlowCanvas({
   graph,
   catalog,
@@ -67,6 +88,8 @@ export function FlowCanvas({
   onChange,
 }: FlowCanvasProps) {
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
   const catalogMap = useMemo(
     () => new Map(catalog.map((node) => [node.type, node])),
     [catalog]
@@ -82,6 +105,8 @@ export function FlowCanvas({
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
   const draggingRef = useRef(false);
+  const didFit = useRef(false);
+  const lastSignature = useRef<string>('');
   nodesRef.current = nodes;
   edgesRef.current = edges;
 
@@ -102,23 +127,25 @@ export function FlowCanvas({
       const source = current.find((node) => node.id === nodeId);
       if (!source) return;
       const id = crypto.randomUUID();
-      const nextNodes: Node<StepNodeData>[] = [
-        ...current,
-        {
-          ...source,
-          id,
-          selected: true,
-          position: {
-            x: source.position.x + 48,
-            y: source.position.y + 48,
+      commit(
+        [
+          ...current,
+          {
+            ...source,
+            id,
+            selected: true,
+            position: {
+              x: source.position.x + 48,
+              y: source.position.y + 48,
+            },
+            data: {
+              nodeType: source.data.nodeType,
+              config: { ...source.data.config },
+            },
           },
-          data: {
-            nodeType: source.data.nodeType,
-            config: { ...source.data.config },
-          },
-        },
-      ];
-      commit(nextNodes, edgesRef.current);
+        ],
+        edgesRef.current
+      );
       setSelectedId(id);
     },
     [commit]
@@ -142,33 +169,70 @@ export function FlowCanvas({
   }, []);
 
   useEffect(() => {
-    setNodes(
-      toFlowNodes(graph).map((node) => ({
-        ...node,
-        selected: node.id === selectedId,
-        data: {
-          ...node.data,
-          catalog: catalogMap.get(node.data.nodeType),
-          errors: issues.get(node.id) ?? [],
-          readOnly,
-          onAddAfter: readOnly ? undefined : placeAfter,
-          onDuplicate: readOnly ? undefined : duplicateNode,
-          onDelete: readOnly ? undefined : deleteNode,
-        },
-      }))
-    );
-    setEdges(
-      toFlowEdges(graph).map((edge) => ({
-        ...edge,
-        data: {
-          onInsert: readOnly ? undefined : insertOnEdge,
-        },
-      }))
-    );
-    // Handlers are stable (refs). selectedId is patched in a separate
-    // effect so selecting a node does not rebuild the graph.
+    const signature = graphSignature(graph);
+    const catalog = catalogRef.current;
+    const catalogByType = new Map(catalog.map((node) => [node.type, node]));
+    const nextIssues = issuesByNode(validateDraftGraph(graph, catalog));
+
+    const needsHydrate =
+      signature !== lastSignature.current ||
+      (graph.nodes.length > 0 && nodesRef.current.length === 0);
+    if (needsHydrate) {
+      lastSignature.current = signature;
+      setNodes(
+        toFlowNodes(graph).map((node) => ({
+          ...node,
+          selected: node.id === selectedId,
+          data: {
+            ...node.data,
+            catalog: catalogByType.get(node.data.nodeType),
+            errors: nextIssues.get(node.id) ?? [],
+            readOnly,
+            onAddAfter: readOnly ? undefined : placeAfter,
+            onDuplicate: readOnly ? undefined : duplicateNode,
+            onDelete: readOnly ? undefined : deleteNode,
+          },
+        }))
+      );
+      setEdges(
+        toFlowEdges(graph).map((edge) => ({
+          ...edge,
+          data: {
+            onInsert: readOnly ? undefined : insertOnEdge,
+          },
+        }))
+      );
+      return;
+    }
+
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        const errors = nextIssues.get(node.id) ?? [];
+        const prevErrors = (node.data.errors as string[] | undefined) ?? [];
+        const sameErrors =
+          errors.length === prevErrors.length &&
+          errors.every((error, index) => error === prevErrors[index]);
+        if (sameErrors && node.data.readOnly === readOnly) return node;
+        changed = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            errors,
+            readOnly,
+            catalog: catalogByType.get(node.data.nodeType),
+            onAddAfter: readOnly ? undefined : placeAfter,
+            onDuplicate: readOnly ? undefined : duplicateNode,
+            onDelete: readOnly ? undefined : deleteNode,
+          },
+        };
+      });
+      return changed ? next : current;
+    });
+    // selectedId is patched separately so clicks do not rebuild the graph.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogMap, graph, issues, readOnly]);
+  }, [graph, readOnly, placeAfter, duplicateNode, deleteNode, insertOnEdge]);
 
   useEffect(() => {
     setNodes((current) => {
@@ -183,15 +247,22 @@ export function FlowCanvas({
     });
   }, [selectedId]);
 
+  useEffect(() => {
+    if (didFit.current || nodes.length === 0) return;
+    didFit.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      void fitView({ padding: 0.2 });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitView, nodes.length]);
+
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<StepNodeData>>[]) => {
+      const select = changes.find((change) => change.type === 'select');
+      let persist = false;
       setNodes((current) => {
         const next = applyNodeChanges(changes, current);
-        const select = changes.find((change) => change.type === 'select');
-        if (select && select.type === 'select') {
-          setSelectedId(select.selected ? select.id : null);
-        }
-        const persist = changes.some((change) => {
+        persist = changes.some((change) => {
           if (change.type === 'remove') return true;
           if (change.type !== 'position') return false;
           if (change.dragging) {
@@ -207,6 +278,9 @@ export function FlowCanvas({
         if (persist) commit(next, edgesRef.current);
         return next;
       });
+      if (select && select.type === 'select') {
+        setSelectedId(select.selected ? select.id : null);
+      }
     },
     [commit]
   );
@@ -248,12 +322,14 @@ export function FlowCanvas({
     if (!picker) return;
     const id = crypto.randomUUID();
     let position = { x: 320, y: 200 };
-    let nextEdges = edges;
+    let nextEdges = edgesRef.current;
 
     if (picker.mode === 'free') {
       position = picker.position;
     } else if (picker.mode === 'after') {
-      const source = nodes.find((node) => node.id === picker.sourceId);
+      const source = nodesRef.current.find(
+        (node) => node.id === picker.sourceId
+      );
       position = {
         x:
           (source?.position.x ?? 320) +
@@ -271,9 +347,9 @@ export function FlowCanvas({
         nextEdges
       );
     } else {
-      const edge = edges.find((item) => item.id === picker.edgeId);
+      const edge = nextEdges.find((item) => item.id === picker.edgeId);
       if (edge) {
-        const source = nodes.find((node) => node.id === edge.source);
+        const source = nodesRef.current.find((node) => node.id === edge.source);
         position = {
           x: source?.position.x ?? 320,
           y: (source?.position.y ?? 80) + 90,
@@ -301,16 +377,18 @@ export function FlowCanvas({
       }
     }
 
-    const nextNodes: Node<StepNodeData>[] = [
-      ...nodes,
-      {
-        id,
-        type: STEP_NODE,
-        position,
-        data: { nodeType: def.type, config: {} },
-      },
-    ];
-    commit(nextNodes, nextEdges);
+    commit(
+      [
+        ...nodesRef.current,
+        {
+          id,
+          type: STEP_NODE,
+          position,
+          data: { nodeType: def.type, config: {} },
+        },
+      ],
+      nextEdges
+    );
     setSelectedId(id);
     setPicker(null);
   }
@@ -334,9 +412,7 @@ export function FlowCanvas({
           });
           setPicker({ mode: 'free', position });
         }}
-        fitView
-        deleteKeyCode={readOnly ? [] : ['Backspace', 'Delete']}
-        proOptions={{ hideAttribution: true }}
+        deleteKeyCode={readOnly ? noKeys : deleteKeys}
         className="bg-[#e8edf3]"
         defaultEdgeOptions={defaultEdgeOptions}
         selectionKeyCode="Shift"
@@ -353,7 +429,6 @@ export function FlowCanvas({
         <Controls
           showInteractive={!readOnly}
           className="!border-slate-200 !bg-white !shadow-sm"
-          onFitView={() => void fitView({ padding: 0.2 })}
         />
       </ReactFlow>
 
@@ -406,12 +481,12 @@ export function FlowCanvas({
             readOnly={readOnly}
             onClose={() => setSelectedId(null)}
             onChange={(config) => {
-              const next = nodes.map((node) =>
+              const next = nodesRef.current.map((node) =>
                 node.id === selected.id
                   ? { ...node, data: { ...node.data, config } }
                   : node
               );
-              commit(next, edges);
+              commit(next, edgesRef.current);
             }}
           />
         </aside>
