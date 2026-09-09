@@ -87,9 +87,9 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Phase 9 retirement: Automations/Flows product removed.
-   * Legacy bookmarks to /flows or /automations are redirected to /dashboard with a soft notice.
-   * When Automations v2 returns, these will point to the new product.
+   * Phase 9 retirement: old Flows product is gone. Bookmarks to
+   * /flows still land on the dashboard. Automations v2 now owns
+   * /automations, so those redirects were removed.
    */
   async redirects() {
     return [
@@ -100,16 +100,6 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/flows/:id",
-        destination: "/dashboard",
-        permanent: false,
-      },
-      {
-        source: "/automations",
-        destination: "/dashboard",
-        permanent: false,
-      },
-      {
-        source: "/automations/:path*",
         destination: "/dashboard",
         permanent: false,
       },

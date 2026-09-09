@@ -15,6 +15,7 @@ vi.mock('@/lib/auth/account', () => ({
 
 vi.mock('@/lib/contacts/tag-events', () => ({
   addContactTagAndDispatch: mocks.add,
+  removeContactTagAndDispatch: mocks.remove,
 }));
 
 vi.mock('@/lib/contacts/tag-write', () => ({
@@ -25,7 +26,6 @@ vi.mock('@/lib/contacts/tag-write', () => ({
       this.status = status;
     }
   },
-  removeContactTag: mocks.remove,
 }));
 
 import { DELETE, POST } from './route';
@@ -78,7 +78,7 @@ describe('/api/contacts/[id]/tags', () => {
   });
 
   it('removes a tag through the same account-scoped route', async () => {
-    mocks.remove.mockResolvedValue(undefined);
+    mocks.remove.mockResolvedValue({ removed: true, dispatched: true });
 
     const response = await DELETE(
       request('DELETE', { tag_id: 'tag-1' }),
@@ -86,7 +86,8 @@ describe('/api/contacts/[id]/tags', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.remove).toHaveBeenCalledWith(context.supabase, {
+    expect(mocks.remove).toHaveBeenCalledWith({
+      db: context.supabase,
       accountId: 'account-1',
       contactId: 'contact-1',
       tagId: 'tag-1',

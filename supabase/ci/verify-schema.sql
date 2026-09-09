@@ -42,6 +42,30 @@ BEGIN
     RAISE EXCEPTION 'public.accounts is missing — migration 017 did not apply';
   END IF;
 
+  -- Automation engine (057). These names reuse the retired 006 labels
+  -- with a new schema; absence means 057 did not apply.
+  IF to_regclass('public.domain_events') IS NULL THEN
+    RAISE EXCEPTION 'public.domain_events is missing — migration 057 did not apply';
+  END IF;
+  IF to_regclass('public.automations') IS NULL THEN
+    RAISE EXCEPTION 'public.automations is missing — migration 057 did not apply';
+  END IF;
+  IF to_regclass('public.automation_versions') IS NULL THEN
+    RAISE EXCEPTION 'public.automation_versions is missing — migration 057 did not apply';
+  END IF;
+  IF to_regclass('public.automation_runs') IS NULL THEN
+    RAISE EXCEPTION 'public.automation_runs is missing — migration 057 did not apply';
+  END IF;
+  IF to_regclass('public.automation_run_steps') IS NULL THEN
+    RAISE EXCEPTION 'public.automation_run_steps is missing — migration 057 did not apply';
+  END IF;
+  IF to_regclass('public.automation_waits') IS NULL THEN
+    RAISE EXCEPTION 'public.automation_waits is missing — migration 057 did not apply';
+  END IF;
+  IF to_regprocedure('public.claim_domain_events(integer)') IS NULL THEN
+    RAISE EXCEPTION 'claim_domain_events is missing — migration 057 did not apply';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;

@@ -1,5 +1,5 @@
-import type { AccountRole } from "@/lib/auth/roles";
-import type { InteractiveMessagePayload } from "@/lib/whatsapp/interactive";
+import type { AccountRole } from '@/lib/auth/roles';
+import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
 
 export type {
   InteractiveMessagePayload,
@@ -8,7 +8,7 @@ export type {
   InteractiveButton,
   InteractiveListRow,
   InteractiveListSection,
-} from "@/lib/whatsapp/interactive";
+} from '@/lib/whatsapp/interactive';
 
 export interface Profile {
   id: string;
@@ -87,7 +87,7 @@ export interface AccountInvitation {
   id: string;
   account_id: string;
   /** Roles offered via invite — owner is never offered. */
-  role: Exclude<AccountRole, "owner">;
+  role: Exclude<AccountRole, 'owner'>;
   created_by_user_id: string | null;
   label: string | null;
   created_at: string;
@@ -237,7 +237,8 @@ export type ContentType =
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export type Channel = 'whatsapp' | 'telegram';
 
@@ -414,8 +415,10 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type BroadcastStatus =
+  'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+export type RecipientStatus =
+  'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -475,21 +478,9 @@ export interface BroadcastRecipient {
 }
 
 // ============================================================
-// Automations — RETIRED (Phase 9 clean slate)
-// ============================================================
-//
-// The old automation/flow engine (migration 006 automations +
-// automation_steps + automation_logs, 010 flows + flow_nodes +
-// flow_runs) was retired by 056_retire_automations_flows.sql and is
-// NOT the foundation for Automations v2. See
-// docs/ARCHITECTURE_DECISION_AUTOMATIONS_V2.md.
-//
-// Trigger/step/log types will be reintroduced from scratch with the
-// v2 automation foundation. Do not resurrect the deleted shapes.
-//
-// Sequences below are legitimate standalone drip infrastructure and
-// were intentionally kept (056 keeps sequences/* + tasks).
-
+// Automations v2 lives in `@/lib/automation` (migration 057).
+// The retired 006/010 engine is gone; do not resurrect those types.
+// Sequences below are standalone drip infrastructure (kept by 056).
 
 export interface Sequence {
   id: string;
@@ -502,7 +493,8 @@ export interface Sequence {
   updated_at: string;
 }
 
-export type SequenceStepType = 'send_message' | 'send_buttons' | 'send_list' | 'wait';
+export type SequenceStepType =
+  'send_message' | 'send_buttons' | 'send_list' | 'wait';
 
 export interface SequenceStep {
   id: string;
@@ -526,7 +518,6 @@ export interface SequenceEnrollment {
   completed_at: string | null;
   cancelled_at: string | null;
 }
-
 
 // ============================================================
 // Quick replies — reusable snippets (migration 035)

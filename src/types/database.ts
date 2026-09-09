@@ -515,257 +515,158 @@ export type Database = {
           },
         ]
       }
-      automation_logs: {
+      automation_run_steps: {
         Row: {
           account_id: string
-          automation_id: string
-          contact_id: string | null
-          created_at: string
-          error_message: string | null
+          attempt: number
+          error: string | null
+          finished_at: string | null
           id: string
+          idempotency_key: string
+          input: Json
+          node_id: string
+          node_type: string
+          output: Json | null
+          run_id: string
+          started_at: string
           status: string
-          steps_executed: Json
-          trigger_event: string
-          user_id: string
         }
         Insert: {
           account_id: string
-          automation_id: string
-          contact_id?: string | null
-          created_at?: string
-          error_message?: string | null
+          attempt?: number
+          error?: string | null
+          finished_at?: string | null
           id?: string
+          idempotency_key: string
+          input?: Json
+          node_id: string
+          node_type: string
+          output?: Json | null
+          run_id: string
+          started_at?: string
           status: string
-          steps_executed?: Json
-          trigger_event: string
-          user_id: string
         }
         Update: {
           account_id?: string
-          automation_id?: string
-          contact_id?: string | null
-          created_at?: string
-          error_message?: string | null
+          attempt?: number
+          error?: string | null
+          finished_at?: string | null
           id?: string
+          idempotency_key?: string
+          input?: Json
+          node_id?: string
+          node_type?: string
+          output?: Json | null
+          run_id?: string
+          started_at?: string
           status?: string
-          steps_executed?: Json
-          trigger_event?: string
-          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "automation_logs_account_id_fkey"
+            foreignKeyName: "automation_run_steps_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_logs_automation_id_fkey"
-            columns: ["automation_id"]
+            foreignKeyName: "automation_run_steps_run_id_fkey"
+            columns: ["run_id"]
             isOneToOne: false
-            referencedRelation: "automations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "automation_logs_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "automation_runs"
             referencedColumns: ["id"]
           },
         ]
       }
-      automation_pending_executions: {
+      automation_runs: {
         Row: {
           account_id: string
-          automation_id: string | null
-          branch: string | null
-          contact_id: string | null
+          attempt: number
+          automation_id: string
+          completed_at: string | null
+          contact_id: string
           context: Json
           created_at: string
-          flow_run_id: string | null
+          current_node_id: string | null
           id: string
-          log_id: string | null
-          next_step_position: number
-          parent_step_id: string | null
-          run_at: string
+          last_error: string | null
+          node_executions: number
           status: string
-          user_id: string
+          trigger_event_id: string | null
+          updated_at: string
+          version_id: string
+          wait_until: string | null
         }
         Insert: {
           account_id: string
-          automation_id?: string | null
-          branch?: string | null
-          contact_id?: string | null
+          attempt?: number
+          automation_id: string
+          completed_at?: string | null
+          contact_id: string
           context?: Json
           created_at?: string
-          flow_run_id?: string | null
+          current_node_id?: string | null
           id?: string
-          log_id?: string | null
-          next_step_position: number
-          parent_step_id?: string | null
-          run_at: string
+          last_error?: string | null
+          node_executions?: number
           status?: string
-          user_id: string
+          trigger_event_id?: string | null
+          updated_at?: string
+          version_id: string
+          wait_until?: string | null
         }
         Update: {
           account_id?: string
-          automation_id?: string | null
-          branch?: string | null
-          contact_id?: string | null
+          attempt?: number
+          automation_id?: string
+          completed_at?: string | null
+          contact_id?: string
           context?: Json
           created_at?: string
-          flow_run_id?: string | null
+          current_node_id?: string | null
           id?: string
-          log_id?: string | null
-          next_step_position?: number
-          parent_step_id?: string | null
-          run_at?: string
+          last_error?: string | null
+          node_executions?: number
           status?: string
-          user_id?: string
+          trigger_event_id?: string | null
+          updated_at?: string
+          version_id?: string
+          wait_until?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "automation_pending_executions_account_id_fkey"
+            foreignKeyName: "automation_runs_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_pending_executions_automation_id_fkey"
+            foreignKeyName: "automation_runs_automation_id_fkey"
             columns: ["automation_id"]
             isOneToOne: false
             referencedRelation: "automations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_pending_executions_contact_id_fkey"
+            foreignKeyName: "automation_runs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_pending_executions_flow_run_id_fkey"
-            columns: ["flow_run_id"]
+            foreignKeyName: "automation_runs_trigger_event_id_fkey"
+            columns: ["trigger_event_id"]
             isOneToOne: false
-            referencedRelation: "flow_runs"
+            referencedRelation: "domain_events"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_pending_executions_log_id_fkey"
-            columns: ["log_id"]
+            foreignKeyName: "automation_runs_version_id_fkey"
+            columns: ["version_id"]
             isOneToOne: false
-            referencedRelation: "automation_logs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "automation_pending_executions_parent_step_id_fkey"
-            columns: ["parent_step_id"]
-            isOneToOne: false
-            referencedRelation: "automation_steps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      automation_steps: {
-        Row: {
-          automation_id: string
-          branch: string | null
-          created_at: string
-          id: string
-          parent_step_id: string | null
-          position: number
-          step_config: Json
-          step_type: string
-        }
-        Insert: {
-          automation_id: string
-          branch?: string | null
-          created_at?: string
-          id?: string
-          parent_step_id?: string | null
-          position: number
-          step_config?: Json
-          step_type: string
-        }
-        Update: {
-          automation_id?: string
-          branch?: string | null
-          created_at?: string
-          id?: string
-          parent_step_id?: string | null
-          position?: number
-          step_config?: Json
-          step_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "automation_steps_automation_id_fkey"
-            columns: ["automation_id"]
-            isOneToOne: false
-            referencedRelation: "automations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "automation_steps_parent_step_id_fkey"
-            columns: ["parent_step_id"]
-            isOneToOne: false
-            referencedRelation: "automation_steps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      automation_trigger_evaluations: {
-        Row: {
-          account_id: string
-          automation_id: string
-          contact_id: string | null
-          created_at: string
-          id: string
-          matched: boolean
-          trigger_type: string
-        }
-        Insert: {
-          account_id: string
-          automation_id: string
-          contact_id?: string | null
-          created_at?: string
-          id?: string
-          matched: boolean
-          trigger_type: string
-        }
-        Update: {
-          account_id?: string
-          automation_id?: string
-          contact_id?: string | null
-          created_at?: string
-          id?: string
-          matched?: boolean
-          trigger_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "automation_trigger_evaluations_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "automation_trigger_evaluations_automation_id_fkey"
-            columns: ["automation_id"]
-            isOneToOne: false
-            referencedRelation: "automations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "automation_trigger_evaluations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "automation_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -774,31 +675,31 @@ export type Database = {
         Row: {
           account_id: string
           automation_id: string
-          created_at: string
-          created_by: string | null
+          graph: Json
           id: string
-          is_published: boolean
-          snapshot: Json
+          published_at: string
+          published_by: string | null
+          trigger: Json
           version_number: number
         }
         Insert: {
           account_id: string
           automation_id: string
-          created_at?: string
-          created_by?: string | null
+          graph: Json
           id?: string
-          is_published?: boolean
-          snapshot: Json
+          published_at?: string
+          published_by?: string | null
+          trigger: Json
           version_number: number
         }
         Update: {
           account_id?: string
           automation_id?: string
-          created_at?: string
-          created_by?: string | null
+          graph?: Json
           id?: string
-          is_published?: boolean
-          snapshot?: Json
+          published_at?: string
+          published_by?: string | null
+          trigger?: Json
           version_number?: number
         }
         Relationships: [
@@ -818,48 +719,96 @@ export type Database = {
           },
         ]
       }
+      automation_waits: {
+        Row: {
+          account_id: string
+          claimed_at: string | null
+          created_at: string
+          id: string
+          node_id: string
+          resume_at: string
+          resume_node_id: string | null
+          run_id: string
+          status: string
+        }
+        Insert: {
+          account_id: string
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          node_id: string
+          resume_at: string
+          resume_node_id?: string | null
+          run_id: string
+          status?: string
+        }
+        Update: {
+          account_id?: string
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          node_id?: string
+          resume_at?: string
+          resume_node_id?: string | null
+          run_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_waits_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_waits_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "automation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automations: {
         Row: {
           account_id: string
           created_at: string
+          created_by: string
           description: string | null
-          execution_count: number
+          draft_graph: Json
+          draft_trigger: Json | null
           id: string
-          is_active: boolean
-          last_executed_at: string | null
           name: string
-          trigger_config: Json
-          trigger_type: string
+          published_version_id: string | null
+          status: string
           updated_at: string
-          user_id: string
         }
         Insert: {
           account_id: string
           created_at?: string
+          created_by: string
           description?: string | null
-          execution_count?: number
+          draft_graph?: Json
+          draft_trigger?: Json | null
           id?: string
-          is_active?: boolean
-          last_executed_at?: string | null
           name: string
-          trigger_config?: Json
-          trigger_type: string
+          published_version_id?: string | null
+          status?: string
           updated_at?: string
-          user_id: string
         }
         Update: {
           account_id?: string
           created_at?: string
+          created_by?: string
           description?: string | null
-          execution_count?: number
+          draft_graph?: Json
+          draft_trigger?: Json | null
           id?: string
-          is_active?: boolean
-          last_executed_at?: string | null
           name?: string
-          trigger_config?: Json
-          trigger_type?: string
+          published_version_id?: string | null
+          status?: string
           updated_at?: string
-          user_id?: string
         }
         Relationships: [
           {
@@ -867,6 +816,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_published_version_id_fkey"
+            columns: ["published_version_id"]
+            isOneToOne: false
+            referencedRelation: "automation_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -1385,230 +1341,81 @@ export type Database = {
           },
         ]
       }
-      flow_nodes: {
-        Row: {
-          config: Json
-          created_at: string
-          flow_id: string
-          id: string
-          node_key: string
-          node_type: string
-          position_x: number
-          position_y: number
-        }
-        Insert: {
-          config?: Json
-          created_at?: string
-          flow_id: string
-          id?: string
-          node_key: string
-          node_type: string
-          position_x?: number
-          position_y?: number
-        }
-        Update: {
-          config?: Json
-          created_at?: string
-          flow_id?: string
-          id?: string
-          node_key?: string
-          node_type?: string
-          position_x?: number
-          position_y?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "flow_nodes_flow_id_fkey"
-            columns: ["flow_id"]
-            isOneToOne: false
-            referencedRelation: "flows"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      flow_run_events: {
-        Row: {
-          created_at: string
-          event_type: string
-          flow_run_id: string
-          id: string
-          node_key: string | null
-          payload: Json
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          flow_run_id: string
-          id?: string
-          node_key?: string | null
-          payload?: Json
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          flow_run_id?: string
-          id?: string
-          node_key?: string | null
-          payload?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "flow_run_events_flow_run_id_fkey"
-            columns: ["flow_run_id"]
-            isOneToOne: false
-            referencedRelation: "flow_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      flow_runs: {
+      domain_events: {
         Row: {
           account_id: string
+          attempts: number
+          available_at: string
+          causation_event_id: string | null
+          chain_depth: number
           contact_id: string | null
-          conversation_id: string | null
-          current_node_key: string | null
-          end_reason: string | null
-          ended_at: string | null
-          flow_id: string
+          created_at: string
+          event_type: string
           id: string
-          last_advanced_at: string
-          last_prompt_message_id: string | null
-          reprompt_count: number
-          started_at: string
+          idempotency_key: string
+          last_error: string | null
+          origin_run_id: string | null
+          payload: Json
+          processed_at: string | null
+          source: string
           status: string
-          trigger_channel: string | null
-          user_id: string
-          vars: Json
         }
         Insert: {
           account_id: string
+          attempts?: number
+          available_at?: string
+          causation_event_id?: string | null
+          chain_depth?: number
           contact_id?: string | null
-          conversation_id?: string | null
-          current_node_key?: string | null
-          end_reason?: string | null
-          ended_at?: string | null
-          flow_id: string
+          created_at?: string
+          event_type: string
           id?: string
-          last_advanced_at?: string
-          last_prompt_message_id?: string | null
-          reprompt_count?: number
-          started_at?: string
+          idempotency_key: string
+          last_error?: string | null
+          origin_run_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          source?: string
           status?: string
-          trigger_channel?: string | null
-          user_id: string
-          vars?: Json
         }
         Update: {
           account_id?: string
+          attempts?: number
+          available_at?: string
+          causation_event_id?: string | null
+          chain_depth?: number
           contact_id?: string | null
-          conversation_id?: string | null
-          current_node_key?: string | null
-          end_reason?: string | null
-          ended_at?: string | null
-          flow_id?: string
+          created_at?: string
+          event_type?: string
           id?: string
-          last_advanced_at?: string
-          last_prompt_message_id?: string | null
-          reprompt_count?: number
-          started_at?: string
+          idempotency_key?: string
+          last_error?: string | null
+          origin_run_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          source?: string
           status?: string
-          trigger_channel?: string | null
-          user_id?: string
-          vars?: Json
         }
         Relationships: [
           {
-            foreignKeyName: "flow_runs_account_id_fkey"
+            foreignKeyName: "domain_events_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "flow_runs_contact_id_fkey"
+            foreignKeyName: "domain_events_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "flow_runs_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "domain_events_origin_run_id_fkey"
+            columns: ["origin_run_id"]
             isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "flow_runs_flow_id_fkey"
-            columns: ["flow_id"]
-            isOneToOne: false
-            referencedRelation: "flows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "flow_runs_last_prompt_message_id_fkey"
-            columns: ["last_prompt_message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      flows: {
-        Row: {
-          account_id: string
-          created_at: string
-          description: string | null
-          entry_node_id: string | null
-          execution_count: number
-          fallback_policy: Json
-          id: string
-          last_executed_at: string | null
-          name: string
-          status: string
-          trigger_config: Json
-          trigger_type: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          account_id: string
-          created_at?: string
-          description?: string | null
-          entry_node_id?: string | null
-          execution_count?: number
-          fallback_policy?: Json
-          id?: string
-          last_executed_at?: string | null
-          name: string
-          status?: string
-          trigger_config?: Json
-          trigger_type: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          account_id?: string
-          created_at?: string
-          description?: string | null
-          entry_node_id?: string | null
-          execution_count?: number
-          fallback_policy?: Json
-          id?: string
-          last_executed_at?: string | null
-          name?: string
-          status?: string
-          trigger_config?: Json
-          trigger_type?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "flows_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
+            referencedRelation: "automation_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -2486,6 +2293,80 @@ export type Database = {
         Args: { conversation_id: string; max_replies: number }
         Returns: boolean
       }
+      claim_automation_waits: {
+        Args: { p_limit: number }
+        Returns: {
+          account_id: string
+          claimed_at: string | null
+          created_at: string
+          id: string
+          node_id: string
+          resume_at: string
+          resume_node_id: string | null
+          run_id: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_waits"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_domain_events: {
+        Args: { p_limit: number }
+        Returns: {
+          account_id: string
+          attempts: number
+          available_at: string
+          causation_event_id: string | null
+          chain_depth: number
+          contact_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          origin_run_id: string | null
+          payload: Json
+          processed_at: string | null
+          source: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "domain_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_due_automation_runs: {
+        Args: { p_limit: number }
+        Returns: {
+          account_id: string
+          attempt: number
+          automation_id: string
+          completed_at: string | null
+          contact_id: string
+          context: Json
+          created_at: string
+          current_node_id: string | null
+          id: string
+          last_error: string | null
+          node_executions: number
+          status: string
+          trigger_event_id: string | null
+          updated_at: string
+          version_id: string
+          wait_until: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       create_broadcast_with_recipients: {
         Args: {
           p_account_id: string
@@ -2514,14 +2395,6 @@ export type Database = {
           contact: Database["public"]["Tables"]["contacts"]["Row"]
           total_count: number
         }[]
-      }
-      increment_automation_execution_count: {
-        Args: { p_automation_id: string }
-        Returns: undefined
-      }
-      increment_flow_execution_count: {
-        Args: { p_flow_id: string }
-        Returns: undefined
       }
       is_account_member: {
         Args: {
@@ -2553,6 +2426,7 @@ export type Database = {
       merge_duplicate_contacts: { Args: never; Returns: number }
       merge_duplicate_conversations: { Args: never; Returns: number }
       peek_invitation: { Args: { p_token_hash: string }; Returns: Json }
+      purge_automation_history: { Args: never; Returns: undefined }
       recompute_broadcast_counts: { Args: { bid: string }; Returns: undefined }
       record_webhook_failure: {
         Args: { endpoint_id: string; max_failures: number }
@@ -2590,12 +2464,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2619,11 +2493,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2644,11 +2518,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2669,11 +2543,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2686,11 +2560,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

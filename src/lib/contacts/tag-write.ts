@@ -75,18 +75,20 @@ export async function addContactTagIfAbsent(
 export async function removeContactTag(
   db: SupabaseClient,
   input: ContactTagWriteInput
-): Promise<void> {
+): Promise<boolean> {
   await assertContactAndTagOwnership(db, input);
 
-  const { error } = await db
+  const { data, error } = await db
     .from('contact_tags')
     .delete()
     .eq('contact_id', input.contactId)
-    .eq('tag_id', input.tagId);
+    .eq('tag_id', input.tagId)
+    .select('id');
 
   if (error) {
     throw new ContactTagWriteError(
       `Failed to remove contact tag: ${error.message}`
     );
   }
+  return (data?.length ?? 0) > 0;
 }

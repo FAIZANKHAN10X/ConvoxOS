@@ -2,16 +2,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   add: vi.fn(),
+  remove: vi.fn(),
+  enqueue: vi.fn(),
+  process: vi.fn(),
 }));
 
 vi.mock('./tag-write', () => ({
   addContactTagIfAbsent: mocks.add,
+  removeContactTag: mocks.remove,
+}));
+
+vi.mock('@/lib/automation/events', () => ({
+  enqueueDomainEventWithClient: mocks.enqueue,
+}));
+
+vi.mock('@/lib/automation/kick', () => ({
+  kickDomainEvent: mocks.process,
 }));
 
 import {
   addContactTagAndDispatch,
   getTagChainDepth,
   MAX_TAG_CHAIN_DEPTH,
+  removeContactTagAndDispatch,
 } from './tag-events';
 
 const base = {
@@ -23,10 +36,15 @@ const base = {
 
 beforeEach(() => {
   mocks.add.mockReset();
+  mocks.remove.mockReset();
+  mocks.enqueue.mockReset();
+  mocks.process.mockReset();
+  mocks.enqueue.mockResolvedValue({ id: 'evt-1' });
+  mocks.process.mockResolvedValue({});
 });
 
 describe('addContactTagAndDispatch', () => {
-  it('adds a newly inserted tag (no automation dispatch exists)', async () => {
+  it('enqueues tag_added and kicks the worker', async () => {
     mocks.add.mockResolvedValue(true);
 
     const result = await addContactTagAndDispatch({
@@ -34,8 +52,17 @@ describe('addContactTagAndDispatch', () => {
       context: { vars: { source: 'flow', _tag_chain_depth: 1 } },
     });
 
-    // No automation engine remains — the helper only records the tag join.
-    expect(result).toEqual({ added: true, dispatched: false });
+    expect(result).toEqual({ added: true, dispatched: true });
+    expect(mocks.enqueue).toHaveBeenCalledWith(
+      base.db,
+      expect.objectContaining({
+        eventType: 'tag_added',
+        contactId: 'contact-1',
+        payload: { tag_id: 'tag-1' },
+        chainDepth: 1,
+      })
+    );
+    expect(mocks.process).toHaveBeenCalled();
   });
 
   it('reports duplicate when the tag already exists', async () => {
@@ -46,9 +73,10 @@ describe('addContactTagAndDispatch', () => {
       dispatched: false,
       reason: 'duplicate',
     });
+    expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 
-  it('adds the tag but cuts a chain at the configured depth limit', async () => {
+  it('enqueues at max depth but does not treat it as a dispatch', async () => {
     mocks.add.mockResolvedValue(true);
 
     await expect(
@@ -59,7 +87,9 @@ describe('addContactTagAndDispatch', () => {
     ).resolves.toEqual({
       added: true,
       dispatched: false,
+      reason: 'max_depth',
     });
+    expect(mocks.enqueue).toHaveBeenCalled();
   });
 
   it('records a single add without looping', async () => {
@@ -67,6 +97,36 @@ describe('addContactTagAndDispatch', () => {
     await addContactTagAndDispatch({ ...base, tagId: 'tag-a' });
 
     expect(mocks.add).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('removeContactTagAndDispatch', () => {
+  it('enqueues tag_removed when a join row is deleted', async () => {
+    mocks.remove.mockResolvedValue(true);
+
+    await expect(removeContactTagAndDispatch(base)).resolves.toEqual({
+      removed: true,
+      dispatched: true,
+    });
+    expect(mocks.enqueue).toHaveBeenCalledWith(
+      base.db,
+      expect.objectContaining({
+        eventType: 'tag_removed',
+        payload: { tag_id: 'tag-1' },
+      })
+    );
+    expect(mocks.process).toHaveBeenCalledWith('evt-1');
+  });
+
+  it('does not emit when the tag was not on the contact', async () => {
+    mocks.remove.mockResolvedValue(false);
+    await expect(removeContactTagAndDispatch(base)).resolves.toEqual({
+      removed: false,
+      dispatched: false,
+      reason: 'absent',
+    });
+    expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 });
 

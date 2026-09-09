@@ -1,35 +1,42 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
-import { reopenClosedConversation } from '@/lib/conversations/reopen'
-import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
-import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
-import type { Channel, NormalizedInbound } from '@/lib/channels/types'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
+import { reopenClosedConversation } from '@/lib/conversations/reopen';
+import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply';
+import { dispatchWebhookEvent } from '@/lib/webhooks/deliver';
+import {
+  emitContactCreated,
+  emitMessageReceived,
+} from '@/lib/automation/crm-events';
+import type { Channel, NormalizedInbound } from '@/lib/channels/types';
 
-let _adminClient: SupabaseClient | null = null
+let _adminClient: SupabaseClient | null = null;
 function supabaseAdmin() {
   if (!_adminClient) {
     _adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    );
   }
-  return _adminClient
+  return _adminClient;
 }
 
 // ----- helpers copied from whatsapp webhook for shared use -----
 
-async function lookupInternalIdByMetaId(metaId: string, conversationId: string): Promise<string | null> {
+async function lookupInternalIdByMetaId(
+  metaId: string,
+  conversationId: string
+): Promise<string | null> {
   const { data, error } = await supabaseAdmin()
     .from('messages')
     .select('id')
     .eq('message_id', metaId)
     .eq('conversation_id', conversationId)
-    .maybeSingle()
+    .maybeSingle();
   if (error) {
-    console.error('[inbound] lookupInternalIdByMetaId failed:', error.message)
-    return null
+    console.error('[inbound] lookupInternalIdByMetaId failed:', error.message);
+    return null;
   }
-  return data?.id ?? null
+  return data?.id ?? null;
 }
 
 async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
@@ -41,16 +48,17 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
       .eq('broadcasts.account_id', accountId)
       .in('status', ['sent', 'delivered', 'read'])
       .order('created_at', { ascending: false })
-      .limit(1)
-    if (error || !recs || recs.length === 0) return
-    const row = recs[0]
+      .limit(1);
+    if (error || !recs || recs.length === 0) return;
+    const row = recs[0];
     const { error: updErr } = await supabaseAdmin()
       .from('broadcast_recipients')
       .update({ status: 'replied', replied_at: new Date().toISOString() })
-      .eq('id', row.id)
-    if (updErr) console.error('Error marking broadcast recipient replied:', updErr)
+      .eq('id', row.id);
+    if (updErr)
+      console.error('Error marking broadcast recipient replied:', updErr);
   } catch (err) {
-    console.error('flagBroadcastReplyIfAny failed:', err)
+    console.error('flagBroadcastReplyIfAny failed:', err);
   }
 }
 
@@ -60,10 +68,16 @@ async function handleReactionShared(
   targetProviderId: string,
   emoji: string | null
 ) {
-  const targetInternalId = await lookupInternalIdByMetaId(targetProviderId, conversationId)
+  const targetInternalId = await lookupInternalIdByMetaId(
+    targetProviderId,
+    conversationId
+  );
   if (!targetInternalId) {
-    console.warn('[inbound] reaction target not found; skipping', targetProviderId)
-    return
+    console.warn(
+      '[inbound] reaction target not found; skipping',
+      targetProviderId
+    );
+    return;
   }
   if (!emoji) {
     const { error } = await supabaseAdmin()
@@ -71,62 +85,69 @@ async function handleReactionShared(
       .delete()
       .eq('message_id', targetInternalId)
       .eq('actor_type', 'customer')
-      .eq('actor_id', contactId)
-    if (error) console.error('[inbound] reaction delete failed:', error.message)
-    return
+      .eq('actor_id', contactId);
+    if (error)
+      console.error('[inbound] reaction delete failed:', error.message);
+    return;
   }
-  const { error } = await supabaseAdmin()
-    .from('message_reactions')
-    .upsert(
-      {
-        message_id: targetInternalId,
-        conversation_id: conversationId,
-        actor_type: 'customer',
-        actor_id: contactId,
-        emoji,
-      },
-      { onConflict: 'message_id,actor_type,actor_id' }
-    )
-  if (error) console.error('[inbound] reaction upsert failed:', error.message)
+  const { error } = await supabaseAdmin().from('message_reactions').upsert(
+    {
+      message_id: targetInternalId,
+      conversation_id: conversationId,
+      actor_type: 'customer',
+      actor_id: contactId,
+      emoji,
+    },
+    { onConflict: 'message_id,actor_type,actor_id' }
+  );
+  if (error) console.error('[inbound] reaction upsert failed:', error.message);
 }
 
 // channel-aware contact dedupe: WA via phone, TG via telegram_user_id
 type NormalizedInboundInput = NormalizedInbound & {
-  contentType?: string
-  contentText?: string | null
-  mediaUrl?: string | null
-  mediaType?: string | null
-  replyToProviderId?: string | null
-  targetProviderId?: string | null
-}
+  contentType?: string;
+  contentText?: string | null;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  replyToProviderId?: string | null;
+  targetProviderId?: string | null;
+};
 
 async function findOrCreateContactUnified(n: NormalizedInboundInput) {
-  const { accountId, configOwnerUserId, channel } = n
+  const { accountId, configOwnerUserId, channel } = n;
   // Telegram path
   if (channel === 'telegram') {
-    const telegramUserId = n.telegramUserId
-    const telegramChatId = n.telegramChatId
-    const telegramUsername = n.telegramUsername
-    const senderName = n.senderName
-    if (telegramUserId == null) return null
+    const telegramUserId = n.telegramUserId;
+    const telegramChatId = n.telegramChatId;
+    const telegramUsername = n.telegramUsername;
+    const senderName = n.senderName;
+    if (telegramUserId == null) return null;
     // lookup by telegram_user_id
     const { data: existing } = await supabaseAdmin()
       .from('contacts')
       .select('*')
       .eq('account_id', accountId)
       .eq('telegram_user_id', telegramUserId)
-      .maybeSingle()
+      .maybeSingle();
     if (existing) {
       // update chat_id/username if changed, name if provided
-      const updates: Record<string, unknown> = {}
-      if (telegramChatId != null && existing.telegram_chat_id !== telegramChatId) updates.telegram_chat_id = telegramChatId
-      if (telegramUsername !== existing.telegram_username) updates.telegram_username = telegramUsername
-      if (senderName && senderName !== existing.name) updates.name = senderName
+      const updates: Record<string, unknown> = {};
+      if (
+        telegramChatId != null &&
+        existing.telegram_chat_id !== telegramChatId
+      )
+        updates.telegram_chat_id = telegramChatId;
+      if (telegramUsername !== existing.telegram_username)
+        updates.telegram_username = telegramUsername;
+      if (senderName && senderName !== existing.name) updates.name = senderName;
       if (Object.keys(updates).length) {
-        updates.updated_at = new Date().toISOString()
-        await supabaseAdmin().from('contacts').update(updates).eq('id', existing.id)
+        updates.updated_at = new Date().toISOString();
+        await supabaseAdmin()
+          .from('contacts')
+          .update(updates)
+          .eq('id', existing.id);
       }
-      return { contact: existing, wasCreated: false }
+      return { contact: existing, wasCreated: false };
     }
     const { data: newContact, error } = await supabaseAdmin()
       .from('contacts')
@@ -140,7 +161,7 @@ async function findOrCreateContactUnified(n: NormalizedInboundInput) {
         telegram_username: telegramUsername ?? null,
       })
       .select()
-      .single()
+      .single();
     if (error) {
       if (isUniqueViolation(error)) {
         const { data: raced } = await supabaseAdmin()
@@ -148,43 +169,63 @@ async function findOrCreateContactUnified(n: NormalizedInboundInput) {
           .select('*')
           .eq('account_id', accountId)
           .eq('telegram_user_id', telegramUserId)
-          .maybeSingle()
-        if (raced) return { contact: raced, wasCreated: false }
+          .maybeSingle();
+        if (raced) return { contact: raced, wasCreated: false };
       }
-      console.error('Error creating telegram contact:', error)
-      return null
+      console.error('Error creating telegram contact:', error);
+      return null;
     }
-    return { contact: newContact, wasCreated: true }
+    return { contact: newContact, wasCreated: true };
   }
 
   // WhatsApp path — preserve exact existing behavior (phone NOT NULL before 041, now nullable but WA always has phone)
-  const senderPhone = n.senderPhone
-  const senderName = n.senderName
-  if (!senderPhone) return null
-  const existingContact = await findExistingContact(supabaseAdmin(), accountId, senderPhone)
+  const senderPhone = n.senderPhone;
+  const senderName = n.senderName;
+  if (!senderPhone) return null;
+  const existingContact = await findExistingContact(
+    supabaseAdmin(),
+    accountId,
+    senderPhone
+  );
   if (existingContact) {
     if (senderName && senderName !== existingContact.name) {
-      await supabaseAdmin().from('contacts').update({ name: senderName, updated_at: new Date().toISOString() }).eq('id', existingContact.id)
+      await supabaseAdmin()
+        .from('contacts')
+        .update({ name: senderName, updated_at: new Date().toISOString() })
+        .eq('id', existingContact.id);
     }
-    return { contact: existingContact, wasCreated: false }
+    return { contact: existingContact, wasCreated: false };
   }
   const { data: newContact, error: createError } = await supabaseAdmin()
     .from('contacts')
-    .insert({ account_id: accountId, user_id: configOwnerUserId, phone: senderPhone, name: senderName || senderPhone })
+    .insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      phone: senderPhone,
+      name: senderName || senderPhone,
+    })
     .select()
-    .single()
+    .single();
   if (createError) {
     if (isUniqueViolation(createError)) {
-      const raced = await findExistingContact(supabaseAdmin(), accountId, senderPhone)
-      if (raced) return { contact: raced, wasCreated: false }
+      const raced = await findExistingContact(
+        supabaseAdmin(),
+        accountId,
+        senderPhone
+      );
+      if (raced) return { contact: raced, wasCreated: false };
     }
-    console.error('Error creating contact:', createError)
-    return null
+    console.error('Error creating contact:', createError);
+    return null;
   }
-  return { contact: newContact, wasCreated: true }
+  return { contact: newContact, wasCreated: true };
 }
 
-async function findOrCreateConversationUnified(accountId: string, configOwnerUserId: string, contactId: string) {
+async function findOrCreateConversationUnified(
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string
+) {
   // Unified single thread per (account,contact) — no channel predicate per approval
   const { data: existingRows, error: findError } = await supabaseAdmin()
     .from('conversations')
@@ -192,19 +233,23 @@ async function findOrCreateConversationUnified(accountId: string, configOwnerUse
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .order('created_at', { ascending: true })
-    .limit(1)
+    .limit(1);
   if (findError) {
-    console.error('Error finding conversation:', findError)
-    return null
+    console.error('Error finding conversation:', findError);
+    return null;
   }
   if (existingRows && existingRows.length > 0) {
-    return { conversation: existingRows[0], created: false }
+    return { conversation: existingRows[0], created: false };
   }
   const { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
-    .insert({ account_id: accountId, user_id: configOwnerUserId, contact_id: contactId })
+    .insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      contact_id: contactId,
+    })
     .select()
-    .single()
+    .single();
   if (createError) {
     if (isUniqueViolation(createError)) {
       const { data: raced } = await supabaseAdmin()
@@ -213,13 +258,14 @@ async function findOrCreateConversationUnified(accountId: string, configOwnerUse
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
         .order('created_at', { ascending: true })
-        .limit(1)
-      if (raced && raced.length > 0) return { conversation: raced[0], created: false }
+        .limit(1);
+      if (raced && raced.length > 0)
+        return { conversation: raced[0], created: false };
     }
-    console.error('Error creating conversation:', createError)
-    return null
+    console.error('Error creating conversation:', createError);
+    return null;
   }
-  return { conversation: newConv, created: true }
+  return { conversation: newConv, created: true };
 }
 
 /**
@@ -228,27 +274,36 @@ async function findOrCreateConversationUnified(accountId: string, configOwnerUse
  * Provider-specific fields come via NormalizedInbound (channel, providerMessageId, replyId, mediaUrl, etc.)
  */
 export async function processNormalizedInbound(input: NormalizedInboundInput) {
-  const channel: Channel = input.channel
-  const accountId = input.accountId
-  const configOwnerUserId = input.configOwnerUserId
-  const providerMessageId = input.providerMessageId
+  const channel: Channel = input.channel;
+  const accountId = input.accountId;
+  const configOwnerUserId = input.configOwnerUserId;
+  const providerMessageId = input.providerMessageId;
 
   // 1) findOrCreateContact (channel-aware)
-  const contactOutcome = await findOrCreateContactUnified(input)
-  if (!contactOutcome) return
-  const contactRecord = contactOutcome.contact
+  const contactOutcome = await findOrCreateContactUnified(input);
+  if (!contactOutcome) return;
+  const contactRecord = contactOutcome.contact;
 
   // 2) findOrCreateConversation (unified)
-  const convResult = await findOrCreateConversationUnified(accountId, configOwnerUserId, contactRecord.id)
-  if (!convResult) return
-  const conversation = convResult.conversation
+  const convResult = await findOrCreateConversationUnified(
+    accountId,
+    configOwnerUserId,
+    contactRecord.id
+  );
+  if (!convResult) return;
+  const conversation = convResult.conversation;
 
   // 3) conversation.created webhook before reaction short-circuit
   if (convResult.created) {
-    await dispatchWebhookEvent(supabaseAdmin(), accountId, 'conversation.created', {
-      conversation_id: conversation.id,
-      contact_id: contactRecord.id,
-    })
+    await dispatchWebhookEvent(
+      supabaseAdmin(),
+      accountId,
+      'conversation.created',
+      {
+        conversation_id: conversation.id,
+        contact_id: contactRecord.id,
+      }
+    );
   }
 
   // 4) reaction short-circuit (kind === reaction)
@@ -257,38 +312,68 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
     // NormalizedInbound for reaction: providerMessageId is reaction's own id? Instead handle via raw
     // For WA, we need targetProviderId and emoji — passed via input.replyId (target) and input.text (emoji)
     // For simplicity, if kind reaction, treat replyId as target, text as emoji
-    const targetId = input.targetProviderId ?? input.replyId
-    const emoji = input.text
+    const targetId = input.targetProviderId ?? input.replyId;
+    const emoji = input.text;
     if (targetId) {
-      await handleReactionShared(conversation.id, contactRecord.id, targetId, emoji ?? null)
+      await handleReactionShared(
+        conversation.id,
+        contactRecord.id,
+        targetId,
+        emoji ?? null
+      );
     }
-    return
+    return;
   }
 
   // Resolve reply context
-  let replyToInternalId: string | null = null
-  const replyToProviderId: string | null = input.replyToProviderId ?? null
+  let replyToInternalId: string | null = null;
+  const replyToProviderId: string | null = input.replyToProviderId ?? null;
   if (replyToProviderId) {
-    replyToInternalId = await lookupInternalIdByMetaId(replyToProviderId, conversation.id)
-    if (!replyToInternalId) console.warn('[inbound] reply context parent not found:', replyToProviderId)
+    replyToInternalId = await lookupInternalIdByMetaId(
+      replyToProviderId,
+      conversation.id
+    );
+    if (!replyToInternalId)
+      console.warn(
+        '[inbound] reply context parent not found:',
+        replyToProviderId
+      );
   }
 
   // Content type mapping — trust input.contentType if provided, else derive from kind
-  const allowed = new Set(['text', 'image', 'document', 'audio', 'video', 'location', 'template', 'interactive'])
-  let contentType: string = input.contentType ?? (input.kind === 'interactive_reply' ? 'interactive' : input.kind === 'media' ? 'image' : input.kind === 'location' ? 'location' : 'text')
-  if (!allowed.has(contentType)) contentType = 'text'
-  const contentText: string | null = input.contentText ?? input.text ?? null
-  const mediaUrl: string | null = input.mediaUrl ?? null
-  const mediaType: string | null = input.mediaType ?? null
-  const interactiveReplyId: string | null = input.kind === 'interactive_reply' ? (input.replyId ?? null) : null
+  const allowed = new Set([
+    'text',
+    'image',
+    'document',
+    'audio',
+    'video',
+    'location',
+    'template',
+    'interactive',
+  ]);
+  let contentType: string =
+    input.contentType ??
+    (input.kind === 'interactive_reply'
+      ? 'interactive'
+      : input.kind === 'media'
+        ? 'image'
+        : input.kind === 'location'
+          ? 'location'
+          : 'text');
+  if (!allowed.has(contentType)) contentType = 'text';
+  const contentText: string | null = input.contentText ?? input.text ?? null;
+  const mediaUrl: string | null = input.mediaUrl ?? null;
+  const mediaType: string | null = input.mediaType ?? null;
+  const interactiveReplyId: string | null =
+    input.kind === 'interactive_reply' ? (input.replyId ?? null) : null;
 
   // 8) isFirstInboundMessage before insert
   const { count: priorCustomerMsgCount } = await supabaseAdmin()
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversation.id)
-    .eq('sender_type', 'customer')
-  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
+    .eq('sender_type', 'customer');
+  const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0;
 
   // 9) idempotent insert with channel provenance
   const { data: insertedRows, error: msgError } = await supabaseAdmin()
@@ -310,36 +395,73 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
       },
       { onConflict: 'conversation_id,message_id', ignoreDuplicates: true }
     )
-    .select('id')
+    .select('id');
 
   if (msgError) {
-    console.error('Error inserting message:', msgError)
-    return
+    console.error('Error inserting message:', msgError);
+    return;
   }
   if (!insertedRows || insertedRows.length === 0) {
-    console.info('[inbound] duplicate inbound message ignored (idempotent replay):', providerMessageId)
-    return
+    console.info(
+      '[inbound] duplicate inbound message ignored (idempotent replay):',
+      providerMessageId
+    );
+    return;
   }
 
   // 10) bump unread
-  const { error: convError } = await supabaseAdmin().rpc('bump_conversation_on_inbound', {
-    p_conversation_id: conversation.id,
-    p_last_message_text: contentText || `[${contentType}]`,
-  })
-  if (convError) console.error('Error updating conversation:', convError)
+  const { error: convError } = await supabaseAdmin().rpc(
+    'bump_conversation_on_inbound',
+    {
+      p_conversation_id: conversation.id,
+      p_last_message_text: contentText || `[${contentType}]`,
+    }
+  );
+  if (convError) console.error('Error updating conversation:', convError);
 
   // 11) reopen
-  await reopenClosedConversation(supabaseAdmin(), conversation)
+  await reopenClosedConversation(supabaseAdmin(), conversation);
 
   // 12) broadcast reply — WA only
   if (channel === 'whatsapp') {
-    await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+    await flagBroadcastReplyIfAny(accountId, contactRecord.id);
   }
 
-  // 13-14) Automations/Flows retired — clean inbound path is now:
-  //    normalize → contact/conversation/message → AI (if applicable) → webhook
-  //    No dead automation dispatch path remains.
-  const inboundText = contentText ?? ''
+  // 13-14) Durable CRM events for the automation worker (separate from
+  // outbound partner webhooks). Import/bulk paths do not use this file.
+  const inboundText = contentText ?? '';
+  const db = supabaseAdmin();
+  if (contactOutcome.wasCreated) {
+    try {
+      await emitContactCreated({
+        db,
+        accountId,
+        contactId: contactRecord.id,
+        payload: { source: 'inbound', channel },
+        idempotencyKey: `contact_created:${contactRecord.id}`,
+      });
+    } catch (err) {
+      console.error('[inbound] contact_created event failed:', err);
+    }
+  }
+  try {
+    await emitMessageReceived({
+      db,
+      accountId,
+      contactId: contactRecord.id,
+      payload: {
+        conversation_id: conversation.id,
+        message_id: insertedRows[0]?.id,
+        channel,
+        content_type: contentType,
+        text: contentText,
+        is_first_inbound: isFirstInboundMessage,
+      },
+      idempotencyKey: `message_received:${conversation.id}:${providerMessageId}`,
+    });
+  } catch (err) {
+    console.error('[inbound] message_received event failed:', err);
+  }
 
   // 15) AI — now without flow gate (Flows retired)
   if (!interactiveReplyId && inboundText.trim()) {
@@ -348,7 +470,7 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
-    })
+    });
   }
 
   // 16) webhook message.received — additive channel field, WA compat whatsapp_message_id alias
@@ -360,5 +482,5 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
     channel,
     content_type: contentType,
     text: contentText,
-  })
+  });
 }

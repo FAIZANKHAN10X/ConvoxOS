@@ -1,0 +1,135 @@
+import { MAX_EVENT_CHAIN_DEPTH } from './constants';
+import { createRunFromMatch, executeRun, type EngineDeps } from './engine';
+import { matchTriggers } from './match';
+import './nodes';
+import type { DomainEvent } from './types';
+
+export interface WorkerResult {
+  eventsProcessed: number;
+  runsCreated: number;
+  runsExecuted: number;
+  waitsResumed: number;
+}
+
+export async function processDomainEvent(
+  deps: EngineDeps,
+  eventId: string
+): Promise<WorkerResult> {
+  const event = await deps.store.getEvent(eventId);
+  if (!event) {
+    return {
+      eventsProcessed: 0,
+      runsCreated: 0,
+      runsExecuted: 0,
+      waitsResumed: 0,
+    };
+  }
+  if (
+    event.status === 'processed' ||
+    event.status === 'skipped' ||
+    event.status === 'failed'
+  ) {
+    return {
+      eventsProcessed: 0,
+      runsCreated: 0,
+      runsExecuted: 0,
+      waitsResumed: 0,
+    };
+  }
+  const first = await processClaimedEvent(deps, event);
+  const extra = await runAutomationWorker(deps);
+  return {
+    eventsProcessed: first.eventsProcessed + extra.eventsProcessed,
+    runsCreated: first.runsCreated + extra.runsCreated,
+    runsExecuted: first.runsExecuted + extra.runsExecuted,
+    waitsResumed: first.waitsResumed + extra.waitsResumed,
+  };
+}
+
+export async function processClaimedEvent(
+  deps: EngineDeps,
+  event: DomainEvent
+): Promise<WorkerResult> {
+  const result: WorkerResult = {
+    eventsProcessed: 1,
+    runsCreated: 0,
+    runsExecuted: 0,
+    waitsResumed: 0,
+  };
+
+  if (event.chainDepth >= MAX_EVENT_CHAIN_DEPTH) {
+    await deps.store.markEvent(event.id, 'skipped', 'max_event_chain_depth');
+    return result;
+  }
+
+  try {
+    const matches = await matchTriggers(deps.store, deps.registry, event);
+    for (const match of matches) {
+      const run = await createRunFromMatch(deps, event, {
+        automationId: match.trigger.automationId,
+        versionId: match.trigger.versionId,
+      });
+      if (!run) continue;
+      result.runsCreated += 1;
+      if (run.status === 'queued' || run.status === 'running') {
+        await executeRun(deps, run.id);
+        result.runsExecuted += 1;
+      }
+    }
+    await deps.store.markEvent(event.id, 'processed');
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'event processing failed';
+    await deps.store.markEvent(event.id, 'failed', message);
+  }
+
+  return result;
+}
+
+export async function runAutomationWorker(
+  deps: EngineDeps,
+  opts: { limit?: number } = {}
+): Promise<WorkerResult> {
+  const now = deps.now?.() ?? new Date();
+  const limit = opts.limit ?? 20;
+  const totals: WorkerResult = {
+    eventsProcessed: 0,
+    runsCreated: 0,
+    runsExecuted: 0,
+    waitsResumed: 0,
+  };
+
+  const events = await deps.store.claimPendingEvents(limit, now);
+  for (const event of events) {
+    const part = await processClaimedEvent(deps, event);
+    totals.eventsProcessed += part.eventsProcessed;
+    totals.runsCreated += part.runsCreated;
+    totals.runsExecuted += part.runsExecuted;
+  }
+
+  const waits = await deps.store.claimDueWaits(limit, now);
+  for (const wait of waits) {
+    const run = await deps.store.getRun(wait.runId);
+    if (!run || run.status === 'cancelled' || run.status === 'completed') {
+      continue;
+    }
+    if (wait.resumeNodeId) {
+      await deps.store.updateRun(run.id, {
+        status: 'queued',
+        currentNodeId: wait.resumeNodeId,
+        waitUntil: null,
+      });
+    }
+    await executeRun(deps, run.id);
+    totals.waitsResumed += 1;
+    totals.runsExecuted += 1;
+  }
+
+  const dueRuns = await deps.store.claimDueRuns(limit, now);
+  for (const run of dueRuns) {
+    await executeRun(deps, run.id);
+    totals.runsExecuted += 1;
+  }
+
+  return totals;
+}
