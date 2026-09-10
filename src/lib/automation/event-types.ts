@@ -11,6 +11,8 @@ export const DOMAIN_EVENT = {
   MESSAGE_RECEIVED: 'message_received',
   TASK_CREATED: 'task_created',
   TASK_COMPLETED: 'task_completed',
+  /** Fired by automation_inbound_hooks (n8n, scripts, middleware). */
+  EXTERNAL_RECEIVED: 'external.received',
 } as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT)[keyof typeof DOMAIN_EVENT];

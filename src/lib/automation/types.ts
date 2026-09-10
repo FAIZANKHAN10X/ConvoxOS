@@ -12,7 +12,7 @@ export type WaitStatus = 'pending' | 'claimed' | 'cancelled';
 export type DomainEventStatus =
   'pending' | 'processing' | 'processed' | 'failed' | 'skipped';
 
-export type DomainEventSource = 'crm' | 'automation';
+export type DomainEventSource = 'crm' | 'automation' | 'external';
 
 export type NodeKind = 'trigger' | 'action' | 'condition' | 'wait';
 

@@ -12,12 +12,15 @@ describe('automation catalog', () => {
     expect(types).toEqual(
       [
         'action.add_tag',
+        'action.http_request',
+        'action.n8n_workflow',
         'action.remove_tag',
         'action.send_text',
         'logic.condition',
         'message.send',
         'timing.wait',
         'trigger.contact_created',
+        'trigger.inbound_webhook',
         'trigger.keyword',
         'trigger.message_received',
         'trigger.tag_added',

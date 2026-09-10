@@ -23,12 +23,12 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { SAFE_FETCH_DEFAULT_TIMEOUT_MS, safeFetch, SafeFetchError } from '@/lib/http/safe-fetch';
 import { buildSignatureHeader } from '@/lib/webhooks/sign';
-import { isDeliverableUrl } from '@/lib/webhooks/ssrf';
 import type { WebhookEvent } from '@/lib/webhooks/events';
 
 /** Per-endpoint HTTP timeout. Kept short — this runs in `after()`. */
-export const DELIVERY_TIMEOUT_MS = 5000;
+export const DELIVERY_TIMEOUT_MS = SAFE_FETCH_DEFAULT_TIMEOUT_MS;
 
 /** Auto-disable an endpoint after this many consecutive failures. */
 export const MAX_CONSECUTIVE_FAILURES = 15;
@@ -90,15 +90,6 @@ async function deliverOne(
   payload: string,
   tsSeconds: number
 ): Promise<void> {
-  // SSRF guard: refuse to POST to a host that resolves to a private /
-  // loopback / link-local address. Counts as a failure so a
-  // misconfigured internal URL surfaces and eventually auto-disables.
-  if (!(await isDeliverableUrl(row.url))) {
-    console.warn('[webhooks] refusing non-public delivery target for', row.id);
-    await recordFailure(db, row);
-    return;
-  }
-
   let secret: string;
   try {
     secret = decrypt(row.secret);
@@ -111,7 +102,7 @@ async function deliverOne(
   }
 
   try {
-    const res = await fetch(row.url, {
+    await safeFetch(row.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -120,13 +111,8 @@ async function deliverOne(
         'X-Wacrm-Signature': buildSignatureHeader(payload, secret, tsSeconds),
       },
       body: payload,
-      // Do NOT follow redirects — a public URL could 3xx-bounce to an
-      // internal address, bypassing the SSRF check above. A 3xx is a
-      // misconfiguration; treat it as a failure.
-      redirect: 'manual',
-      signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
+      timeoutMs: DELIVERY_TIMEOUT_MS,
     });
-    if (!res.ok) throw new Error(`endpoint responded ${res.status}`);
 
     // Success: clear the failure streak.
     await db
@@ -134,10 +120,14 @@ async function deliverOne(
       .update({ failure_count: 0, last_delivery_at: new Date().toISOString() })
       .eq('id', row.id);
   } catch (err) {
-    console.warn(
-      `[webhooks] delivery to ${row.id} failed:`,
-      err instanceof Error ? err.message : err
-    );
+    if (err instanceof SafeFetchError && err.code === 'ssrf_refused') {
+      console.warn('[webhooks] refusing non-public delivery target for', row.id);
+    } else {
+      console.warn(
+        `[webhooks] delivery to ${row.id} failed:`,
+        err instanceof Error ? err.message : err
+      );
+    }
     await recordFailure(db, row);
   }
 }
