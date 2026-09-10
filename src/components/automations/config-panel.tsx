@@ -3,9 +3,8 @@
 import { useMemo } from 'react';
 import { X } from 'lucide-react';
 
-import type { CatalogNode } from '@/lib/automation/catalog';
+import type { CatalogBlock, CatalogNode, CatalogTask } from '@/lib/automation/catalog';
 import { fieldsFromJsonSchema } from '@/lib/automation/schema-fields';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -14,9 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 
 import { CATEGORY_ACCENT, CATEGORY_ICON } from './kind-theme';
+import { FieldInput, ItemListField } from './field-input';
 import { useTagNames } from './use-tags';
 
 interface ConfigPanelProps {
@@ -124,166 +123,202 @@ export function ConfigPanel({
           </div>
         )}
         {fields.map((field) => {
-          if (field.name === 'subject') return null;
-          const when = catalog.fieldWhen?.[field.name];
-          if (when) {
-            const current = String(config[when.field] ?? '');
-            if (!when.values.includes(current)) return null;
-          }
-          const value = config[field.name] ?? field.defaultValue ?? '';
-          if (field.type === 'stringList') {
-            const list = Array.isArray(value)
-              ? (value as string[]).join('\n')
-              : typeof value === 'string'
-                ? value
-                : '';
+          if (field.name === catalog.blocksField && catalog.blocks) {
             return (
-              <div key={field.name} className="space-y-1.5">
-                <Label className="text-slate-600">{field.label}</Label>
-                <Textarea
-                  rows={4}
-                  value={list}
-                  disabled={readOnly}
-                  className="border-slate-200 font-mono text-[13px]"
-                  placeholder="One keyword per line"
-                  onChange={(event) =>
-                    onChange({
-                      ...config,
-                      [field.name]: event.target.value
-                        .split('\n')
-                        .map((line) => line.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                />
-              </div>
-            );
-          }
-          if (field.type === 'boolean') {
-            return (
-              <label
+              <BlockListField
                 key={field.name}
-                className="flex items-center gap-2 text-sm text-slate-700"
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(value)}
-                  disabled={readOnly}
-                  onChange={(event) =>
-                    onChange({ ...config, [field.name]: event.target.checked })
-                  }
-                />
-                {field.label}
-              </label>
+                blocks={catalog.blocks}
+                value={config[field.name]}
+                disabled={readOnly}
+                tags={tags}
+                onChange={(next) =>
+                  onChange({ ...config, [field.name]: next })
+                }
+              />
             );
           }
-          if (field.type === 'tag') {
+          if (field.name === catalog.tasksField && catalog.tasks) {
             return (
-              <div key={field.name} className="space-y-1.5">
-                <Label className="text-slate-600">{field.label}</Label>
-                <Select
-                  value={typeof value === 'string' ? value : ''}
-                  onValueChange={(next) =>
-                    onChange({ ...config, [field.name]: next })
-                  }
-                  disabled={readOnly}
-                >
-                  <SelectTrigger className="w-full border-slate-200">
-                    <SelectValue placeholder="Choose a tag" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white text-slate-800 ring-slate-200">
-                    {tags.map((tag) => (
-                      <SelectItem key={tag.id} value={tag.id}>
-                        {tag.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-          }
-          if (field.type === 'enum') {
-            return (
-              <div key={field.name} className="space-y-1.5">
-                <Label className="text-slate-600">{field.label}</Label>
-                <Select
-                  value={typeof value === 'string' ? value : ''}
-                  onValueChange={(next) =>
-                    onChange({ ...config, [field.name]: next })
-                  }
-                  disabled={readOnly}
-                >
-                  <SelectTrigger className="w-full border-slate-200">
-                    <SelectValue placeholder={`Choose ${field.label}`}>
-                      {typeof value === 'string' && value
-                        ? (catalog.fieldLabels?.[field.name]?.[value] ?? value)
-                        : null}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="bg-white text-slate-800 ring-slate-200">
-                    {(field.enumValues ?? []).map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {catalog.fieldLabels?.[field.name]?.[option] ?? option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            );
-          }
-          if (field.type === 'number') {
-            return (
-              <div key={field.name} className="space-y-1.5">
-                <Label className="text-slate-600">{field.label}</Label>
-                <Input
-                  type="number"
-                  value={typeof value === 'number' ? value : ''}
-                  disabled={readOnly}
-                  className="border-slate-200"
-                  onChange={(event) =>
-                    onChange({
-                      ...config,
-                      [field.name]: event.target.value
-                        ? Number(event.target.value)
-                        : undefined,
-                    })
-                  }
-                />
-              </div>
-            );
-          }
-          if (field.name === 'text') {
-            return (
-              <div key={field.name} className="space-y-1.5">
-                <Label className="text-slate-600">{field.label}</Label>
-                <Textarea
-                  rows={5}
-                  value={typeof value === 'string' ? value : ''}
-                  disabled={readOnly}
-                  className="border-slate-200 text-[15px] leading-relaxed"
-                  placeholder="Write the message…"
-                  onChange={(event) =>
-                    onChange({ ...config, [field.name]: event.target.value })
-                  }
-                />
-              </div>
+              <TaskListField
+                key={field.name}
+                tasks={catalog.tasks}
+                value={config[field.name]}
+                disabled={readOnly}
+                tags={tags}
+                onChange={(next) =>
+                  onChange({ ...config, [field.name]: next })
+                }
+              />
             );
           }
           return (
-            <div key={field.name} className="space-y-1.5">
-              <Label className="text-slate-600">{field.label}</Label>
-              <Input
-                value={typeof value === 'string' ? value : ''}
-                disabled={readOnly}
-                className="border-slate-200"
-                onChange={(event) =>
-                  onChange({ ...config, [field.name]: event.target.value })
-                }
-              />
-            </div>
+            <FieldInput
+              key={field.name}
+              field={field}
+              value={config[field.name] ?? field.defaultValue ?? ''}
+              values={config}
+              disabled={readOnly}
+              tags={tags}
+              labels={catalog.fieldLabels}
+              when={catalog.fieldWhen}
+              onChange={(next) => onChange({ ...config, [field.name]: next })}
+            />
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function fieldInputsForSchema(
+  jsonSchema: Record<string, unknown>,
+  values: Record<string, unknown>,
+  chrome: {
+    disabled?: boolean;
+    tags: Array<{ id: string; name: string }>;
+    labels?: Record<string, Record<string, string>>;
+    when?: Record<string, { field: string; values: string[] }>;
+    onChange: (next: Record<string, unknown>) => void;
+  }
+) {
+  return fieldsFromJsonSchema(jsonSchema).map((field) => (
+    <FieldInput
+      key={field.name}
+      field={field}
+      value={values[field.name]}
+      values={values}
+      disabled={chrome.disabled}
+      tags={chrome.tags}
+      labels={chrome.labels}
+      when={chrome.when}
+      onChange={(next) => chrome.onChange({ ...values, [field.name]: next })}
+    />
+    )
+  );
+}
+
+/**
+ * Registry-driven content-block list (message containers). Block
+ * types, schemas, and labels all come from the catalog entry — no
+ * per-node branches.
+ */
+function BlockListField({
+  blocks,
+  value,
+  disabled,
+  tags,
+  onChange,
+}: {
+  blocks: CatalogBlock[];
+  value: unknown;
+  disabled?: boolean;
+  tags: Array<{ id: string; name: string }>;
+  onChange: (value: Array<Record<string, unknown>>) => void;
+}) {
+  const items = Array.isArray(value) ? value : [];
+  const byType = new Map(blocks.map((block) => [block.blockType, block]));
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-slate-600">Content blocks</Label>
+      <ItemListField
+        items={items}
+        typeKey="blockType"
+        options={blocks.map((block) => ({
+          value: block.blockType,
+          label: block.label,
+          description: block.description,
+        }))}
+        getTitle={(item, index) => {
+          const block = typeof item.blockType === 'string'
+            ? byType.get(item.blockType)
+            : undefined;
+          return block ? `${block.label} ${index + 1}` : `Block ${index + 1}`;
+        }}
+        renderConfig={(item, config, onConfigChange) => {
+          const block =
+            typeof item.blockType === 'string'
+              ? byType.get(item.blockType)
+              : undefined;
+          if (!block) return null;
+          return (
+            <>
+              {fieldInputsForSchema(block.jsonSchema, config, {
+                disabled,
+                tags,
+                labels: block.fieldLabels,
+                onChange: onConfigChange,
+              })}
+            </>
+          );
+        }}
+        onChange={onChange}
+        disabled={disabled}
+        addPlaceholder="Choose a block"
+        emptyText="No blocks yet. Add the first piece of content."
+      />
+    </div>
+  );
+}
+
+/**
+ * Registry-driven multi-action task list. Task types, schemas, and
+ * labels all come from the catalog entry — no per-node branches.
+ */
+function TaskListField({
+  tasks,
+  value,
+  disabled,
+  tags,
+  onChange,
+}: {
+  tasks: CatalogTask[];
+  value: unknown;
+  disabled?: boolean;
+  tags: Array<{ id: string; name: string }>;
+  onChange: (value: Array<Record<string, unknown>>) => void;
+}) {
+  const items = Array.isArray(value) ? value : [];
+  const byType = new Map(tasks.map((task) => [task.taskType, task]));
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-slate-600">Actions</Label>
+      <ItemListField
+        items={items}
+        typeKey="taskType"
+        options={tasks.map((task) => ({
+          value: task.taskType,
+          label: task.label,
+          description: task.description,
+        }))}
+        getTitle={(item, index) => {
+          const task =
+            typeof item.taskType === 'string'
+              ? byType.get(item.taskType)
+              : undefined;
+          return task ? `${task.label} ${index + 1}` : `Action ${index + 1}`;
+        }}
+        renderConfig={(item, config, onConfigChange) => {
+          const task =
+            typeof item.taskType === 'string'
+              ? byType.get(item.taskType)
+              : undefined;
+          if (!task) return null;
+          return (
+            <>
+              {fieldInputsForSchema(task.jsonSchema, config, {
+                disabled,
+                tags,
+                labels: task.fieldLabels,
+                onChange: onConfigChange,
+              })}
+            </>
+          );
+        }}
+        onChange={onChange}
+        disabled={disabled}
+        addPlaceholder="Choose an action"
+        emptyText="No actions yet. Add the first one."
+      />
     </div>
   );
 }

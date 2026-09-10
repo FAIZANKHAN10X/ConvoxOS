@@ -30,6 +30,68 @@ export type NodeCategory =
   'trigger' | 'communication' | 'crm' | 'logic' | 'timing';
 
 /**
+ * A content block type a container node may hold (ManyChat block
+ * model: text, image, button rows inside one message node). Blocks are
+ * validated and edited generically; they never become graph nodes.
+ */
+export interface BlockDefinition {
+  blockType: string;
+  label: string;
+  description?: string;
+  configSchema: z.ZodType<unknown, z.ZodTypeDef, unknown>;
+  fieldLabels?: Record<string, Record<string, string>>;
+  emptyPrompt?: string;
+}
+
+/** One block instance inside a container node's config array. */
+export interface BlockInstance {
+  id: string;
+  blockType: string;
+  config?: Record<string, unknown>;
+}
+
+/**
+ * A named task a multi-action container can run (ManyChat action rows:
+ * tag, set field, subscribe...). P0 validates task lists; execution
+ * arrives with the container node.
+ */
+export interface TaskHandlerDef {
+  taskType: string;
+  label: string;
+  description?: string;
+  configSchema: z.ZodType<unknown, z.ZodTypeDef, unknown>;
+  fieldLabels?: Record<string, Record<string, string>>;
+}
+
+/** One task item inside a container node's config array. */
+export interface TaskItem {
+  id: string;
+  taskType: string;
+  config?: Record<string, unknown>;
+}
+
+export interface NodeFlags {
+  nondeterministic?: boolean;
+  pausesFlow?: boolean;
+}
+
+/**
+ * Declarative dynamic-port rule: one output handle per item of a
+ * config array field (randomizer variants, button rows). Serializes
+ * cleanly onto the catalog, unlike the `outputsFor` function.
+ */
+export interface DynamicPortRule {
+  /**
+   * Config array field with one output per item. Optional: when
+   * omitted, ports are computed server-side by `outputsFor` and the
+   * canvas renders the static base ports.
+   */
+  field?: string;
+  idField?: string;
+  labelField?: string;
+}
+
+/**
  * Graph stored on drafts and published versions. Shape matches React
  * Flow JSON so the builder can persist the canvas without a second
  * model. The engine reads `data.config`; it does not import xyflow.
@@ -206,6 +268,12 @@ export interface NodeDefinition<TConfig = unknown> {
    * has one inbound and one Next.
    */
   ports?: NodePorts;
+  /**
+   * Runtime-configured outputs (e.g. randomizer variants, button rows).
+   * Server-side override used by publish validation; the declarative
+   * `dynamicPorts` rule below covers the cases the canvas must render.
+   */
+  outputsFor?(config: TConfig): NodePorts;
   summarize?(config: TConfig): string;
   /**
    * Presentation hint for the builder. Serialized into the catalog so
@@ -223,6 +291,35 @@ export interface NodeDefinition<TConfig = unknown> {
   emptyPrompt?: string;
   /** Show a config field only when another field is one of `values`. */
   fieldWhen?: Record<string, { field: string; values: string[] }>;
+  /**
+   * Content blocks this node can contain (ManyChat message-container
+   * model). Blocks are data inside the node config — not graph rows,
+   * not registry nodes — so engine, ports, and versioning stay flat.
+   * Stored under `blockField` (default `blocks`) as BlockInstance[].
+   */
+  blocks?: BlockDefinition[];
+  /** Config key holding the BlockInstance array. Defaults to `blocks`. */
+  blockField?: string;
+  /**
+   * Declarative per-item output rule, serialized onto the catalog so
+   * the canvas can render runtime ports without node-type switches.
+   * `outputsFor` (above) takes precedence server-side when both exist.
+   */
+  dynamicPorts?: DynamicPortRule;
+  /**
+   * Named task palette for multi-action containers. Stored under
+   * `taskField` (default `tasks`) as TaskItem[]. Tasks are validated
+   * here; a container node executes them in a later wave.
+   */
+  tasks?: TaskHandlerDef[];
+  /** Config key holding the TaskItem array. Defaults to `tasks`. */
+  taskField?: string;
+  /**
+   * Execution hints. `pausesFlow` marks nodes that break a no-pause
+   * run (buttons, delays) for the 30-block pause accounting.
+   * `nondeterministic` marks AI-style steps for preview/stats rules.
+   */
+  flags?: NodeFlags;
   validate?(config: TConfig, graph: AutomationGraph): string[];
   match?(event: DomainEvent, config: TConfig): boolean;
   execute?(

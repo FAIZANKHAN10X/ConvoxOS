@@ -14,6 +14,14 @@ export const MAX_EVENT_CHAIN_DEPTH = 3;
 /** Per-node retry budget for retryable side-effect failures. */
 export const MAX_NODE_ATTEMPTS = 3;
 
+/**
+ * ManyChat parity: at most this many blocks may run without a pause
+ * (an input-waiting or timer-suspending node) for one contact. Longer
+ * chains must insert a pause — buttons, delays, or data collection —
+ * instead of silently stopping mid-flow like the reference product.
+ */
+export const MAX_BLOCKS_WITHOUT_PAUSE = 30;
+
 export const EVENT_RETENTION_DAYS = 90;
 export const VERSION_RETENTION_DAYS = 30;
 export const MAX_RETAINED_VERSIONS = 10;

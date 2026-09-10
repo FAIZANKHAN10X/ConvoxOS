@@ -1,4 +1,5 @@
 import type { CatalogNode } from './catalog';
+import { resolveCatalogPorts } from './ports';
 import { fieldsFromJsonSchema } from './schema-fields';
 import type { AutomationGraph, ValidationIssue } from './types';
 
@@ -41,9 +42,10 @@ export function validateDraftGraph(
       }
     }
     const requireAll = def.kind === 'condition' || def.kind === 'trigger';
-    if (requireAll && def.ports.outgoing.length > 0) {
+    const ports = resolveCatalogPorts(def, node.data?.config ?? {});
+    if (requireAll && ports.outgoing.length > 0) {
       const outs = graph.edges.filter((e) => e.source === node.id);
-      for (const handle of def.ports.outgoing) {
+      for (const handle of ports.outgoing) {
         const match = outs.some((edge) => {
           const id = edge.sourceHandle ?? 'default';
           if (handle.id === 'default') {

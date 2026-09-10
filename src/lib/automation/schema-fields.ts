@@ -1,10 +1,19 @@
 export interface SchemaField {
   name: string;
   label: string;
-  type: 'string' | 'number' | 'enum' | 'boolean' | 'tag' | 'stringList';
+  type:
+    | 'string'
+    | 'number'
+    | 'enum'
+    | 'boolean'
+    | 'tag'
+    | 'stringList'
+    | 'objectList';
   enumValues?: string[];
   required: boolean;
   defaultValue?: unknown;
+  /** For `objectList`: the item object's fields, derived recursively. */
+  itemFields?: SchemaField[];
 }
 
 function titleCase(name: string): string {
@@ -44,14 +53,29 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
 
   for (const [name, raw] of Object.entries(properties)) {
     if (!raw || typeof raw !== 'object') continue;
-    const prop = raw as {
-      type?: string | string[];
-      enum?: unknown[];
-      format?: string;
-      default?: unknown;
-      anyOf?: Array<{ type?: string; enum?: unknown[] }>;
-    };
+    pushField(fields, name, raw as JsonProp, required);
+  }
 
+  return fields;
+}
+
+interface JsonProp {
+  type?: string | string[];
+  enum?: unknown[];
+  format?: string;
+  default?: unknown;
+  anyOf?: Array<{ type?: string; enum?: unknown[] }>;
+  items?: JsonProp & { properties?: Record<string, unknown> };
+  properties?: Record<string, unknown>;
+}
+
+function pushField(
+  fields: SchemaField[],
+  name: string,
+  prop: JsonProp,
+  required: Set<string>
+): void {
+  {
     const enumValues = Array.isArray(prop.enum)
       ? prop.enum.filter((v): v is string => typeof v === 'string')
       : prop.anyOf
@@ -67,9 +91,11 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
         required: required.has(name),
         defaultValue: prop.default,
       });
-      continue;
+      return;
     }
+  }
 
+  {
     if (isTagField(name)) {
       fields.push({
         name,
@@ -78,11 +104,13 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
         required: required.has(name),
         defaultValue: prop.default,
       });
-      continue;
+      return;
     }
+  }
 
+  {
     const jsonType = Array.isArray(prop.type) ? prop.type[0] : prop.type;
-    const items = (raw as { items?: { type?: string } }).items;
+    const items = prop.items;
     if (jsonType === 'array' && items?.type === 'string') {
       fields.push({
         name,
@@ -91,7 +119,18 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
         required: required.has(name),
         defaultValue: prop.default,
       });
-      continue;
+      return;
+    }
+    if (jsonType === 'array' && items?.type === 'object' && items.properties) {
+      fields.push({
+        name,
+        label: titleCase(name),
+        type: 'objectList',
+        required: required.has(name),
+        defaultValue: prop.default,
+        itemFields: fieldsFromProperties(items.properties, new Set()),
+      });
+      return;
     }
     if (jsonType === 'number' || jsonType === 'integer') {
       fields.push({
@@ -101,7 +140,7 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
         required: required.has(name),
         defaultValue: prop.default,
       });
-      continue;
+      return;
     }
     if (jsonType === 'boolean') {
       fields.push({
@@ -111,7 +150,7 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
         required: required.has(name),
         defaultValue: prop.default,
       });
-      continue;
+      return;
     }
 
     fields.push({
@@ -122,7 +161,17 @@ export function fieldsFromJsonSchema(schema: unknown): SchemaField[] {
       defaultValue: prop.default,
     });
   }
+}
 
+function fieldsFromProperties(
+  properties: Record<string, unknown>,
+  required: Set<string>
+): SchemaField[] {
+  const fields: SchemaField[] = [];
+  for (const [name, raw] of Object.entries(properties)) {
+    if (!raw || typeof raw !== 'object') continue;
+    pushField(fields, name, raw as JsonProp, required);
+  }
   return fields;
 }
 

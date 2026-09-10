@@ -181,12 +181,14 @@ describe('timing and conditions', () => {
       predicate: 'event.tag_id',
       op: 'eq',
       tagId: TAG,
+      mode: 'all',
     });
     expect(yes).toMatchObject({ status: 'branch', branch: 'true' });
     const no = await conditionNode.execute?.(ctx(), {
       predicate: 'event.tag_id',
       op: 'eq',
       tagId: '33333333-3333-3333-3333-333333333333',
+      mode: 'all',
     });
     expect(no).toMatchObject({ status: 'branch', branch: 'false' });
   });
@@ -196,6 +198,7 @@ describe('timing and conditions', () => {
       subject: 'event.tag_id',
       op: 'eq',
       value: TAG,
+      mode: 'all',
     });
     expect(result).toMatchObject({ status: 'branch', branch: 'true' });
   });

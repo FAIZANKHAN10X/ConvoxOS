@@ -4,6 +4,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Copy, Trash2, Zap } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
+import { resolveCatalogPorts } from '@/lib/automation/ports';
 import { placeholderFor, summarizeNode } from '@/lib/automation/present';
 import { cn } from '@/lib/utils';
 
@@ -32,9 +33,11 @@ export function StepNode({
   const Icon =
     (catalog && CATEGORY_ICON[catalog.category]) || CATEGORY_ICON.communication;
   const isTrigger = catalog?.kind === 'trigger';
-  const outgoing = catalog?.ports.outgoing ?? [
-    { id: 'default', label: 'Next' },
-  ];
+  // Dynamic ports (randomizer variants, button rows) resolve from the
+  // node's own config through the catalog rule — no type switches.
+  const outgoing = catalog
+    ? resolveCatalogPorts(catalog, data.config).outgoing
+    : [{ id: 'default', label: 'Next' }];
   const branched = outgoing.length > 1;
   const errors = data.errors ?? [];
   const summary = catalog
