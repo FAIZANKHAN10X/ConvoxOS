@@ -88,11 +88,14 @@ export function ConfigPanel({
         </button>
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {errors.length > 0 && (
+        {errors.filter((error) => !error.startsWith('Connect the')).length >
+          0 && (
           <ul className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
+            {errors
+              .filter((error) => !error.startsWith('Connect the'))
+              .map((error) => (
+                <li key={error}>{error}</li>
+              ))}
           </ul>
         )}
         {catalog.kind === 'trigger' && onChangeType && (
@@ -108,7 +111,7 @@ export function ConfigPanel({
               <SelectTrigger className="w-full border-slate-200">
                 <SelectValue>{catalog.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white text-slate-800 ring-slate-200">
                 {catalogList
                   .filter((node) => node.kind === 'trigger')
                   .map((node) => (
@@ -122,6 +125,11 @@ export function ConfigPanel({
         )}
         {fields.map((field) => {
           if (field.name === 'subject') return null;
+          const when = catalog.fieldWhen?.[field.name];
+          if (when) {
+            const current = String(config[when.field] ?? '');
+            if (!when.values.includes(current)) return null;
+          }
           const value = config[field.name] ?? field.defaultValue ?? '';
           if (field.type === 'stringList') {
             const list = Array.isArray(value)
@@ -183,7 +191,7 @@ export function ConfigPanel({
                   <SelectTrigger className="w-full border-slate-200">
                     <SelectValue placeholder="Choose a tag" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-800 ring-slate-200">
                     {tags.map((tag) => (
                       <SelectItem key={tag.id} value={tag.id}>
                         {tag.name}
@@ -212,7 +220,7 @@ export function ConfigPanel({
                         : null}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-800 ring-slate-200">
                     {(field.enumValues ?? []).map((option) => (
                       <SelectItem key={option} value={option}>
                         {catalog.fieldLabels?.[field.name]?.[option] ?? option}

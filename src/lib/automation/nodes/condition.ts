@@ -26,11 +26,24 @@ export const conditionNode: NodeDefinition<z.infer<typeof conditionConfig>> = {
   type: 'logic.condition',
   kind: 'condition',
   label: 'Condition',
-  description: 'Branch Yes or No based on CRM or event state',
+  description: 'Branch Yes or No',
   category: 'logic',
   fieldLabels: {
     predicate: predicateLabels,
     op: { eq: 'is', neq: 'is not', contains: 'contains' },
+  },
+  fieldWhen: {
+    tagId: { field: 'predicate', values: ['has_tag', 'event.tag_id'] },
+    value: {
+      field: 'predicate',
+      values: [
+        'event.text',
+        'event.channel',
+        'contact.name',
+        'contact.email',
+        'contact.phone',
+      ],
+    },
   },
   configSchema: conditionConfig,
   summarize(config) {

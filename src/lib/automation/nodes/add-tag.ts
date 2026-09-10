@@ -15,7 +15,7 @@ export const addTagAction: NodeDefinition<z.infer<typeof addTagConfig>> = {
   type: 'action.add_tag',
   kind: 'action',
   label: 'Add tag',
-  description: 'Add a tag to the contact and emit tag_added',
+  description: 'Add a tag to the contact',
   category: 'crm',
   configSchema: addTagConfig,
   summarize() {

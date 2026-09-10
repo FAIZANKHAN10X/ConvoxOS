@@ -51,6 +51,12 @@ describe('automation catalog', () => {
     expect(created?.label).toBe('Create deal');
     expect(created?.category).toBe('crm');
   });
+
+  it('copies fieldWhen so editors can hide irrelevant fields without a type switch', () => {
+    const catalog = catalogFromRegistry(defaultRegistry);
+    const condition = catalog.find((node) => node.type === 'logic.condition');
+    expect(condition?.fieldWhen?.tagId?.values).toContain('has_tag');
+  });
 });
 
 describe('schema fields', () => {

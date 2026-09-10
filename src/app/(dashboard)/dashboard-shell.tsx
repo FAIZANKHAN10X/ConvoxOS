@@ -48,8 +48,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       {/* Reports this tab's online/away presence once we know a user is
           signed in. Headless — renders nothing. */}
       <PresenceHeartbeat />
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {!builderCanvas && (
+        <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!builderCanvas && (
           <Header onOpenSidebar={() => setSidebarOpen(true)} />
         )}

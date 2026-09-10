@@ -53,9 +53,21 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   const redo = useRef<AutomationGraph[]>([]);
   const skipSave = useRef(true);
   const graphRef = useRef(graph);
+  const nameRef = useRef(name);
+  const persistRef = useRef<
+    (nextName: string, nextGraph: AutomationGraph) => Promise<void>
+  >(async () => undefined);
+  const [liveSnapshot, setLiveSnapshot] = useState<string | null>(
+    initial.status === 'published'
+      ? JSON.stringify(initial.draftGraph)
+      : null
+  );
   useEffect(() => {
     graphRef.current = graph;
   }, [graph]);
+  useEffect(() => {
+    nameRef.current = name;
+  }, [name]);
 
   const persist = useCallback(
     async (nextName: string, nextGraph: AutomationGraph) => {
@@ -75,6 +87,16 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
     },
     [automation.id]
   );
+
+  useEffect(() => {
+    persistRef.current = persist;
+  }, [persist]);
+
+  useEffect(() => {
+    return () => {
+      void persistRef.current(nameRef.current, graphRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (skipSave.current) {
@@ -142,6 +164,7 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
       return;
     }
     setAutomation(body.automation);
+    setLiveSnapshot(JSON.stringify(graph));
   }
 
   async function toggleDisabled() {
@@ -215,6 +238,13 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
               Live
             </span>
           )}
+          {automation.status === 'published' &&
+            liveSnapshot !== null &&
+            liveSnapshot !== JSON.stringify(graph) && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                Unpublished changes
+              </span>
+            )}
           <Button
             variant="outline"
             size="sm"
@@ -240,7 +270,10 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
             <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              className="bg-white text-slate-800"
+            >
               <DropdownMenuItem onClick={() => setView('history')}>
                 <History className="h-4 w-4" />
                 Run history

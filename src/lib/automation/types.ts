@@ -221,6 +221,8 @@ export interface NodeDefinition<TConfig = unknown> {
   fieldLabels?: Record<string, Record<string, string>>;
   /** Canvas empty-state copy when required config is missing. */
   emptyPrompt?: string;
+  /** Show a config field only when another field is one of `values`. */
+  fieldWhen?: Record<string, { field: string; values: string[] }>;
   validate?(config: TConfig, graph: AutomationGraph): string[];
   match?(event: DomainEvent, config: TConfig): boolean;
   execute?(

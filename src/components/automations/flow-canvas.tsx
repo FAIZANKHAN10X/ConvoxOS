@@ -24,11 +24,6 @@ import {
 } from '@/lib/automation/client-validate';
 import { defaultsFromCatalog } from '@/lib/automation/present';
 import type { AutomationGraph } from '@/lib/automation/types';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 
 import { ConfigPanel } from './config-panel';
 import {
@@ -87,7 +82,7 @@ export function FlowCanvas({
   readOnly,
   onChange,
 }: FlowCanvasProps) {
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, setCenter, getZoom } = useReactFlow();
   const tagNames = useTagNames();
   const catalogRef = useRef(catalog);
   catalogRef.current = catalog;
@@ -436,6 +431,10 @@ export function FlowCanvas({
     commit(nextNodes, nextEdges);
     setSelectedId(id);
     setPicker(null);
+    void setCenter(position.x + 140, position.y + 70, {
+      zoom: getZoom(),
+      duration: 250,
+    });
   }
 
   return (
@@ -450,7 +449,14 @@ export function FlowCanvas({
         onConnect={onConnect}
         onPaneClick={(event) => {
           setSelectedId(null);
-          if (readOnly || event.detail < 2) return;
+          if (readOnly) {
+            setPicker(null);
+            return;
+          }
+          if (event.detail < 2) {
+            setPicker(null);
+            return;
+          }
           const position = screenToFlowPosition({
             x: event.clientX,
             y: event.clientY,
@@ -468,49 +474,46 @@ export function FlowCanvas({
       >
         <Controls
           showInteractive={!readOnly}
-          position="bottom-right"
+          position="bottom-left"
           className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
         />
       </ReactFlow>
 
       {!readOnly && (
-        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
-          <Popover
-            open={picker !== null}
-            onOpenChange={(open) => {
-              if (!open) setPicker(null);
-            }}
-          >
-            <PopoverTrigger
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
-              onClick={() =>
-                setPicker(
-                  selectedId
-                    ? { mode: 'after', sourceId: selectedId }
-                    : { mode: 'free', position: { x: 360, y: 180 } }
-                )
-              }
-              aria-label="Add a step"
-            >
-              <Plus className="h-5 w-5" />
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              side="left"
-              className="w-auto border-slate-200 p-4"
-            >
+        <div
+          className="absolute top-4 z-40 flex items-start gap-3"
+          style={{ right: selected ? 400 : 16 }}
+        >
+          {picker && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-[0_12px_40px_rgba(31,41,55,0.12)]">
               <NodePicker
                 catalog={catalog}
                 allowTriggers={!hasTrigger}
                 onPick={placeNode}
               />
-            </PopoverContent>
-          </Popover>
+            </div>
+          )}
+          <button
+            type="button"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
+            onClick={() =>
+              setPicker((current) =>
+                current
+                  ? null
+                  : selectedId
+                    ? { mode: 'after', sourceId: selectedId }
+                    : { mode: 'free', position: { x: 360, y: 180 } }
+              )
+            }
+            aria-label="Add a step"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
         </div>
       )}
 
       {selected && (
-        <aside className="absolute inset-y-0 left-0 z-30 w-[min(100%,380px)] border-r border-slate-200 bg-white shadow-[12px_0_32px_rgba(31,41,55,0.08)]">
+        <aside className="absolute inset-y-0 right-0 z-30 w-[min(100%,380px)] border-l border-slate-200 bg-white shadow-[-12px_0_32px_rgba(31,41,55,0.08)]">
           <ConfigPanel
             catalog={selectedCatalog}
             catalogList={catalog}

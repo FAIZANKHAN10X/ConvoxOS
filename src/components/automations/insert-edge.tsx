@@ -46,18 +46,27 @@ export function InsertEdge({
         style={{ stroke, strokeWidth: 2 }}
       />
       <EdgeLabelRenderer>
-        <button
-          type="button"
-          className="nodrag nopan absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-[#2f6fed] hover:text-[#2f6fed]"
-          style={{ left: labelX, top: labelY }}
-          onClick={(event) => {
-            event.stopPropagation();
-            data?.onInsert?.(id);
+        <div
+          className="nodrag nopan"
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: 'all',
+            zIndex: 20,
           }}
-          aria-label="Insert step"
         >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-[#2f6fed] hover:text-[#2f6fed]"
+            onClick={(event) => {
+              event.stopPropagation();
+              data?.onInsert?.(id);
+            }}
+            aria-label="Insert step"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </EdgeLabelRenderer>
     </>
   );

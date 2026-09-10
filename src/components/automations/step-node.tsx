@@ -82,7 +82,7 @@ export function StepNode({
         {!data.readOnly && (
           <button
             type="button"
-            className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
+            className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white opacity-0 shadow-md group-hover:opacity-100"
             onClick={(event) => {
               event.stopPropagation();
               data.onAddAfter?.(id, outgoing[0]?.id);
@@ -108,7 +108,7 @@ export function StepNode({
   return (
     <div
       className={cn(
-        'group relative w-[280px] overflow-hidden rounded-[18px] border bg-white shadow-[0_8px_24px_rgba(31,41,55,0.10)]',
+        'group relative w-[280px] overflow-visible rounded-[18px] border bg-white shadow-[0_8px_24px_rgba(31,41,55,0.10)]',
         selected ? 'border-transparent ring-2 ring-[#22c55e]' : 'border-slate-200',
         errors.length > 0 && !selected && 'border-red-300'
       )}
@@ -214,7 +214,7 @@ export function StepNode({
               <button
                 key={`add-${handle.id}`}
                 type="button"
-                className="nodrag nopan absolute -bottom-3 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
+                className="nodrag nopan absolute -bottom-3 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white opacity-0 shadow-md group-hover:opacity-100"
                 style={{
                   left: `${((index + 1) / (outgoing.length + 1)) * 100}%`,
                 }}
@@ -239,7 +239,7 @@ export function StepNode({
           {!data.readOnly && (
             <button
               type="button"
-              className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-md"
+              className="nodrag nopan absolute -bottom-3 left-1/2 z-10 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white opacity-0 shadow-md group-hover:opacity-100"
               onClick={(event) => {
                 event.stopPropagation();
                 data.onAddAfter?.(id, outgoing[0]?.id);

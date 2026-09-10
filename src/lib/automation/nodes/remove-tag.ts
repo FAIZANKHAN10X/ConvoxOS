@@ -15,7 +15,7 @@ export const removeTagAction: NodeDefinition<z.infer<typeof config>> = {
   type: 'action.remove_tag',
   kind: 'action',
   label: 'Remove tag',
-  description: 'Remove a tag from the contact and emit tag_removed',
+  description: 'Remove a tag from the contact',
   category: 'crm',
   configSchema: config,
   summarize() {

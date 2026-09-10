@@ -30,6 +30,7 @@ export interface CatalogNode {
   preview?: 'message';
   fieldLabels?: Record<string, Record<string, string>>;
   emptyPrompt?: string;
+  fieldWhen?: Record<string, { field: string; values: string[] }>;
   /** Zod defaults, so empty stored config still displays honestly. */
   configDefaults?: Record<string, unknown>;
   ports: {
@@ -49,6 +50,7 @@ export function catalogFromRegistry(registry: NodeRegistry): CatalogNode[] {
     preview: def.preview,
     fieldLabels: def.fieldLabels,
     emptyPrompt: def.emptyPrompt,
+    fieldWhen: def.fieldWhen,
     configDefaults: configDefaultsFromSchema(def.configSchema),
     jsonSchema: zodToJsonSchema(def.configSchema, {
       target: 'openApi3',
