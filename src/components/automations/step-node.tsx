@@ -5,7 +5,11 @@ import { Copy, Trash2, Zap } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
 import { resolveCatalogPorts } from '@/lib/automation/ports';
-import { placeholderFor, summarizeNode } from '@/lib/automation/present';
+import {
+  placeholderFor,
+  previewText,
+  summarizeNode,
+} from '@/lib/automation/present';
 import { cn } from '@/lib/utils';
 
 import type { StepNodeData } from './graph-map';
@@ -50,10 +54,8 @@ export function StepNode({
   const band = catalog ? CATEGORY_BAND[catalog.category] : '#ffffff';
   const badge = catalog ? CATEGORY_BADGE[catalog.category] : '#2f6fed';
   const previewMessage =
-    catalog?.preview === 'message' &&
-    typeof data.config.text === 'string' &&
-    data.config.text.trim()
-      ? data.config.text.trim()
+    catalog && data.config
+      ? previewText(catalog, data.config)
       : null;
 
   return (
@@ -169,7 +171,9 @@ export function StepNode({
               <span className="min-w-0 flex-1">
                 {handle.id === 'false'
                   ? "The contact doesn't match"
-                  : summary || handle.label}
+                  : handle.dynamic
+                    ? handle.label
+                    : summary || handle.label}
               </span>
               <Handle
                 type="source"
@@ -189,7 +193,11 @@ export function StepNode({
                 }}
                 className={cn(
                   '!h-3 !w-3 !border-2 !border-white z-20 cursor-pointer',
-                  handle.id === 'true' ? '!bg-[#22c55e]' : '!bg-[#ef4444]'
+                  handle.id === 'true'
+                    ? '!bg-[#22c55e]'
+                    : handle.id === 'false'
+                      ? '!bg-[#ef4444]'
+                      : '!bg-[#c5ced8]'
                 )}
               />
               {/* The connection dot above is the add-step affordance

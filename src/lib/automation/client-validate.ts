@@ -41,9 +41,12 @@ export function validateDraftGraph(
         });
       }
     }
-    const requireAll = def.kind === 'condition' || def.kind === 'trigger';
+    const requireAllKind = def.kind === 'condition' || def.kind === 'trigger';
     const ports = resolveCatalogPorts(def, node.data?.config ?? {});
-    if (requireAll && ports.outgoing.length > 0) {
+    const requireDynamic =
+      def.dynamicPorts?.requireAll === true &&
+      ports.outgoing.some((handle) => handle.dynamic === true);
+    if ((requireAllKind || requireDynamic) && ports.outgoing.length > 0) {
       const outs = graph.edges.filter((e) => e.source === node.id);
       for (const handle of ports.outgoing) {
         const match = outs.some((edge) => {
@@ -53,7 +56,9 @@ export function validateDraftGraph(
           }
           return id === handle.id;
         });
-        if (!match) {
+        const required =
+          requireAllKind || (requireDynamic && handle.dynamic === true);
+        if (required && !match) {
           issues.push({
             path: `nodes.${node.id}`,
             message: `Connect the ${handle.label} path`,

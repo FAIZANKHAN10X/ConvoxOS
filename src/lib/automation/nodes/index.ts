@@ -6,6 +6,7 @@ import { conditionNode } from './condition';
 import { contactCreatedTrigger } from './contact-created';
 import { keywordTrigger } from './keyword';
 import { messageReceivedTrigger } from './message-received';
+import { messageNode } from './message';
 import { removeTagAction } from './remove-tag';
 import { sendTextAction } from './send-text';
 import { tagAddedTrigger } from './tag-added';
@@ -15,6 +16,7 @@ import { waitNode } from './wait';
 export { tagAddedTrigger } from './tag-added';
 export { tagRemovedTrigger } from './tag-removed';
 export { messageReceivedTrigger } from './message-received';
+export { messageNode } from './message';
 export { keywordTrigger } from './keyword';
 export { contactCreatedTrigger } from './contact-created';
 export { sendTextAction } from './send-text';
@@ -30,6 +32,7 @@ export const builtinNodes: NodeDefinition[] = [
   tagRemovedTrigger,
   contactCreatedTrigger,
   sendTextAction,
+  messageNode,
   addTagAction,
   removeTagAction,
   waitNode,

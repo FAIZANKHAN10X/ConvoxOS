@@ -123,6 +123,45 @@ export function summarizeNode(
   return '';
 }
 
+/**
+ * Message text for canvas bubbles and the phone mock. Prefers a
+ * top-level `text` field, then falls back to the first preview-marked
+ * block's first non-empty string (e.g. a text block body). Generic
+ * over any container: block types are resolved from catalog metadata,
+ * never hardcoded.
+ */
+export function previewText(
+  catalog: CatalogNode,
+  config: Record<string, unknown>
+): string | null {
+  if (catalog.preview !== 'message') return null;
+  const text = config.text;
+  if (typeof text === 'string' && text.trim()) return text.trim();
+  const field = catalog.blocksField ?? 'blocks';
+  const raw = config[field];
+  if (!Array.isArray(raw) || !catalog.blocks) return null;
+  const previewTypes = new Set(
+    catalog.blocks.filter((b) => b.preview).map((b) => b.blockType)
+  );
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (
+      previewTypes.size > 0 &&
+      typeof row.blockType === 'string' &&
+      !previewTypes.has(row.blockType)
+    ) {
+      continue;
+    }
+    const cfg = row.config;
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) continue;
+    for (const value of Object.values(cfg as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+  }
+  return null;
+}
+
 export function placeholderFor(
   catalog: CatalogNode | undefined,
   config: Record<string, unknown> = {}

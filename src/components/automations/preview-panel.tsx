@@ -3,6 +3,7 @@
 import { Smartphone, X } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
+import { previewText } from '@/lib/automation/present';
 import type { AutomationGraph } from '@/lib/automation/types';
 
 /**
@@ -25,11 +26,11 @@ export function PreviewPanel({
     .filter((node) => byType.get(node.type)?.preview === 'message')
     .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
     .map((node) => {
-      const text = node.data?.config?.text;
+      const entry = byType.get(node.type);
       return {
         id: node.id,
-        label: byType.get(node.type)?.label ?? node.type,
-        text: typeof text === 'string' && text.trim() ? text.trim() : null,
+        label: entry?.label ?? node.type,
+        text: entry ? previewText(entry, node.data?.config ?? {}) : null,
       };
     });
 

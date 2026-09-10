@@ -506,7 +506,10 @@ function TypePicker({
         onValueChange={(next) => setValue(next ?? '')}
         disabled={disabled}
       >
-        <SelectTrigger className="w-full border-slate-200">
+        <SelectTrigger
+          aria-label="Choose block type"
+          className="w-full border-slate-200"
+        >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent className="bg-white text-slate-800 ring-slate-200">

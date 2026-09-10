@@ -15,6 +15,7 @@ describe('automation catalog', () => {
         'action.remove_tag',
         'action.send_text',
         'logic.condition',
+        'message.send',
         'timing.wait',
         'trigger.contact_created',
         'trigger.keyword',

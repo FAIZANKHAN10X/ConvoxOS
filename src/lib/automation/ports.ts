@@ -27,36 +27,110 @@ export function resolvePorts(def: {
   return def.ports ?? defaultPorts(def.kind);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readPath(
+  root: Record<string, unknown>,
+  path: string
+): unknown {
+  let current: unknown = root;
+  for (const key of path.split('.')) {
+    if (!isRecord(current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function isPresent(value: unknown): boolean {
+  return !(
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0)
+  );
+}
+
 /**
- * One output handle per item of a config array field (randomizer
- * variants, button rows). Falls back to the base ports when the field
- * is missing or empty so unconfigured nodes still render one handle.
+ * Collect the rows a dynamic-port rule generates handles for:
+ * top-level array items, optionally filtered to one block type,
+ * optionally descending into a nested rows array, optionally
+ * skipping rows (e.g. URL buttons, which leave the flow).
  */
-export function resolvePortsForConfig(
-  base: NodePorts,
+function collectPortRows(
+  rule: DynamicPortRule,
+  config: Record<string, unknown>
+): Array<Record<string, unknown>> {
+  if (!rule.field) return [];
+  const raw = config[rule.field];
+  if (!Array.isArray(raw)) return [];
+  let items = raw.filter(isRecord);
+  if (rule.match) {
+    items = items.filter((item) => item[rule.match!.field] === rule.match!.equals);
+  }
+  if (rule.itemsField) {
+    const nested: Array<Record<string, unknown>> = [];
+    for (const item of items) {
+      // itemsField may address the row array directly (variants) or
+      // nested inside each item's config (button rows in blocks).
+      const sub = rule.itemsField.includes('.')
+        ? readPath(item, rule.itemsField)
+        : item[rule.itemsField];
+      if (Array.isArray(sub)) nested.push(...sub.filter(isRecord));
+    }
+    items = nested;
+  }
+  if (rule.skipWhen) {
+    const { field, present } = rule.skipWhen;
+    items = items.filter((item) => isPresent(item[field]) !== present);
+  }
+  return items;
+}
+
+/**
+ * Handles generated from node config, or null when the rule does not
+ * apply (missing/empty source). Null falls back to base ports so
+ * unconfigured nodes still render one handle.
+ */
+export function dynamicHandles(
   rule: DynamicPortRule | undefined,
   config: Record<string, unknown>
-): NodePorts {
-  if (!rule?.field) return base;
-  const raw = config[rule.field];
-  if (!Array.isArray(raw)) return base;
+): NodeHandleSpec[] | null {
+  if (!rule?.field) return null;
+  const rows = collectPortRows(rule, config);
+  if (rows.length === 0) return null;
   const idField = rule.idField ?? 'id';
   const labelField = rule.labelField ?? 'label';
-  const outgoing = raw.map((item, index) => {
-    const row =
-      item && typeof item === 'object'
-        ? (item as Record<string, unknown>)
-        : {};
+  return rows.map((row, index) => {
     const id = row[idField];
     const label = row[labelField];
     return {
       id: typeof id === 'string' && id ? id : `item-${index}`,
       label:
         typeof label === 'string' && label ? label : `Option ${index + 1}`,
+      dynamic: true,
     };
   });
-  if (outgoing.length === 0) return base;
-  return { incoming: base.incoming, outgoing };
+}
+
+/**
+ * One output handle per matching config row. Falls back to the base
+ * ports when the rule does not apply so unconfigured nodes still
+ * render one handle. With `keepBase`, generated handles append after
+ * the static ones (message Next + button branches).
+ */
+export function resolvePortsForConfig(
+  base: NodePorts,
+  rule: DynamicPortRule | undefined,
+  config: Record<string, unknown>
+): NodePorts {
+  const dynamic = dynamicHandles(rule, config);
+  if (!dynamic) return base;
+  if (rule?.keepBase) {
+    return { incoming: base.incoming, outgoing: [...base.outgoing, ...dynamic] };
+  }
+  return { incoming: base.incoming, outgoing: dynamic };
 }
 
 /**

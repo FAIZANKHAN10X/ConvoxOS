@@ -316,8 +316,8 @@ describe('P0 dynamic ports', () => {
     ).toEqual({
       incoming: true,
       outgoing: [
-        { id: 'a', label: 'A' },
-        { id: 'b', label: 'B' },
+        { id: 'a', label: 'A', dynamic: true },
+        { id: 'b', label: 'B', dynamic: true },
       ],
     });
   });

@@ -19,6 +19,12 @@ export type NodeKind = 'trigger' | 'action' | 'condition' | 'wait';
 export interface NodeHandleSpec {
   id: string;
   label: string;
+  /**
+   * Set for handles generated from node config (button rows,
+   * randomizer variants). The canvas shows the handle's own label
+   * instead of the node summary on such rows.
+   */
+  dynamic?: boolean;
 }
 
 export interface NodePorts {
@@ -41,6 +47,12 @@ export interface BlockDefinition {
   configSchema: z.ZodType<unknown, z.ZodTypeDef, unknown>;
   fieldLabels?: Record<string, Record<string, string>>;
   emptyPrompt?: string;
+  /**
+   * Marks the block whose text previews the container on canvas and
+   * in the phone mock (e.g. a text block's body). Generic: the UI
+   * shows the first non-empty string of the first preview block.
+   */
+  preview?: boolean;
 }
 
 /** One block instance inside a container node's config array. */
@@ -73,6 +85,12 @@ export interface TaskItem {
 export interface NodeFlags {
   nondeterministic?: boolean;
   pausesFlow?: boolean;
+  /**
+   * Container block types whose presence pauses the run (ManyChat:
+   * a message with buttons pauses; text-only does not). Evaluated
+   * against the node's own block array — no type switches.
+   */
+  pausesFlowBlocks?: string[];
 }
 
 /**
@@ -89,6 +107,30 @@ export interface DynamicPortRule {
   field?: string;
   idField?: string;
   labelField?: string;
+  /**
+   * Restrict to array items where `item[match.field] === match.equals`
+   * (e.g. only `buttons` blocks inside a message `blocks` array).
+   */
+  match?: { field: string; equals: unknown };
+  /**
+   * Nested array field inside each matched item holding the rows
+   * (e.g. `buttons` rows inside a buttons block). Dotted paths descend
+   * (e.g. `config.buttons` reads each block's own config).
+   */
+  itemsField?: string;
+  /**
+   * Skip items where the field's presence matches (e.g. skip URL
+   * buttons, which leave the flow instead of branching it).
+   */
+  skipWhen?: { field: string; present: boolean };
+  /** Every generated handle must be wired for publish to succeed. */
+  requireAll?: boolean;
+  /**
+   * Keep the static base outputs alongside generated ones (e.g. a
+   * message keeps its default Next continuation plus per-button
+   * branches). Defaults to false (generated handles replace base).
+   */
+  keepBase?: boolean;
 }
 
 /**

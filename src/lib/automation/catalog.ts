@@ -35,6 +35,7 @@ export interface CatalogBlock {
   jsonSchema: Record<string, unknown>;
   fieldLabels?: Record<string, Record<string, string>>;
   emptyPrompt?: string;
+  preview?: boolean;
 }
 
 export interface CatalogTask {
@@ -65,6 +66,7 @@ function serializeBlocks(
     jsonSchema: toJsonSchema(block.configSchema),
     fieldLabels: block.fieldLabels,
     emptyPrompt: block.emptyPrompt,
+    preview: block.preview,
   }));
 }
 

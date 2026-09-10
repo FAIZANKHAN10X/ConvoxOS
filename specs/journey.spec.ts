@@ -64,14 +64,6 @@ async function clickSourceDot(node: Locator, index = 0) {
   await node.locator('.react-flow__handle.source').nth(index).click();
 }
 
-async function addAfterNode(page: Page, nodeText: string, stepLabel: string) {
-  await closeEditor(page);
-  const node = canvasNode(page, nodeText).first();
-  await expect(node).toBeVisible();
-  await clickSourceDot(node);
-  await pickStep(page, stepLabel);
-}
-
 async function addConditionBranch(
   page: Page,
   branch: 'Yes' | 'No',
@@ -261,5 +253,102 @@ test.describe('automation builder journey', () => {
     await page.getByRole('menuitem', { name: 'Run history' }).click();
     await expect(page.getByText(/No runs yet|Select a run/)).toBeVisible();
     await shot(page, '18-history.png');
+  });
+});
+
+test.describe('message container', () => {
+  test('compose multi-block message with buttons, wire, publish, reopen', async ({
+    page,
+  }) => {
+    const email = process.env.E2E_EMAIL;
+    const password = process.env.E2E_PASSWORD;
+    test.skip(
+      !email || !password,
+      'Set E2E_EMAIL and E2E_PASSWORD to run the builder audit.'
+    );
+
+    const name = `Audit message ${Date.now()}`;
+
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email!);
+    await page.getByLabel('Password').fill(password!);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+
+    await page.goto('/automations');
+    await expect(
+      page.getByRole('heading', { name: 'My Automations' })
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'New Automation' }).first().click();
+    await page.getByRole('button', { name: /Start from scratch/i }).click();
+    await page.waitForURL(/\/automations\/[0-9a-f-]+/);
+
+    const nameField = page.locator('header input').first();
+    await nameField.fill(name);
+    await expect(page.getByText('Saved')).toBeVisible({ timeout: 15_000 });
+
+    // Add the Message container after the trigger.
+    await clickSourceDot(canvasNode(page, 'Message received'));
+    await pickStep(page, 'Message');
+    await expectStepEditor(page, 'Message');
+    await shot(page, 'message-empty.png');
+
+    const aside = editor(page);
+    // Add a Text block and write into it.
+    await aside.getByLabel('Choose block type').click();
+    await page.getByRole('option', { name: 'Text' }).click();
+    await aside.getByRole('button', { name: /^Add$/ }).click();
+    await aside
+      .getByPlaceholder('Write the message…')
+      .fill('First');
+    await expect(canvasNode(page, 'First')).toBeVisible();
+    await shot(page, 'message-text.png');
+
+    // Add a second Text block, then move it above the first: the
+    // canvas bubble must follow the new order.
+    await aside.getByLabel('Choose block type').click();
+    await page.getByRole('option', { name: 'Text' }).click();
+    await aside.getByRole('button', { name: /^Add$/ }).click();
+    const bodies = aside.getByPlaceholder('Write the message…');
+    await expect(bodies).toHaveCount(2);
+    await bodies.nth(1).fill('Second');
+    await aside.getByRole('button', { name: 'Move up' }).nth(1).click();
+    await expect(canvasNode(page, 'Second')).toBeVisible();
+    await shot(page, 'message-reordered.png');
+
+    // Add a Buttons block with one flow button. Row inputs are the
+    // id/label/url textboxes after the two message textareas.
+    await aside.getByLabel('Choose block type').click();
+    await page.getByRole('option', { name: 'Buttons' }).click();
+    await aside.getByRole('button', { name: /^Add$/ }).click();
+    await aside.getByRole('button', { name: /^Add buttons$/ }).click();
+    const rowInputs = aside.getByRole('textbox');
+    await rowInputs.nth(2).fill('yes');
+    await rowInputs.nth(3).fill('Yes');
+    await shot(page, 'message-buttons.png');
+
+    // The flow button must be wired before publish succeeds.
+    await closeEditor(page);
+    const message = canvasNode(page, 'Second');
+    await expect(message).toBeVisible();
+    const yesDot = message.locator('.react-flow__handle.source').nth(1);
+    await yesDot.click();
+    await pickStep(page, 'Send text');
+    await expectStepEditor(page, 'Send text');
+    await editor(page).getByRole('textbox').first().fill('Heard yes');
+    await shot(page, 'message-button-wired.png');
+
+    await publishMustSucceed(page);
+    await shot(page, 'message-published.png');
+
+    // Reopen and confirm the composition survived the round trip.
+    await page.getByRole('main').getByRole('link', { name: 'Automations' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'My Automations' })
+    ).toBeVisible();
+    await page.getByText(name, { exact: true }).click();
+    await expect(canvasNode(page, 'Second')).toBeVisible();
+    await expect(canvasNode(page, 'Heard yes')).toBeVisible();
+    await shot(page, 'message-reopened.png');
   });
 });

@@ -1,6 +1,12 @@
 import { MAX_BLOCKS_WITHOUT_PAUSE } from './constants';
-import { extractTrigger, getNode, outgoingEdges, triggerNodes } from './graph';
-import { resolveDefPorts } from './ports';
+import {
+  extractTrigger,
+  getNode,
+  nodeConfig,
+  outgoingEdges,
+  triggerNodes,
+} from './graph';
+import { dynamicHandles, resolveDefPorts } from './ports';
 import type { NodeRegistry } from './registry';
 import type {
   AutomationGraph,
@@ -120,7 +126,14 @@ export function validateGraph(
         });
       }
     }
-    const requireAll = def.kind === 'condition' || def.kind === 'trigger';
+    const requireAllKind = def.kind === 'condition' || def.kind === 'trigger';
+    // Rule-driven requireAll applies to generated (button/variant)
+    // handles only — the default Next continuation stays optional so
+    // messages may terminate a path, as in ManyChat.
+    const requireDynamic =
+      def.dynamicPorts?.requireAll === true &&
+      dynamicHandles(def.dynamicPorts, parsedById.get(node.id) ?? {}) !==
+        null;
     for (const handle of ports.outgoing) {
       const match = outs.filter((edge) => {
         const id = edge.sourceHandle ?? 'default';
@@ -129,7 +142,8 @@ export function validateGraph(
         }
         return id === handle.id;
       });
-      if (requireAll && match.length === 0) {
+      const required = requireAllKind || (requireDynamic && handle.dynamic === true);
+      if (required && match.length === 0) {
         issues.push({
           path: `nodes.${node.id}`,
           message: `connect the ${handle.label} path`,
@@ -164,14 +178,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * A node breaks a no-pause run when it suspends execution (waits) or
- * declares itself pausing (buttons, delays, data collection). Used by
- * the 30-block pause accounting below.
+ * A node breaks a no-pause run when it suspends execution (waits),
+ * declares itself pausing, or — for containers — holds a pausing
+ * block type (a message with buttons pauses; text-only does not).
+ * Config-aware so containers are judged by content, not by kind.
  */
 export function nodePausesFlow(
-  def: Pick<NodeDefinition, 'kind' | 'flags'>
+  def: Pick<NodeDefinition, 'kind' | 'flags' | 'blockField'>,
+  config?: Record<string, unknown>
 ): boolean {
-  return def.flags?.pausesFlow === true || def.kind === 'wait';
+  if (def.flags?.pausesFlow === true || def.kind === 'wait') return true;
+  const pausing = def.flags?.pausesFlowBlocks;
+  if (pausing && pausing.length > 0 && config) {
+    const raw = config[def.blockField ?? 'blocks'];
+    if (Array.isArray(raw)) {
+      return raw.some(
+        (item) =>
+          !!item &&
+          typeof item === 'object' &&
+          pausing.includes(
+            String((item as Record<string, unknown>).blockType ?? '')
+          )
+      );
+    }
+  }
+  return false;
 }
 
 /**
@@ -205,7 +236,7 @@ export function longestUnpausedChain(
       // The Starting Step opens a run; it is not a content block and
       // neither extends nor resets the no-pause streak.
       max = Math.max(max, streak);
-    } else if (!def || nodePausesFlow(def)) {
+    } else if (!def || nodePausesFlow(def, nodeConfig(node))) {
       max = Math.max(max, streak);
       streak = 0;
     } else {

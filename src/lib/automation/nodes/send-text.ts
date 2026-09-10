@@ -5,6 +5,7 @@ import { ChannelSocketError, dispatchText } from '@/lib/channels/socket';
 import { CHANNEL_FIELD_LABELS } from '../present';
 import { NodeExecutionError } from '../types';
 import type { NodeDefinition } from '../types';
+import { resolveConversationChannel } from './channel';
 import { asDb } from './db';
 
 const sendTextConfig = z.object({
@@ -26,37 +27,17 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
     return text.length > 72 ? `${text.slice(0, 72)}…` : text;
   },
   async execute(ctx, config) {
-    const db = asDb(ctx);
-    const { data: conv, error } = await db
-      .from('conversations')
-      .select('id')
-      .eq('account_id', ctx.accountId)
-      .eq('contact_id', ctx.contactId)
-      .maybeSingle();
-    if (error || !conv) {
-      return { status: 'fail', error: 'contact has no conversation' };
+    const resolved = await resolveConversationChannel(ctx, config.channel);
+    if ('error' in resolved) {
+      return { status: 'fail', error: resolved.error };
     }
-
-    let channel: 'whatsapp' | 'telegram' = 'whatsapp';
-    if (config.channel === 'telegram' || config.channel === 'whatsapp') {
-      channel = config.channel;
-    } else {
-      const { data: lastMsg } = await db
-        .from('messages')
-        .select('channel')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const last = (lastMsg as { channel?: string } | null)?.channel;
-      if (last === 'telegram' || last === 'whatsapp') channel = last;
-    }
+    const { conversationId, channel } = resolved;
 
     try {
       const sent = await dispatchText({
-        db,
+        db: asDb(ctx),
         accountId: ctx.accountId,
-        conversationId: conv.id as string,
+        conversationId,
         channel,
         text: config.text,
       });
