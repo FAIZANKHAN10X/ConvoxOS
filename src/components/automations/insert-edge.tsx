@@ -16,6 +16,7 @@ export function InsertEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  markerEnd,
   data,
 }: EdgeProps & {
   data?: { onInsert?: (edgeId: string) => void; sourceHandle?: string | null };
@@ -44,6 +45,7 @@ export function InsertEdge({
         id={id}
         path={path}
         style={{ stroke, strokeWidth: 2 }}
+        markerEnd={markerEnd}
       />
       <EdgeLabelRenderer>
         <div

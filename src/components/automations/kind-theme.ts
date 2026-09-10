@@ -28,9 +28,9 @@ export const CATEGORY_ICON: Record<CatalogNode['category'], LucideIcon> = {
 export const CATEGORY_ACCENT: Record<CatalogNode['category'], string> = {
   trigger: '#16a34a',
   communication: '#2f6fed',
-  crm: '#f59e0b',
-  logic: '#7c3aed',
-  timing: '#0d9488',
+  crm: '#eab308',
+  logic: '#14b8a6',
+  timing: '#f43f5e',
 };
 
 /**
@@ -39,11 +39,11 @@ export const CATEGORY_ACCENT: Record<CatalogNode['category'], string> = {
  * types inherit the treatment with zero UI changes.
  */
 export const CATEGORY_BAND: Record<CatalogNode['category'], string> = {
-  trigger: '#f0fdf4',
+  trigger: '#ffffff',
   communication: '#ffffff',
   crm: '#fef9c3',
   logic: '#ccfbf1',
-  timing: '#ffedd5',
+  timing: '#ffe4e6',
 };
 
 /** Icon treatment per category: solid circular badge. */
@@ -52,5 +52,5 @@ export const CATEGORY_BADGE: Record<CatalogNode['category'], string> = {
   communication: '#2f6fed',
   crm: '#eab308',
   logic: '#14b8a6',
-  timing: '#f97316',
+  timing: '#f43f5e',
 };

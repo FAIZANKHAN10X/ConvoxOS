@@ -8,6 +8,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   useReactFlow,
+  MarkerType,
   type Connection,
   type Edge,
   type Node,
@@ -41,7 +42,15 @@ import { useTagNames } from './use-tags';
 
 const nodeTypes = { [STEP_NODE]: StepNode };
 const edgeTypes = { [INSERT_EDGE]: InsertEdge };
-const defaultEdgeOptions = { type: INSERT_EDGE };
+const defaultEdgeOptions = {
+  type: INSERT_EDGE,
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    color: '#b7c0cc',
+    width: 16,
+    height: 16,
+  },
+};
 const deleteKeys = ['Backspace', 'Delete'];
 const noKeys: string[] = [];
 
@@ -82,7 +91,7 @@ export function FlowCanvas({
   readOnly,
   onChange,
 }: FlowCanvasProps) {
-  const { screenToFlowPosition, fitView, setCenter, getZoom } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const tagNames = useTagNames();
   const catalogRef = useRef(catalog);
   catalogRef.current = catalog;
@@ -369,10 +378,14 @@ export function FlowCanvas({
         (node) => node.id === picker.sourceId
       );
       position = {
-        x:
-          (source?.position.x ?? 320) +
-          (picker.sourceHandle === 'false' ? 220 : 0),
-        y: (source?.position.y ?? 80) + 160,
+        x: (source?.position.x ?? 64) + 340,
+        y:
+          (source?.position.y ?? 180) +
+          (picker.sourceHandle === 'false'
+            ? 200
+            : picker.sourceHandle === 'true'
+              ? -20
+              : 0),
       };
       nextEdges = addEdge(
         {
@@ -389,8 +402,8 @@ export function FlowCanvas({
       if (edge) {
         const source = nodesRef.current.find((node) => node.id === edge.source);
         position = {
-          x: source?.position.x ?? 320,
-          y: (source?.position.y ?? 80) + 90,
+          x: (source?.position.x ?? 64) + 170,
+          y: source?.position.y ?? 180,
         };
         nextEdges = nextEdges.filter((item) => item.id !== edge.id);
         nextEdges = addEdge(
@@ -431,89 +444,13 @@ export function FlowCanvas({
     commit(nextNodes, nextEdges);
     setSelectedId(id);
     setPicker(null);
-    void setCenter(position.x + 140, position.y + 70, {
-      zoom: getZoom(),
-      duration: 250,
-    });
+    void fitView({ padding: 0.2, duration: 250 });
   }
 
   return (
-    <div className="relative h-full min-h-[420px] w-full bg-[#f7f9fc]">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={(event) => {
-          setSelectedId(null);
-          if (readOnly) {
-            setPicker(null);
-            return;
-          }
-          if (event.detail < 2) {
-            setPicker(null);
-            return;
-          }
-          const position = screenToFlowPosition({
-            x: event.clientX,
-            y: event.clientY,
-          });
-          setPicker({ mode: 'free', position });
-        }}
-        deleteKeyCode={readOnly ? noKeys : deleteKeys}
-        className="bg-[#f7f9fc]"
-        defaultEdgeOptions={defaultEdgeOptions}
-        selectionKeyCode="Shift"
-        multiSelectionKeyCode="Shift"
-        panOnDrag
-        minZoom={0.4}
-        maxZoom={1.5}
-      >
-        <Controls
-          showInteractive={!readOnly}
-          position="bottom-left"
-          className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
-        />
-      </ReactFlow>
-
-      {!readOnly && (
-        <div
-          className="absolute top-4 z-40 flex items-start gap-3"
-          style={{ right: selected ? 400 : 16 }}
-        >
-          {picker && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-[0_12px_40px_rgba(31,41,55,0.12)]">
-              <NodePicker
-                catalog={catalog}
-                allowTriggers={!hasTrigger}
-                onPick={placeNode}
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
-            onClick={() =>
-              setPicker((current) =>
-                current
-                  ? null
-                  : selectedId
-                    ? { mode: 'after', sourceId: selectedId }
-                    : { mode: 'free', position: { x: 360, y: 180 } }
-              )
-            }
-            aria-label="Add a step"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-        </div>
-      )}
-
+    <div className="flex h-full min-h-[420px] w-full bg-[#f7f9fc]">
       {selected && (
-        <aside className="absolute inset-y-0 right-0 z-30 w-[min(100%,380px)] border-l border-slate-200 bg-white shadow-[-12px_0_32px_rgba(31,41,55,0.08)]">
+        <aside className="step-editor z-30 flex h-full w-[min(100%,380px)] shrink-0 flex-col border-r border-slate-200 bg-white">
           <ConfigPanel
             catalog={selectedCatalog}
             catalogList={catalog}
@@ -553,6 +490,80 @@ export function FlowCanvas({
           />
         </aside>
       )}
+      <div className="relative min-w-0 flex-1">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onPaneClick={(event) => {
+          setSelectedId(null);
+          if (readOnly) {
+            setPicker(null);
+            return;
+          }
+          if (event.detail < 2) {
+            setPicker(null);
+            return;
+          }
+          const position = screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          });
+          setPicker({ mode: 'free', position });
+        }}
+        deleteKeyCode={readOnly ? noKeys : deleteKeys}
+        className="bg-[#f7f9fc]"
+        defaultEdgeOptions={defaultEdgeOptions}
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode="Shift"
+        panOnDrag
+        minZoom={0.4}
+        maxZoom={1.5}
+      >
+        <Controls
+          showInteractive={!readOnly}
+          position="bottom-right"
+          className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
+        />
+      </ReactFlow>
+
+      {!readOnly && (
+        <div
+          className="absolute top-4 z-40 flex items-start gap-3"
+          style={{ right: 16 }}
+        >
+          {picker && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-[0_12px_40px_rgba(31,41,55,0.12)]">
+              <NodePicker
+                catalog={catalog}
+                allowTriggers={!hasTrigger}
+                onPick={placeNode}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
+            onClick={() =>
+              setPicker((current) =>
+                current
+                  ? null
+                  : selectedId
+                    ? { mode: 'after', sourceId: selectedId }
+                    : { mode: 'free', position: { x: 420, y: 180 } }
+              )
+            }
+            aria-label="Add a step"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

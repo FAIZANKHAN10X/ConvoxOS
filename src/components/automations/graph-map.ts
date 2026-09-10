@@ -1,4 +1,4 @@
-import type { Edge, Node } from '@xyflow/react';
+import { MarkerType, type Edge, type Node } from '@xyflow/react';
 
 import type { AutomationGraph } from '@/lib/automation/types';
 
@@ -30,6 +30,17 @@ export function toFlowEdges(graph: AutomationGraph): Edge[] {
     sourceHandle: edge.sourceHandle ?? undefined,
     targetHandle: edge.targetHandle ?? undefined,
     type: INSERT_EDGE,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 16,
+      height: 16,
+      color:
+        edge.sourceHandle === 'true'
+          ? '#22c55e'
+          : edge.sourceHandle === 'false'
+            ? '#ef4444'
+            : '#b7c0cc',
+    },
   }));
 }
 

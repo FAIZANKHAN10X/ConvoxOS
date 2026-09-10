@@ -16,7 +16,7 @@ export function starterGraph(): AutomationGraph {
       {
         id: 'start',
         type: 'trigger.message_received',
-        position: { x: 320, y: 48 },
+        position: { x: 64, y: 180 },
         data: { config: {} },
       },
     ],
