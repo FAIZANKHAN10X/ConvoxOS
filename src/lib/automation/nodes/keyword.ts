@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { DOMAIN_EVENT } from '../event-types';
 import { matchKeywords } from '../keywords';
+import { CHANNEL_FIELD_LABELS } from '../present';
 import type { DomainEvent, NodeDefinition } from '../types';
 
 const config = z.object({
@@ -18,6 +19,15 @@ export const keywordTrigger: NodeDefinition<z.infer<typeof config>> = {
   label: 'Keyword',
   description: 'Starts when an inbound message matches a keyword rule',
   category: 'trigger',
+  fieldLabels: {
+    channel: CHANNEL_FIELD_LABELS,
+    matchType: {
+      is: 'Message is',
+      contains: 'Contains',
+      contains_word: 'Contains word',
+      begins_with: 'Begins with',
+    },
+  },
   configSchema: config,
   summarize(value) {
     const sample = (value.keywords ?? []).slice(0, 3).join(', ');

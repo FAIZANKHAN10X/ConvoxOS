@@ -48,6 +48,8 @@ describe('automation catalog', () => {
     expect(created?.ports.outgoing.map((handle) => handle.id)).toEqual([
       'default',
     ]);
+    expect(created?.label).toBe('Create deal');
+    expect(created?.category).toBe('crm');
   });
 });
 

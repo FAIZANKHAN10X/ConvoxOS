@@ -4,6 +4,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Copy, Plus, Trash2, Zap } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
+import { placeholderFor, summarizeNode } from '@/lib/automation/present';
 import { cn } from '@/lib/utils';
 
 import type { StepNodeData } from './graph-map';
@@ -35,8 +36,13 @@ export function StepNode({
   ];
   const branched = outgoing.length > 1;
   const errors = data.errors ?? [];
-  const summary = summarize(catalog, data.config, data.tagNames);
-  const unconfigured = !summary && errors.length > 0;
+  const summary = catalog
+    ? summarizeNode(catalog, data.config, data.tagNames)
+    : '';
+  const empty = catalog
+    ? placeholderFor(catalog, data.config)
+    : 'Click to configure';
+  const unconfigured = !summary;
 
   if (isTrigger) {
     return (
@@ -57,13 +63,8 @@ export function StepNode({
           {catalog?.label ?? 'Trigger'}
         </p>
         <p className="mt-0.5 truncate text-xs text-slate-500">
-          {summary || 'Click to add a trigger.'}
+          {summary || empty}
         </p>
-        {!summary && (
-          <span className="mt-2.5 block rounded-lg border border-dashed border-[#2f6fed]/50 px-3 py-1.5 text-center text-[13px] font-semibold text-[#2f6fed]">
-            + New Trigger
-          </span>
-        )}
         {outgoing.map((handle, index) => (
           <Handle
             key={handle.id}
@@ -182,7 +183,7 @@ export function StepNode({
               errors.length > 0 && !summary ? 'text-red-500' : 'text-slate-500'
             )}
           >
-            {summary || errors[0] || placeholderFor(catalog?.kind)}
+            {summary || errors[0] || empty}
           </p>
         )}
       </div>
@@ -254,60 +255,4 @@ export function StepNode({
   );
 }
 
-function placeholderFor(kind: string | undefined): string {
-  switch (kind) {
-    case 'trigger':
-      return 'Choose a trigger to start';
-    case 'condition':
-      return 'Click to add a condition';
-    case 'wait':
-      return 'Set a delay';
-    default:
-      return 'Click to configure';
-  }
-}
 
-/**
- * Human-readable one-line summary. Tag ids resolve through the shared
- * tag-name lookup so database UUIDs never reach the canvas.
- */
-function summarize(
-  catalog: CatalogNode | undefined,
-  config: Record<string, unknown>,
-  tagNames?: Record<string, string>
-): string {
-  const tagId = config.tagId;
-  if (typeof tagId === 'string' && tagId) {
-    const name = tagNames?.[tagId];
-    if (name) return name;
-  }
-  const keywords = config.keywords;
-  if (Array.isArray(keywords) && keywords.length > 0) {
-    const matchType =
-      typeof config.matchType === 'string' ? config.matchType : 'contains';
-    return `${matchType}: ${keywords.slice(0, 3).join(', ')}`;
-  }
-  const text = config.text;
-  if (typeof text === 'string' && text.trim()) {
-    return text.trim().length > 72
-      ? `${text.trim().slice(0, 72)}…`
-      : text.trim();
-  }
-  const amount = config.amount;
-  const unit = config.unit;
-  if (typeof amount === 'number' && typeof unit === 'string') {
-    return `Wait ${amount} ${unit}`;
-  }
-  if (typeof tagId === 'string' && tagId) {
-    return 'Choose a tag';
-  }
-  const predicate = config.predicate ?? config.subject;
-  if (typeof predicate === 'string' && predicate) {
-    return predicate.replaceAll('_', ' ').replaceAll('.', ' · ');
-  }
-  const channel = config.channel;
-  if (typeof channel === 'string' && channel && channel !== 'current') {
-    return catalog?.kind === 'trigger' ? `On ${channel}` : `Via ${channel}`;
-  }
-  return '';
-}

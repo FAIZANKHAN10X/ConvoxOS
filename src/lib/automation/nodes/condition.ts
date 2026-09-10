@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { getPredicate, listPredicates } from '../predicates';
 import type { NodeDefinition } from '../types';
 
+const predicateLabels = Object.fromEntries(
+  listPredicates().map((item) => [item.id, item.label])
+);
+
 const predicateIdList = listPredicates().map((item) => item.id);
 const predicateEnum = z.enum(
   predicateIdList.length > 0
@@ -24,6 +28,10 @@ export const conditionNode: NodeDefinition<z.infer<typeof conditionConfig>> = {
   label: 'Condition',
   description: 'Branch Yes or No based on CRM or event state',
   category: 'logic',
+  fieldLabels: {
+    predicate: predicateLabels,
+    op: { eq: 'is', neq: 'is not', contains: 'contains' },
+  },
   configSchema: conditionConfig,
   summarize(config) {
     return config.predicate ?? config.subject ?? 'Choose a condition';

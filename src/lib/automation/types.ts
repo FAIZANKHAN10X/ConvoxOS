@@ -214,6 +214,13 @@ export interface NodeDefinition<TConfig = unknown> {
    * node's `text` config as a chat bubble. Omit for default rendering.
    */
   preview?: 'message';
+  /**
+   * Human labels for enum config values, keyed by field then value.
+   * Copied onto the catalog so the picker/editor never switch on type.
+   */
+  fieldLabels?: Record<string, Record<string, string>>;
+  /** Canvas empty-state copy when required config is missing. */
+  emptyPrompt?: string;
   validate?(config: TConfig, graph: AutomationGraph): string[];
   match?(event: DomainEvent, config: TConfig): boolean;
   execute?(

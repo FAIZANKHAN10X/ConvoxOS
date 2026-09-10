@@ -13,6 +13,14 @@ export const contactCreatedTrigger: NodeDefinition<z.infer<typeof config>> = {
   label: 'Contact created',
   description: 'Starts when a new contact is created',
   category: 'trigger',
+  fieldLabels: {
+    source: {
+      any: 'Any source',
+      inbound: 'Inbound',
+      manual: 'Manual',
+      api: 'API',
+    },
+  },
   configSchema: config,
   summarize(value) {
     return value.source === 'any' ? 'Any source' : `Source: ${value.source}`;

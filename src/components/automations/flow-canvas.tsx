@@ -22,6 +22,7 @@ import {
   issuesByNode,
   validateDraftGraph,
 } from '@/lib/automation/client-validate';
+import { defaultsFromCatalog } from '@/lib/automation/present';
 import type { AutomationGraph } from '@/lib/automation/types';
 import {
   Popover,
@@ -425,7 +426,7 @@ export function FlowCanvas({
         id,
         type: STEP_NODE,
         position,
-        data: { nodeType: def.type, config: {} },
+        data: { nodeType: def.type, config: defaultsFromCatalog(def) },
       },
     ];
     nodesRef.current = nextNodes;
@@ -512,10 +513,30 @@ export function FlowCanvas({
         <aside className="absolute inset-y-0 left-0 z-30 w-[min(100%,380px)] border-r border-slate-200 bg-white shadow-[12px_0_32px_rgba(31,41,55,0.08)]">
           <ConfigPanel
             catalog={selectedCatalog}
+            catalogList={catalog}
             config={selected.data.config}
             errors={issues.get(selected.id) ?? []}
             readOnly={readOnly}
             onClose={() => setSelectedId(null)}
+            onChangeType={(type) => {
+              const def = catalogMap.get(type);
+              if (!def || def.kind !== 'trigger') return;
+              const next = nodesRef.current.map((node) =>
+                node.id === selected.id
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        nodeType: def.type,
+                        config: defaultsFromCatalog(def),
+                      },
+                    }
+                  : node
+              );
+              nodesRef.current = next;
+              setNodes(next);
+              commit(next, edgesRef.current);
+            }}
             onChange={(config) => {
               const next = nodesRef.current.map((node) =>
                 node.id === selected.id

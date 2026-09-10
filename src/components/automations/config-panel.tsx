@@ -21,19 +21,23 @@ import { useTagNames } from './use-tags';
 
 interface ConfigPanelProps {
   catalog: CatalogNode | undefined;
+  catalogList?: CatalogNode[];
   config: Record<string, unknown>;
   errors: string[];
   readOnly?: boolean;
   onChange: (config: Record<string, unknown>) => void;
+  onChangeType?: (type: string) => void;
   onClose: () => void;
 }
 
 export function ConfigPanel({
   catalog,
+  catalogList = [],
   config,
   errors,
   readOnly,
   onChange,
+  onChangeType,
   onClose,
 }: ConfigPanelProps) {
   const fields = useMemo(
@@ -90,6 +94,31 @@ export function ConfigPanel({
               <li key={error}>{error}</li>
             ))}
           </ul>
+        )}
+        {catalog.kind === 'trigger' && onChangeType && (
+          <div className="space-y-1.5">
+            <Label className="text-slate-600">Trigger</Label>
+            <Select
+              value={catalog.type}
+              onValueChange={(value) => {
+                if (value) onChangeType(value);
+              }}
+              disabled={readOnly}
+            >
+              <SelectTrigger className="w-full border-slate-200">
+                <SelectValue>{catalog.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {catalogList
+                  .filter((node) => node.kind === 'trigger')
+                  .map((node) => (
+                    <SelectItem key={node.type} value={node.type}>
+                      {node.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
         {fields.map((field) => {
           if (field.name === 'subject') return null;
@@ -177,12 +206,16 @@ export function ConfigPanel({
                   disabled={readOnly}
                 >
                   <SelectTrigger className="w-full border-slate-200">
-                    <SelectValue placeholder={`Choose ${field.label}`} />
+                    <SelectValue placeholder={`Choose ${field.label}`}>
+                      {typeof value === 'string' && value
+                        ? (catalog.fieldLabels?.[field.name]?.[value] ?? value)
+                        : null}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {(field.enumValues ?? []).map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option}
+                        {catalog.fieldLabels?.[field.name]?.[option] ?? option}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ChannelSocketError, dispatchText } from '@/lib/channels/socket';
 
+import { CHANNEL_FIELD_LABELS } from '../present';
 import { NodeExecutionError } from '../types';
 import type { NodeDefinition } from '../types';
 import { asDb } from './db';
@@ -17,6 +18,7 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
   label: 'Send text',
   description: 'Send a text message on the contact conversation',
   category: 'communication',
+  fieldLabels: { channel: CHANNEL_FIELD_LABELS },
   configSchema: sendTextConfig,
   preview: 'message',
   summarize(config) {

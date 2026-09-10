@@ -9,9 +9,9 @@ export class NodeRegistry {
   private readonly nodes = new Map<string, NodeDefinition>();
 
   register(definition: NodeDefinition): void {
-    if (this.nodes.has(definition.type)) {
-      throw new Error(`Duplicate node type "${definition.type}"`);
-    }
+    // Last write wins so Fast Refresh can re-run `registerNode()` without
+    // crashing the singleton. Two files claiming the same type still
+    // surface as one catalog entry.
     this.nodes.set(definition.type, definition);
   }
 

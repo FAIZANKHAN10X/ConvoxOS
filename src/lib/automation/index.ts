@@ -41,6 +41,12 @@ export { graphFromNodes, emptyGraph, starterGraph } from './graph';
 export { builtinNodes } from './nodes';
 export { catalogFromRegistry } from './catalog';
 export type { CatalogNode } from './catalog';
+export {
+  summarizeNode,
+  defaultsFromCatalog,
+  mergeConfigDefaults,
+  placeholderFor,
+} from './present';
 export { resolvePorts, defaultPorts } from './ports';
 export { matchKeywords } from './keywords';
 export { registerPredicate, listPredicates, getPredicate } from './predicates';
