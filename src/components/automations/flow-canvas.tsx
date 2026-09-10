@@ -27,6 +27,7 @@ import { defaultsFromCatalog } from '@/lib/automation/present';
 import type { AutomationGraph } from '@/lib/automation/types';
 
 import { ConfigPanel } from './config-panel';
+import { ChooseFirstStep } from './choose-first-step';
 import {
   INSERT_EDGE,
   STEP_NODE,
@@ -136,6 +137,16 @@ export function FlowCanvas({
   const placeAfter = useCallback((sourceId: string, sourceHandle?: string) => {
     setPicker({ mode: 'after', sourceId, sourceHandle });
   }, []);
+
+  // ManyChat-style dot interaction: clicking (or dropping on empty
+  // canvas from) a source connection dot opens the same picker as the
+  // "+" buttons, pre-wired to that handle. Dragging dot-to-node keeps
+  // the native React Flow connect behavior via onConnect.
+  const connectStart = useRef<{
+    nodeId: string | null;
+    handleId: string | null;
+    handleType: string | null;
+  }>({ nodeId: null, handleId: null, handleType: null });
 
   const duplicateNode = useCallback(
     (nodeId: string) => {
@@ -356,6 +367,29 @@ export function FlowCanvas({
     [commit, readOnly]
   );
 
+  const onConnectStart = useCallback(
+    (
+      _event: MouseEvent | TouchEvent,
+      params: { nodeId: string | null; handleId: string | null; handleType: string | null }
+    ) => {
+      connectStart.current = params;
+    },
+    []
+  );
+
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      const { nodeId, handleId, handleType } = connectStart.current;
+      connectStart.current = { nodeId: null, handleId: null, handleType: null };
+      if (readOnly || handleType !== 'source' || !nodeId) return;
+      const target = event.target as HTMLElement | null;
+      // Dropped on a node → onConnect already wired the edge.
+      if (target?.closest?.('.react-flow__node')) return;
+      setPicker({ mode: 'after', sourceId: nodeId, sourceHandle: handleId });
+    },
+    [readOnly]
+  );
+
   const selected = nodes.find((node) => node.id === selectedId);
   const selectedCatalog = selected
     ? catalogMap.get(selected.data.nodeType)
@@ -364,6 +398,19 @@ export function FlowCanvas({
     const kind = catalogMap.get(node.type)?.kind;
     return kind === 'trigger';
   });
+
+  // ManyChat "Choose first step" panel: shown when a trigger node has
+  // no outgoing edge yet. Derived from live canvas state (not
+  // persisted), so it appears/disappears automatically as edges change.
+  const danglingTrigger = useMemo(() => {
+    if (readOnly) return null;
+    const trigger = nodes.find(
+      (node) => catalogMap.get(node.data.nodeType)?.kind === 'trigger'
+    );
+    if (!trigger) return null;
+    const hasOutgoing = edges.some((edge) => edge.source === trigger.id);
+    return hasOutgoing ? null : trigger;
+  }, [nodes, edges, catalogMap, readOnly]);
 
   function placeNode(def: CatalogNode) {
     if (!picker) return;
@@ -499,6 +546,8 @@ export function FlowCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         onPaneClick={(event) => {
           setSelectedId(null);
           if (readOnly) {
@@ -530,6 +579,16 @@ export function FlowCanvas({
           className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
         />
       </ReactFlow>
+
+      {danglingTrigger && (
+        <ChooseFirstStep
+          x={danglingTrigger.position.x}
+          y={danglingTrigger.position.y}
+          onPick={() =>
+            setPicker({ mode: 'after', sourceId: danglingTrigger.id })
+          }
+        />
+      )}
 
       {!readOnly && (
         <div

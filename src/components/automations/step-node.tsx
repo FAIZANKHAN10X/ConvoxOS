@@ -1,7 +1,7 @@
 'use client';
 
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Copy, Plus, Trash2, Zap } from 'lucide-react';
+import { Copy, Trash2, Zap } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
 import { placeholderFor, summarizeNode } from '@/lib/automation/present';
@@ -172,27 +172,25 @@ export function StepNode({
                 type="source"
                 id={handle.id}
                 position={Position.Right}
+                onClick={(event) => {
+                  // Clicking a connection dot opens the picker pre-wired
+                  // to that handle (ManyChat). Dragging still connects
+                  // natively via onConnect. stopPropagation keeps the
+                  // click from also selecting the node.
+                  event.stopPropagation();
+                  if (data.readOnly) return;
+                  data.onAddAfter?.(id, handle.id);
+                }}
                 style={{
                   top: `calc(100% - ${(outgoing.length - index) * 44 - 22}px)`,
                 }}
                 className={cn(
-                  '!h-3 !w-3 !border-2 !border-white',
+                  '!h-3 !w-3 !border-2 !border-white z-20 cursor-pointer',
                   handle.id === 'true' ? '!bg-[#22c55e]' : '!bg-[#ef4444]'
                 )}
               />
-              {!data.readOnly && (
-                <button
-                  type="button"
-                  className="nodrag nopan absolute -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#2f6fed] text-white opacity-0 shadow-md group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    data.onAddAfter?.(id, handle.id);
-                  }}
-                  aria-label={`Add ${handle.label} step`}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              )}
+              {/* The connection dot above is the add-step affordance
+                  (click opens the picker); no separate button needed. */}
             </div>
           ))}
         </div>
@@ -202,24 +200,19 @@ export function StepNode({
             type="source"
             id={outgoing[0]?.id === 'default' ? undefined : outgoing[0]?.id}
             position={Position.Right}
-            className={HANDLE}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (data.readOnly) return;
+              data.onAddAfter?.(id, outgoing[0]?.id);
+            }}
+            className={`${HANDLE} z-20 cursor-pointer`}
           />
           <span className="pointer-events-none absolute right-3 bottom-2 text-[11px] text-slate-400">
             {isTrigger ? 'Then' : 'Next Step'}
           </span>
-          {!data.readOnly && (
-            <button
-              type="button"
-              className="nodrag nopan absolute top-1/2 -right-3 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#2f6fed] text-white opacity-0 shadow-md group-hover:opacity-100"
-              onClick={(event) => {
-                event.stopPropagation();
-                data.onAddAfter?.(id, outgoing[0]?.id);
-              }}
-              aria-label="Add next step"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* No separate "+" here: the connection dot above opens the
+              picker on click, so a second affordance would only fight
+              it for pointer events. */}
         </>
       )}
     </div>

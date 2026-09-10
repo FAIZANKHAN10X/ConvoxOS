@@ -52,7 +52,7 @@ export function NodePicker({
   }, [allowTriggers, catalog, query]);
 
   return (
-    <div className="flex w-[340px] flex-col gap-3">
+    <div className="flex w-[400px] flex-col gap-3">
       <div>
         <p className="text-[15px] font-semibold text-slate-800">
           {allowTriggers ? 'Choose how it starts' : 'Add a step'}
@@ -82,31 +82,30 @@ export function NodePicker({
                 <Icon className="h-3 w-3" />
                 {CATEGORY_LABEL[category]}
               </p>
-              <div className="grid grid-cols-1 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {nodes.map((node) => {
                   const NodeIcon = CATEGORY_ICON[node.category];
                   return (
                     <button
                       key={node.type}
                       type="button"
+                      title={node.description}
                       onClick={() => onPick(node)}
                       className={cn(
-                        'flex items-start gap-3 rounded-xl border border-transparent bg-slate-50 px-3 py-2.5 text-left hover:border-slate-200 hover:bg-white hover:shadow-sm'
+                        'flex flex-col items-center gap-1.5 rounded-xl border border-transparent bg-slate-50 px-2 py-3 text-center hover:border-slate-200 hover:bg-white hover:shadow-sm'
                       )}
                     >
                       <span
-                        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
                         style={{ background: CATEGORY_ACCENT[node.category] }}
                       >
                         <NodeIcon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-slate-800">
+                        <span className="block text-[13px] leading-tight font-semibold text-slate-800">
                           {node.label}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-snug text-slate-500">
-                          {node.description}
-                        </span>
+                        <span className="sr-only">{node.description}</span>
                       </span>
                     </button>
                   );
