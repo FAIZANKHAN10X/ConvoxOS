@@ -86,12 +86,26 @@ export async function cancelRun(
 
 export async function executeRun(
   deps: EngineDeps,
-  runId: string
+  runId: string,
+  opts: { skipClaim?: boolean } = {}
 ): Promise<AutomationRun | null> {
   const { store, registry } = deps;
   const now = deps.now ?? (() => new Date());
-  let run = await store.getRun(runId);
-  if (!run) return null;
+  let run: AutomationRun | null;
+  if (opts.skipClaim) {
+    // Caller already holds the claim (claimDueRuns SKIP LOCKED in the
+    // same tick). Re-read for fresh state but do not CAS.
+    run = await store.getRun(runId);
+    if (!run) return null;
+  } else {
+    // Mutual exclusion: exactly one worker wins the queued/waiting →
+    // running transition. Losers return the current row untouched so a
+    // kick racing the cron can never double-execute a run.
+    run = await store.claimRunForExecution(runId, now());
+    if (!run) {
+      return store.getRun(runId);
+    }
+  }
 
   if (
     run.status === 'completed' ||
@@ -121,7 +135,8 @@ export async function executeRun(
     });
   }
 
-  run = await store.updateRun(runId, { status: 'running', waitUntil: null });
+  // Claim paths above already hold `running` with `waitUntil` cleared
+  // (CAS here, SKIP LOCKED RPC for skipClaim) — no extra transition.
 
   const graph = version.graph;
   let current = run.currentNodeId;

@@ -1,5 +1,5 @@
 import { NextResponse, after } from 'next/server'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/crypto/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
@@ -21,17 +21,8 @@ import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound
 // plan's ceiling). Tune as needed.
 export const maxDuration = 60
 
-// Lazy-initialized to avoid build-time crash when env vars are missing
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+// Shared service-role client (RLS bypasses are all account-scoped
+// below). Single canonical import — see `@/lib/supabase/admin`.
 
 interface WhatsAppMessage {
   id: string
@@ -367,17 +358,39 @@ async function handleStatusUpdate(status: {
   recipient_id: string
 }) {
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
-  //    already match the CHECK constraint on messages.status. No
-  //    `.select()`: message_id is NOT unique (migration 009 — Meta ids
-  //    repeat across numbers), so this updates 0..N rows and must not
-  //    assume a single row.
-  const { error: msgErr } = await supabaseAdmin()
+  //    already match the CHECK constraint on messages.status.
+  //    message_id is NOT unique (migration 009 — Meta ids repeat
+  //    across numbers), so resolve the owning conversations first and
+  //    scope every update to those conversations. An unscoped
+  //    `.eq('message_id')` would fan out across accounts.
+  const { data: msgCandidates } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .select('conversation_id, conversations(account_id)')
     .eq('message_id', status.id)
+    .limit(25)
 
-  if (msgErr) {
-    console.error('Error updating message status:', msgErr)
+  const convIdsByAccount = new Map<string, string[]>()
+  for (const row of msgCandidates ?? []) {
+    const conversations = row.conversations as unknown as { account_id: string } | { account_id: string }[] | null
+    const conv = Array.isArray(conversations) ? conversations[0] : conversations
+    const accountId = conv?.account_id
+    const conversationId = row.conversation_id as string | null
+    if (!accountId || !conversationId) continue
+    const list = convIdsByAccount.get(accountId) ?? []
+    list.push(conversationId)
+    convIdsByAccount.set(accountId, list)
+  }
+
+  for (const [, conversationIds] of convIdsByAccount) {
+    const { error: msgErr } = await supabaseAdmin()
+      .from('messages')
+      .update({ status: status.status })
+      .eq('message_id', status.id)
+      .in('conversation_id', conversationIds)
+
+    if (msgErr) {
+      console.error('Error updating message status:', msgErr)
+    }
   }
 
   // Webhook fan-out for this status change happens at the END of this
@@ -388,64 +401,56 @@ async function handleStatusUpdate(status: {
   //    (added in migration 003). The aggregate trigger on
   //    broadcast_recipients re-derives the parent broadcast's
   //    sent/delivered/read/failed counts automatically.
+  //    Scoped through the parent broadcast's account: the same
+  //    whatsapp_message_id must never move another account's row.
   const tsIso = new Date(parseInt(status.timestamp) * 1000).toISOString()
 
-  const { data: recipient, error: recFetchErr } = await supabaseAdmin()
+  const { data: recipients, error: recFetchErr } = await supabaseAdmin()
     .from('broadcast_recipients')
-    .select('id, status')
+    .select('id, status, broadcast_id, broadcasts(account_id)')
     .eq('whatsapp_message_id', status.id)
-    .maybeSingle()
+    .limit(25)
 
   if (recFetchErr) {
     console.error('Error fetching broadcast recipient:', recFetchErr)
-  } else if (
-    recipient &&
-    // Guard transitions — forward-only on the success ladder, and
-    // `failed` only from pre-delivered states.
-    isValidStatusTransition(recipient.status, status.status)
-  ) {
-    const update: Record<string, unknown> = { status: status.status }
-    if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
-    if (status.status === 'delivered') update.delivered_at = tsIso
-    if (status.status === 'read') update.read_at = tsIso
+  } else {
+    for (const recipient of recipients ?? []) {
+      const broadcasts = (recipient as { broadcasts?: { account_id: string } | { account_id: string }[] | null }).broadcasts
+      const parent = Array.isArray(broadcasts) ? broadcasts[0] : broadcasts
+      if (!parent?.account_id) continue
+      // Guard transitions — forward-only on the success ladder, and
+      // `failed` only from pre-delivered states.
+      if (!isValidStatusTransition(recipient.status, status.status)) continue
+      const update: Record<string, unknown> = { status: status.status }
+      if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
+      if (status.status === 'delivered') update.delivered_at = tsIso
+      if (status.status === 'read') update.read_at = tsIso
 
-    const { error: recUpdateErr } = await supabaseAdmin()
-      .from('broadcast_recipients')
-      .update(update)
-      .eq('id', recipient.id)
+      const { error: recUpdateErr } = await supabaseAdmin()
+        .from('broadcast_recipients')
+        .update(update)
+        .eq('id', recipient.id)
 
-    if (recUpdateErr) {
-      console.error('Error updating broadcast recipient status:', recUpdateErr)
+      if (recUpdateErr) {
+        console.error('Error updating broadcast recipient status:', recUpdateErr)
+      }
     }
   }
 
   // 3) Webhook fan-out for messages we store (inbox / API sends).
   //    Runs last so a slow subscriber can't delay the mirrors above.
-  //    Bounded to one row (message_id isn't unique) purely to resolve
-  //    the owning account for delivery.
-  const { data: msgRow } = await supabaseAdmin()
-    .from('messages')
-    .select('conversation_id, conversations(account_id)')
-    .eq('message_id', status.id)
-    .limit(1)
-    .maybeSingle()
-
-  if (msgRow) {
-    const conversations = msgRow.conversations as unknown as { account_id: string } | { account_id: string }[] | null
-    const conv = Array.isArray(conversations) ? conversations[0] : conversations
-    const accountId = conv?.account_id
-    if (accountId) {
-      await dispatchWebhookEvent(
-        supabaseAdmin(),
-        accountId,
-        'message.status_updated',
-        {
-          whatsapp_message_id: status.id,
-          conversation_id: msgRow.conversation_id,
-          status: status.status,
-        }
-      )
-    }
+  //    One dispatch per owning account resolved in step 1.
+  for (const [accountId, conversationIds] of convIdsByAccount) {
+    await dispatchWebhookEvent(
+      supabaseAdmin(),
+      accountId,
+      'message.status_updated',
+      {
+        whatsapp_message_id: status.id,
+        conversation_id: conversationIds[0],
+        status: status.status,
+      }
+    )
   }
 }
 

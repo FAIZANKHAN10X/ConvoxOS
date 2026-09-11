@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ChannelSocketError, dispatchText } from '@/lib/channels/socket';
+import { messageBlockKey } from '@/lib/messaging/idempotency';
 
 import { CHANNEL_FIELD_LABELS } from '../present';
 import { NodeExecutionError } from '../types';
@@ -40,6 +41,8 @@ export const sendTextAction: NodeDefinition<z.infer<typeof sendTextConfig>> = {
         conversationId,
         channel,
         text: config.text,
+        // Stable across engine attempts — retries reuse the row.
+        idempotencyKey: messageBlockKey(ctx.runId, ctx.nodeId ?? 'action.send_text', 'text'),
       });
       return {
         status: 'ok',

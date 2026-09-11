@@ -87,6 +87,13 @@ export interface SendMessageParams {
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  /**
+   * Stable automation key (run:node:block). When present and a row
+   * with this key already exists in the conversation, the send
+   * short-circuits with the existing ids — engine retries reuse
+   * instead of double-sending. Omitted for manual/dashboard sends.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface SendMessageResult {
@@ -200,6 +207,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    idempotencyKey,
   } = params;
 
   if (!conversationId) {
@@ -208,6 +216,24 @@ export async function sendMessageToConversation(
       'conversation_id is required',
       400
     );
+  }
+
+  // Automation retry guard: a previous attempt already persisted this
+  // block — reuse it without touching the provider. Checked before any
+  // provider call and scoped to the conversation.
+  if (idempotencyKey) {
+    const { data: existing } = await db
+      .from('messages')
+      .select('id, message_id')
+      .eq('conversation_id', conversationId)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return {
+        messageId: existing.id as string,
+        whatsappMessageId: (existing.message_id as string | null) ?? '',
+      };
+    }
   }
 
   validateSendMessageParams({
@@ -481,6 +507,7 @@ export async function sendMessageToConversation(
       message_id: waMessageId,
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
+      idempotency_key: idempotencyKey ?? null,
     })
     .select()
     .single();

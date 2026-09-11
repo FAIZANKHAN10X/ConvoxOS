@@ -146,6 +146,9 @@ export async function runAutomationWorker(
   for (const wait of waits) {
     const run = await deps.store.getRun(wait.runId);
     if (!run || run.status === 'cancelled' || run.status === 'completed') {
+      // The wait was already claimed above — release it so it does not
+      // orphan in `claimed` forever (nothing reaps claimed time waits).
+      await deps.store.cancelWaitsForRun(wait.runId);
       continue;
     }
     if (wait.resumeNodeId) {
@@ -174,7 +177,9 @@ export async function runAutomationWorker(
 
   const dueRuns = await deps.store.claimDueRuns(limit, now);
   for (const run of dueRuns) {
-    await executeRun(deps, run.id);
+    // Already atomically claimed (queued→running) by the RPC above —
+    // execute without re-claiming.
+    await executeRun(deps, run.id, { skipClaim: true });
     totals.runsExecuted += 1;
   }
 

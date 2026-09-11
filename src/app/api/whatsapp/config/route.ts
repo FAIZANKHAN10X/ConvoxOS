@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import {
   registerPhoneNumber,
   subscribeWabaToApp,
@@ -31,20 +31,9 @@ async function resolveAccountId(
   return data.account_id as string
 }
 
-// Lazy-initialised service-role client. We need it to detect a
-// phone_number_id already claimed by a *different* user — under RLS,
-// the user's own session can't see other users' rows, so the conflict
-// would be invisible without the service role.
-let _adminClient: ReturnType<typeof createAdminClient> | null = null
-function supabaseAdmin(): ReturnType<typeof createAdminClient> {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+// Service-role access (cross-user phone_number_id conflict check —
+// invisible under RLS) uses the canonical shared client. See
+// `@/lib/supabase/admin`.
 
 /**
  * GET /api/whatsapp/config

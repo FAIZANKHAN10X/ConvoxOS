@@ -436,6 +436,25 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       return mapRun(data as Record<string, unknown>);
     },
 
+    async claimRunForExecution(id: string, now: Date): Promise<AutomationRun | null> {
+      // Atomic CAS: only one worker wins the queued/waiting → running
+      // transition. A concurrent loser gets no row (null) and must not
+      // execute. Plain get+update would let two workers interleave.
+      const { data, error } = await db
+        .from('automation_runs')
+        .update({
+          status: 'running',
+          wait_until: null,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', id)
+        .in('status', ['queued', 'waiting'])
+        .select('*')
+        .maybeSingle();
+      throwIfError(error, 'claim automation run');
+      return data ? mapRun(data as Record<string, unknown>) : null;
+    },
+
     async claimDueRuns(limit) {
       const { data, error } = await db.rpc('claim_due_automation_runs', {
         p_limit: limit,
@@ -555,7 +574,7 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
         .from('automation_waits')
         .update({ status: 'cancelled' })
         .eq('run_id', runId)
-        .eq('status', 'pending');
+        .in('status', ['pending', 'claimed']);
       throwIfError(error, 'cancel automation waits');
     },
   };

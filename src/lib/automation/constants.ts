@@ -45,3 +45,13 @@ export const CALLBACK_DEFERRAL_MS = 30 * 1000;
 
 /** Max deferrals per callback event before falling through to matching. */
 export const MAX_CALLBACK_DEFERRALS = 10;
+
+/**
+ * A `running` run whose heartbeat (`updated_at`, touched after every
+ * node) is older than this died mid-executeRun and may be reclaimed
+ * by claim_due_automation_runs. Must far exceed the longest single
+ * tick (route maxDuration 60s; per-node updates keep healthy runs
+ * fresh). Engine replays via succeeded-step skip, so re-execution is
+ * safe for idempotent nodes.
+ */
+export const STALE_RUNNING_RUN_CLAIM_MS = 10 * 60 * 1000;

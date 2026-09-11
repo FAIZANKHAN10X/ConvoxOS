@@ -1,25 +1,14 @@
 import { NextResponse, after } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'node:crypto'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { decrypt } from '@/lib/crypto/encryption'
 import { normalizeTelegramUpdate } from '@/lib/channels/telegram/normalize'
 import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound'
 import type { NormalizedInbound, TelegramUpdate } from '@/lib/channels/types'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { contentTypeForTelegramMime, mirrorTelegramMedia } from '@/lib/channels/telegram/mirror'
 import { answerTelegramCallback } from '@/lib/channels/telegram/api'
 
 export const maxDuration = 60
-
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
 
 function isValidUUID(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
@@ -53,22 +42,27 @@ export async function POST(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Verify secret header if configured
-  if (config.webhook_secret_encrypted) {
-    let expectedSecret: string
-    try {
-      expectedSecret = decrypt(config.webhook_secret_encrypted)
-    } catch {
-      console.error('[telegram webhook] webhook_secret decrypt failed for', configId)
+  // Verify secret header. Fail closed: a missing secret means any
+  // holder of the config UUID could inject inbound traffic as this
+  // account, so requests without a matching secret are rejected.
+  // Compares in constant time (timingSafeEqual throws on length
+  // mismatch, hence the explicit length guard).
+  let expectedSecret: string
+  try {
+    if (!config.webhook_secret_encrypted) {
+      console.error('[telegram webhook] missing webhook secret for', configId)
       return NextResponse.json({ error: 'Configuration error' }, { status: 500 })
     }
-    if (!headerSecret || headerSecret !== expectedSecret) {
-      console.warn('[telegram webhook] invalid secret for', configId)
-      return NextResponse.json({ error: 'Invalid secret' }, { status: 401 })
-    }
-  } else if (headerSecret) {
-    // Secret not configured but header present — allow but log
-    console.warn('[telegram webhook] unexpected secret header for config without secret', configId)
+    expectedSecret = decrypt(config.webhook_secret_encrypted)
+  } catch {
+    console.error('[telegram webhook] webhook_secret decrypt failed for', configId)
+    return NextResponse.json({ error: 'Configuration error' }, { status: 500 })
+  }
+  const a = Buffer.from(headerSecret ?? '')
+  const b = Buffer.from(expectedSecret)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    console.warn('[telegram webhook] invalid secret for', configId)
+    return NextResponse.json({ error: 'Invalid secret' }, { status: 401 })
   }
 
   let body: unknown

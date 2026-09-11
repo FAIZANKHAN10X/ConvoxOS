@@ -25,6 +25,11 @@ export interface SendTelegramTextParams {
   contentText: string | null;
   replyToMessageId?: string | null;
   inlineKeyboard?: TelegramInlineMarkup | null;
+  /**
+   * Stable automation key (run:node:block). Short-circuits on an
+   * already-persisted row so engine retries never double-send.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface SendTelegramTextResult {
@@ -48,7 +53,7 @@ export async function sendTelegramText(
   accountId: string,
   params: SendTelegramTextParams
 ): Promise<SendTelegramTextResult> {
-  const { conversationId, contentText, replyToMessageId, inlineKeyboard } = params;
+  const { conversationId, contentText, replyToMessageId, inlineKeyboard, idempotencyKey } = params;
 
   if (inlineKeyboard) {
     const v = validateTelegramInlineMarkup(inlineKeyboard);
@@ -59,6 +64,22 @@ export async function sendTelegramText(
     throw new SendTelegramError('bad_request', 'conversation_id is required', 400);
   }
   validateTelegramText(contentText);
+
+  // Automation retry guard — reuse an already-persisted block send.
+  if (idempotencyKey) {
+    const { data: existing } = await db
+      .from('messages')
+      .select('id, message_id')
+      .eq('conversation_id', conversationId)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return {
+        messageId: existing.id as string,
+        telegramMessageId: (existing.message_id as string | null) ?? '',
+      };
+    }
+  }
 
   // Load conversation + contact
   const { data: conversation, error: convError } = await db
@@ -168,8 +189,11 @@ export async function sendTelegramText(
     throw new SendTelegramError('telegram_error', `Telegram API error: ${message}`, 502);
   }
 
-  // Persist — distinguish provider success vs DB failure
+  // Persist — distinguish provider success vs DB failure.
+  // NOTE: idempotency_key comes from migration 063; regenerate
+  // Database types from the DB to drop this cast.
   const hasKeyboard = !!inlineKeyboard;
+  const idempotencyPatch = idempotencyKey ? { idempotency_key: idempotencyKey } : {};
   const msgInsert: Database['public']['Tables']['messages']['Insert'] = {
     conversation_id: conversationId,
     sender_type: 'agent',
@@ -182,7 +206,8 @@ export async function sendTelegramText(
     ...(hasKeyboard
       ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } as unknown as never }
       : {}),
-  };
+    ...idempotencyPatch,
+  } as Database['public']['Tables']['messages']['Insert'];
   const { data: messageRecord, error: msgError } = await db.from('messages').insert(msgInsert).select().single();
 
   if (msgError) {

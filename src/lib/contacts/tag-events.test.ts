@@ -99,6 +99,59 @@ describe('addContactTagAndDispatch', () => {
     expect(mocks.add).toHaveBeenCalledTimes(1);
     expect(mocks.enqueue).toHaveBeenCalledTimes(1);
   });
+
+  it('uses a deterministic idempotency key per causation', async () => {
+    mocks.add.mockResolvedValue(true);
+    mocks.enqueue.mockResolvedValue({
+      id: 'evt-1',
+      status: 'pending',
+      idempotencyKey: 'tag_added:contact-1:tag-1:cause-9',
+    });
+
+    await addContactTagAndDispatch({
+      ...base,
+      context: { causationEventId: 'cause-9' },
+    });
+    await addContactTagAndDispatch({
+      ...base,
+      context: { causationEventId: 'cause-9' },
+    });
+
+    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
+    expect(mocks.enqueue.mock.calls[0][1]).toMatchObject({
+      idempotencyKey: 'tag_added:contact-1:tag-1:cause-9',
+    });
+    expect(mocks.enqueue.mock.calls[1][1]).toMatchObject({
+      idempotencyKey: 'tag_added:contact-1:tag-1:cause-9',
+    });
+  });
+
+  it('mints a successor key when the base key hit a terminal event', async () => {
+    mocks.add.mockResolvedValue(true);
+    mocks.enqueue
+      .mockResolvedValueOnce({
+        id: 'evt-old',
+        status: 'processed',
+        idempotencyKey: 'tag_added:contact-1:tag-1:crm',
+      })
+      .mockResolvedValueOnce({
+        id: 'evt-new',
+        status: 'pending',
+        idempotencyKey: 'tag_added:contact-1:tag-1:crm:retry',
+      });
+
+    const result = await addContactTagAndDispatch(base);
+
+    expect(result).toEqual({ added: true, dispatched: true });
+    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
+    expect(mocks.enqueue.mock.calls[0][1]).toMatchObject({
+      idempotencyKey: 'tag_added:contact-1:tag-1:crm',
+    });
+    const successor = (mocks.enqueue.mock.calls[1][1] as { idempotencyKey: string })
+      .idempotencyKey;
+    expect(successor.startsWith('tag_added:contact-1:tag-1:crm:')).toBe(true);
+    expect(mocks.process).toHaveBeenCalledWith('evt-new');
+  });
 });
 
 describe('removeContactTagAndDispatch', () => {

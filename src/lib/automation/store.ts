@@ -124,6 +124,15 @@ export interface AutomationStore {
   insertRun(input: InsertRunInput): Promise<AutomationRun>;
   getRun(id: string): Promise<AutomationRun | null>;
   updateRun(id: string, patch: RunPatch): Promise<AutomationRun>;
+  /**
+   * Atomic compare-and-set for mutual exclusion: transitions a
+   * `queued`/`waiting` run to `running` (clearing `waitUntil`) and
+   * returns it, or returns null when another worker owns the run
+   * (already `running`) or it is terminal. Callers must NOT execute
+   * on null — the winner executes. Paths that already hold a claim
+   * (claimDueRuns SKIP LOCKED) pass through executeRun's skipClaim.
+   */
+  claimRunForExecution(id: string, now: Date): Promise<AutomationRun | null>;
   claimDueRuns(limit: number, now: Date): Promise<AutomationRun[]>;
 
   insertStep(input: InsertStepInput): Promise<RunStep>;

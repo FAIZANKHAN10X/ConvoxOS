@@ -7,7 +7,7 @@ import type {
   RunPatch,
 } from './store';
 import { ActiveRunConflict, isActiveRunStatus } from './store';
-import { STALE_EVENT_WAIT_CLAIM_MS } from './constants';
+import { STALE_EVENT_WAIT_CLAIM_MS, STALE_RUNNING_RUN_CLAIM_MS } from './constants';
 import { emptyGraph } from './graph';
 import type {
   Automation,
@@ -276,12 +276,33 @@ export function createMemoryStore(
       return clone(row);
     },
 
+    async claimRunForExecution(id: string, now: Date): Promise<AutomationRun | null> {
+      const row = runs.get(id);
+      if (!row) return null;
+      if (row.status !== 'queued' && row.status !== 'waiting') return null;
+      row.status = 'running';
+      row.waitUntil = null;
+      row.updatedAt = iso(now);
+      return clone(row);
+    },
+
     async claimDueRuns(limit, now) {
+      const staleCutoff =
+        now.getTime() - STALE_RUNNING_RUN_CLAIM_MS;
       const due = [...runs.values()]
         .filter((r) => {
-          if (r.status !== 'queued') return false;
-          if (!r.waitUntil) return true;
-          return new Date(r.waitUntil).getTime() <= now.getTime();
+          if (r.status === 'queued') {
+            if (!r.waitUntil) return true;
+            return new Date(r.waitUntil).getTime() <= now.getTime();
+          }
+          // Crash orphan: a `running` run whose heartbeat went stale
+          // (the process died mid-executeRun). Reclaim it so the run
+          // resumes instead of stalling forever. Healthy ticks touch
+          // updatedAt after every node, far inside the lease.
+          if (r.status === 'running') {
+            return new Date(r.updatedAt).getTime() <= staleCutoff;
+          }
+          return false;
         })
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .slice(0, limit);
@@ -368,11 +389,13 @@ export function createMemoryStore(
 
     async claimDueWaits(limit, now) {
       const due = [...waits.values()]
-        .filter(
-          (w) =>
-            w.status === 'pending' &&
-            new Date(w.resumeAt).getTime() <= now.getTime()
-        )
+        .filter((w) => {
+          if (new Date(w.resumeAt).getTime() > now.getTime()) return false;
+          if (w.status === 'pending') return true;
+          // Crash orphan: claimed but never resumed (process died
+          // between claim and resume). Reclaim after the lease.
+          return isStaleClaim(w, now);
+        })
         .sort((a, b) => a.resumeAt.localeCompare(b.resumeAt))
         .slice(0, limit);
       const claimed: AutomationWait[] = [];
@@ -416,7 +439,10 @@ export function createMemoryStore(
 
     async cancelWaitsForRun(runId) {
       for (const w of waits.values()) {
-        if (w.runId === runId && w.status === 'pending') {
+        if (
+          w.runId === runId &&
+          (w.status === 'pending' || w.status === 'claimed')
+        ) {
           w.status = 'cancelled';
         }
       }

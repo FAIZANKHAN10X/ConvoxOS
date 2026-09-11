@@ -34,6 +34,12 @@ export interface SocketTextArgs {
   text: string;
   replyToMessageId?: string | null;
   inlineKeyboard?: TelegramInlineMarkup | null;
+  /**
+   * Stable automation key (run:node:block). Senders short-circuit on
+   * an already-persisted row so engine retries never double-send.
+   * Omitted for manual sends.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface SocketMediaArgs {
@@ -47,6 +53,8 @@ export interface SocketMediaArgs {
   caption?: string | null;
   replyToMessageId?: string | null;
   inlineKeyboard?: TelegramInlineMarkup | null;
+  /** Stable automation key — see SocketTextArgs. */
+  idempotencyKey?: string | null;
 }
 
 export interface SocketInteractiveArgs {
@@ -56,6 +64,8 @@ export interface SocketInteractiveArgs {
   channel: SocketChannel;
   payload: import('@/lib/whatsapp/interactive').InteractiveMessagePayload | TelegramInlineMarkup;
   replyToMessageId?: string | null;
+  /** Stable automation key — see SocketTextArgs. */
+  idempotencyKey?: string | null;
 }
 
 /**
@@ -63,7 +73,7 @@ export interface SocketInteractiveArgs {
  * Delegates to existing channel senders — no duplication.
  */
 export async function dispatchText(args: SocketTextArgs): Promise<{ providerMessageId: string; messageId: string }> {
-  const { db, accountId, conversationId, channel, text, replyToMessageId, inlineKeyboard } = args;
+  const { db, accountId, conversationId, channel, text, replyToMessageId, inlineKeyboard, idempotencyKey } = args;
 
   if (channel === 'telegram') {
     const result = await sendTelegramText(db, accountId, {
@@ -71,6 +81,7 @@ export async function dispatchText(args: SocketTextArgs): Promise<{ providerMess
       contentText: text,
       replyToMessageId: replyToMessageId ?? null,
       inlineKeyboard: inlineKeyboard ?? null,
+      idempotencyKey: idempotencyKey ?? null,
     });
     return { providerMessageId: result.telegramMessageId, messageId: result.messageId };
   }
@@ -82,6 +93,7 @@ export async function dispatchText(args: SocketTextArgs): Promise<{ providerMess
         messageType: 'text',
         contentText: text,
         replyToMessageId: replyToMessageId ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       });
       return { providerMessageId: result.whatsappMessageId, messageId: result.messageId };
     } catch (err) {
@@ -108,7 +120,7 @@ export async function dispatchText(args: SocketTextArgs): Promise<{ providerMess
  * WhatsApp supports image|video|document|audio via same media_url.
  */
 export async function dispatchMedia(args: SocketMediaArgs): Promise<{ providerMessageId: string; messageId: string }> {
-  const { db, accountId, conversationId, channel, mediaKind, mediaUrl, filename, caption, replyToMessageId, inlineKeyboard } = args;
+  const { db, accountId, conversationId, channel, mediaKind, mediaUrl, filename, caption, replyToMessageId, inlineKeyboard, idempotencyKey } = args;
 
   if (channel === 'telegram') {
     // Telegram send-media handles image|document|video|audio|voice + optional inline keyboard
@@ -121,6 +133,7 @@ export async function dispatchMedia(args: SocketMediaArgs): Promise<{ providerMe
         caption: caption ?? null,
         replyToMessageId: replyToMessageId ?? null,
         inlineKeyboard: inlineKeyboard ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       });
       return { providerMessageId: result.telegramMessageId, messageId: result.messageId };
     } catch (err) {
@@ -151,6 +164,7 @@ export async function dispatchMedia(args: SocketMediaArgs): Promise<{ providerMe
         mediaUrl,
         filename: filename ?? null,
         replyToMessageId: replyToMessageId ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       });
       return { providerMessageId: result.whatsappMessageId, messageId: result.messageId };
     } catch (err) {
@@ -175,7 +189,7 @@ export async function dispatchMedia(args: SocketMediaArgs): Promise<{ providerMe
  * Provider-specific payload shapes stay in their modules — socket only dispatches.
  */
 export async function dispatchInteractive(args: SocketInteractiveArgs): Promise<{ providerMessageId: string; messageId: string }> {
-  const { db, accountId, conversationId, channel, payload, replyToMessageId } = args;
+  const { db, accountId, conversationId, channel, payload, replyToMessageId, idempotencyKey } = args;
 
   if (channel === 'telegram') {
     const markup = payload as TelegramInlineMarkup;
@@ -191,6 +205,7 @@ export async function dispatchInteractive(args: SocketInteractiveArgs): Promise<
       text,
       replyToMessageId: replyToMessageId ?? null,
       inlineKeyboard: markup,
+      idempotencyKey: idempotencyKey ?? null,
     });
   }
 
@@ -202,6 +217,7 @@ export async function dispatchInteractive(args: SocketInteractiveArgs): Promise<
         messageType: 'interactive',
         interactivePayload: waPayload,
         replyToMessageId: replyToMessageId ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       });
       return { providerMessageId: result.whatsappMessageId, messageId: result.messageId };
     } catch (err) {

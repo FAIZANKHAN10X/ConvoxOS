@@ -6,6 +6,7 @@ import {
   dispatchMedia,
   dispatchText,
 } from '@/lib/channels/socket';
+import { messageBlockKey } from '@/lib/messaging/idempotency';
 import type { TelegramInlineMarkup } from '@/lib/channels/telegram/keyboard';
 
 import { CHANNEL_FIELD_LABELS } from '../present';
@@ -197,6 +198,9 @@ export const messageNode: NodeDefinition<MessageConfig> = {
     try {
       for (const block of config.blocks ?? []) {
         const cfg = (block.config ?? {}) as Record<string, unknown>;
+        // Stable across engine attempts: a retry after a partial send
+        // reuses the persisted row instead of double-sending.
+        const blockKey = messageBlockKey(ctx.runId, ctx.nodeId ?? 'message.send', block.id);
         if (block.blockType === 'text' && typeof cfg.text === 'string') {
           lastBody = cfg.text;
           const sent = await dispatchText({
@@ -205,6 +209,7 @@ export const messageNode: NodeDefinition<MessageConfig> = {
             conversationId,
             channel,
             text: cfg.text,
+            idempotencyKey: blockKey,
           });
           messageIds.push(sent.messageId);
         } else if (
@@ -224,6 +229,7 @@ export const messageNode: NodeDefinition<MessageConfig> = {
             mediaKind: 'image',
             mediaUrl: cfg.mediaUrl,
             caption,
+            idempotencyKey: blockKey,
           });
           messageIds.push(sent.messageId);
         } else if (block.blockType === 'delay') {
@@ -251,6 +257,7 @@ export const messageNode: NodeDefinition<MessageConfig> = {
               channel,
               text: body,
               inlineKeyboard: markup,
+              idempotencyKey: blockKey,
             });
             messageIds.push(sent.messageId);
           } else {
@@ -266,14 +273,16 @@ export const messageNode: NodeDefinition<MessageConfig> = {
                   .filter((row) => !row.url)
                   .map((row) => ({ id: row.id, title: row.label })),
               },
+              idempotencyKey: blockKey,
             });
             messageIds.push(sent.messageId);
           }
         }
       }
     } catch (error) {
-      // Blocks already sent stay sent; the engine records the failure
-      // and the run stops here rather than double-sending on retry.
+      // Blocks already sent stay sent AND are keyed by a stable
+      // run:node:block idempotency key, so an engine retry reuses the
+      // persisted rows instead of double-sending.
       if (error instanceof ChannelSocketError) {
         throw new NodeExecutionError(error.message, true);
       }

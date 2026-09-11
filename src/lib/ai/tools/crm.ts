@@ -17,11 +17,11 @@ export const getContactTool: ToolDefinition = {
     const { data: contact, error } = await ctx.supabase.from('contacts').select('id, name, email, phone, company, avatar_url, created_at').eq('id', contactId).eq('account_id', ctx.accountId).maybeSingle();
     if (error) return { success: false, error: 'Failed to fetch contact' };
     if (!contact) return { success: false, error: 'Contact not found' };
-    // Tags
+    // Tags (contact already verified in-account above)
     const { data: contactTags } = await ctx.supabase.from('contact_tags').select('tag_id, tags(id, name, color)').eq('contact_id', contactId);
     const tags = (contactTags ?? []).map((ct: { tags: unknown }) => ct.tags).filter(Boolean);
-    // Custom fields
-    const { data: customValues } = await ctx.supabase.from('contact_custom_values').select('field_id, value, custom_fields(field_name)').eq('contact_id', contactId);
+    // Custom fields (contact already verified in-account above)
+    const { data: customValues } = await ctx.supabase.from('contact_custom_values').select('custom_field_id, value, custom_fields(field_name)').eq('contact_id', contactId);
     return { success: true, data: { contact, tags, custom_fields: customValues ?? [] } };
   },
 };
@@ -110,6 +110,9 @@ export const removeTagTool: ToolDefinition = {
     const a = args as { tagId?: string; tagName?: string; contactId?: string };
     const contactId = a.contactId ?? ctx.contactId;
     if (!contactId) return { success: false, error: 'No contact in context' };
+    // Verify contact belongs to account (mirrors add_tag)
+    const { data: contact } = await ctx.supabase.from('contacts').select('id').eq('id', contactId).eq('account_id', ctx.accountId).maybeSingle();
+    if (!contact) return { success: false, error: 'Contact not found' };
     let tagId = a.tagId;
     if (!tagId && a.tagName) {
       const { data: tag } = await ctx.supabase.from('tags').select('id').eq('account_id', ctx.accountId).eq('name', a.tagName.trim()).maybeSingle();
@@ -117,6 +120,9 @@ export const removeTagTool: ToolDefinition = {
       tagId = tag.id;
     }
     if (!tagId) return { success: false, error: 'Tag not found' };
+    // Verify tag belongs to account when the id came from the model
+    const { data: tagCheck } = await ctx.supabase.from('tags').select('id').eq('id', tagId).eq('account_id', ctx.accountId).maybeSingle();
+    if (!tagCheck) return { success: false, error: 'Tag not found for this account' };
     const { error } = await ctx.supabase.from('contact_tags').delete().eq('contact_id', contactId).eq('tag_id', tagId);
     if (error) return { success: false, error: 'Failed to remove tag' };
     return { success: true, data: { tagId } };
@@ -137,6 +143,9 @@ export const updateCustomFieldTool: ToolDefinition = {
     const a = args as { fieldName?: string; fieldId?: string; value: string; contactId?: string };
     const contactId = a.contactId ?? ctx.contactId;
     if (!contactId) return { success: false, error: 'No contact in context' };
+    // Verify contact belongs to account before writing
+    const { data: contact } = await ctx.supabase.from('contacts').select('id').eq('id', contactId).eq('account_id', ctx.accountId).maybeSingle();
+    if (!contact) return { success: false, error: 'Contact not found' };
     let fieldId = a.fieldId;
     if (!fieldId && a.fieldName) {
       const { data: field } = await ctx.supabase.from('custom_fields').select('id').eq('account_id', ctx.accountId).eq('field_name', a.fieldName.trim()).maybeSingle();
@@ -144,7 +153,10 @@ export const updateCustomFieldTool: ToolDefinition = {
       fieldId = field.id;
     }
     if (!fieldId) return { success: false, error: 'Field not found' };
-    const { error } = await ctx.supabase.from('contact_custom_values').upsert({ contact_id: contactId, field_id: fieldId, value: a.value.trim() }, { onConflict: 'contact_id,field_id' });
+    // Verify field belongs to account when the id came from the model
+    const { data: fieldCheck } = await ctx.supabase.from('custom_fields').select('id').eq('id', fieldId).eq('account_id', ctx.accountId).maybeSingle();
+    if (!fieldCheck) return { success: false, error: 'Custom field not found for this account' };
+    const { error } = await ctx.supabase.from('contact_custom_values').upsert({ contact_id: contactId, custom_field_id: fieldId, value: a.value.trim() }, { onConflict: 'contact_id,custom_field_id' });
     if (error) return { success: false, error: 'Failed to update custom field' };
     return { success: true, data: { fieldId } };
   },

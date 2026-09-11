@@ -5,7 +5,12 @@ import type { TelegramUpdate } from '@/lib/channels/types'
 const h = vi.hoisted(() => ({
   state: {
     afterCallbacks: [] as (() => Promise<void>)[]
-    , config: { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' }
+    , config: { id: 'cfg-1', account_id: 'acc-1', webhook_secret_encrypted: 'enc-secret', bot_token_encrypted: 'enc-token' } as {
+      id: string
+      account_id: string
+      webhook_secret_encrypted: string | null
+      bot_token_encrypted: string
+    } | null
     , account: { owner_user_id: 'user-1' }
     , profile: { user_id: 'user-1' }
     , decrypt: vi.fn((v: string) => v === 'enc-secret' ? 'mysecret' : v)
@@ -99,7 +104,10 @@ describe('POST /api/telegram/webhook/[configId]', () => {
     }
   })
 
-  it('rejects invalid uuid', async () => {
+  // First test pays the route module's dynamic import; under a loaded
+  // full-suite worker that can exceed the default 5s test timeout, so
+  // allow headroom here (the import itself is ~100ms in isolation).
+  it('rejects invalid uuid', { timeout: 15_000 }, async () => {
     const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
     const res = await POST(makeRequest({ update_id: 1 }, 'not-uuid'), { params: Promise.resolve({ configId: 'not-uuid' }) }) as unknown as { init: ResponseInit }
     expect(res.init.status).toBe(400)
@@ -137,5 +145,26 @@ describe('POST /api/telegram/webhook/[configId]', () => {
     const calls = h.state.decrypt.mock.calls.map((c: [string]) => c[0])
     expect(calls).toContain('enc-secret')
     expect(calls).not.toContain('enc-token')
+  })
+
+  it('rejects a missing secret with 401', async () => {
+    const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { init: ResponseInit }
+    expect(res.init.status).toBe(401)
+  })
+
+  it('fails closed when the config has no secret', async () => {
+    h.state.config = { ...h.state.config!, webhook_secret_encrypted: null }
+    const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'anything'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { init: ResponseInit }
+    // Never an open endpoint keyed only by UUID.
+    expect(res.init.status).toBe(500)
+  })
+
+  it('returns 404 for an unknown config', async () => {
+    h.state.config = null
+    const { POST } = await import('@/app/api/telegram/webhook/[configId]/route')
+    const res = await POST(makeRequest({ update_id: 1 }, '00000000-0000-4000-a000-000000000001', 'mysecret'), { params: Promise.resolve({ configId: '00000000-0000-4000-a000-000000000001' }) }) as unknown as { init: ResponseInit }
+    expect(res.init.status).toBe(404)
   })
 })

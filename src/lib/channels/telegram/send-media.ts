@@ -16,6 +16,11 @@ export interface SendTelegramMediaParams {
   caption?: string | null;
   replyToMessageId?: string | null;
   inlineKeyboard?: TelegramInlineMarkup | null;
+  /**
+   * Stable automation key (run:node:block). Short-circuits on an
+   * already-persisted row so engine retries never double-send.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface SendTelegramMediaResult {
@@ -86,7 +91,7 @@ export async function sendTelegramMedia(
   accountId: string,
   params: SendTelegramMediaParams,
 ): Promise<SendTelegramMediaResult> {
-  const { conversationId, mediaUrl, mediaKind, filename, caption, replyToMessageId, inlineKeyboard } = params;
+  const { conversationId, mediaUrl, mediaKind, filename, caption, replyToMessageId, inlineKeyboard, idempotencyKey } = params;
 
   if (!conversationId) throw new SendTelegramError('bad_request', 'conversation_id is required', 400);
   validateMedia(mediaKind, mediaUrl, caption);
@@ -120,6 +125,22 @@ export async function sendTelegramMedia(
     void db.from('telegram_config').update({ bot_token_encrypted: encrypt(botToken) }).eq('id', config.id).then(({ error }: { error: { message: string } | null }) => {
       if (error) console.warn('[telegram-send-media] GCM upgrade failed:', error.message);
     });
+  }
+
+  // Automation retry guard — reuse an already-persisted block send.
+  if (idempotencyKey) {
+    const { data: existing } = await db
+      .from('messages')
+      .select('id, message_id')
+      .eq('conversation_id', conversationId)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return {
+        messageId: existing.id as string,
+        telegramMessageId: (existing.message_id as string | null) ?? '',
+      };
+    }
   }
 
   let replyToTelegramId: number | undefined;
@@ -198,6 +219,9 @@ export async function sendTelegramMedia(
           : mediaKind === 'voice'
             ? 'audio/ogg'
             : 'application/octet-stream';
+  // NOTE: idempotency_key comes from migration 063; regenerate
+  // Database types from the DB to drop this cast.
+  const idempotencyPatch = idempotencyKey ? { idempotency_key: idempotencyKey } : {};
   const mediaInsert: Database['public']['Tables']['messages']['Insert'] = {
     conversation_id: conversationId,
     sender_type: 'agent',
@@ -212,7 +236,8 @@ export async function sendTelegramMedia(
     ...(hasKeyboard
       ? { interactive_payload: { kind: 'telegram_inline', markup: inlineKeyboard } as unknown as never }
       : {}),
-  };
+    ...idempotencyPatch,
+  } as Database['public']['Tables']['messages']['Insert'];
   const { data: messageRecord, error: msgError } = await db.from('messages').insert(mediaInsert).select().single();
   if (msgError) {
     console.error('[telegram-send-media] insert failed:', msgError);

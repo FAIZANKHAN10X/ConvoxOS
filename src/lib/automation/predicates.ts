@@ -74,10 +74,21 @@ const builtins: ConditionPredicate[] = [
     async evaluate(ctx, config) {
       const tagId = config.tagId ?? config.value;
       if (!tagId) return false;
+      // Account-scoped like the sibling contact predicates: the store
+      // runs service-role, so an unscoped read would answer for any
+      // contact id the caller guesses.
+      const { data: contact } = await asDb(ctx)
+        .from('contacts')
+        .select('id')
+        .eq('id', ctx.contactId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (!contact) return false;
       const { data } = await asDb(ctx)
         .from('contact_tags')
         .select('tag_id')
-        .eq('contact_id', ctx.contactId);
+        .eq('contact_id', ctx.contactId)
+        .limit(200);
       const ids = (data ?? []).map((row) => row.tag_id as string);
       const has = ids.includes(tagId);
       return config.op === 'neq' ? !has : has;

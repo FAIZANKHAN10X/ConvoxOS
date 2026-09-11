@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { getContactActivityFeed } from '@/lib/activity/feed'
 
 export async function GET(
@@ -24,9 +25,9 @@ export async function GET(
   const cursor = url.searchParams.get('cursor')
   const filter = (url.searchParams.get('filter') ?? 'all') as string
 
-  // Use service role for activity fetch to bypass RLS joins, but we already verified account/contact
-  const { createClient: createServiceClient } = await import('@supabase/supabase-js')
-  const admin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  // Use the canonical service-role client for activity fetch to bypass
+  // RLS joins, but we already verified account/contact above.
+  const admin = supabaseAdmin()
 
   const { items, nextCursor } = await getContactActivityFeed(admin as never, {
     contactId,
