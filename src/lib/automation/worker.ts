@@ -1,8 +1,16 @@
-import { MAX_EVENT_CHAIN_DEPTH } from './constants';
+import {
+  CALLBACK_DEFERRAL_MS,
+  MAX_CALLBACK_DEFERRALS,
+  MAX_EVENT_CHAIN_DEPTH,
+} from './constants';
 import { createRunFromMatch, executeRun, type EngineDeps } from './engine';
 import { resumeExternalWait } from './external-wait';
 import { matchTriggers } from './match';
-import './nodes';
+// NOTE: no `import './nodes'` here. Node registration lives in
+// `nodes/index.ts` (pulled in via `@/lib/automation` in production
+// and directly by tests). Importing the barrel from the worker
+// closes an import cycle (node → tasks/write → crm-events → kick →
+// worker → nodes) that leaves registry entries undefined.
 import type { DomainEvent } from './types';
 
 export interface WorkerResult {
@@ -74,6 +82,20 @@ export async function processClaimedEvent(
     if (continuation === 'duplicate' || continuation === 'rejected') {
       await deps.store.markEvent(event.id, 'processed');
       return result;
+    }
+    if (continuation === 'deferred') {
+      // The callback names a live run whose wait row has not committed
+      // yet (fast-callback race). Requeue briefly so the wait can land;
+      // after enough attempts the flow is genuinely broken, so fall
+      // through to normal matching and surface it visibly.
+      if (event.attempts < MAX_CALLBACK_DEFERRALS) {
+        const now = deps.now?.() ?? new Date();
+        await deps.store.deferEvent(
+          event.id,
+          new Date(now.getTime() + CALLBACK_DEFERRAL_MS)
+        );
+        return result;
+      }
     }
 
     const matches = await matchTriggers(deps.store, deps.registry, event);

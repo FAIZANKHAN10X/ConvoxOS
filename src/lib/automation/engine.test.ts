@@ -827,4 +827,169 @@ describe('same-run external wait', () => {
     expect(result.runsCreated).toBe(1);
     expect(record).toEqual(['fresh']);
   });
+
+  it('defers a callback that arrives before the wait row commits', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.tag_added', config: { tagId: TAG } },
+          { id: 'w', type: 'wait.external', config: { timeoutHours: 24 } },
+          { id: 'a', type: 'action.record', config: { label: 'after-hook' } },
+        ],
+        [
+          { source: 't', target: 'w' },
+          { source: 'w', target: 'a' },
+        ]
+      )
+    );
+    const deps = { store, registry, db: {} };
+    // Simulate the race: run exists and is mid-execution, but its wait
+    // row has not committed yet (fast n8n callback racing executeRun).
+    // A real trigger event id is attached, as all genuine runs have.
+    // The helper tag event itself is parked so the worker drain cannot
+    // pick it up and pollute run counts.
+    const trigger = await enqueueTag(store, TAG);
+    await store.markEvent(trigger.id, 'processed');
+    const run = await store.insertRun({
+      accountId: 'acct-1',
+      automationId: auto.id,
+      versionId: auto.publishedVersionId!,
+      contactId: 'contact-1',
+      triggerEventId: trigger.id,
+      currentNodeId: 'w',
+      context: {},
+    });
+    await store.updateRun(run.id, { status: 'running' });
+    const callback = await callbackEvent(store, {
+      runId: run.id,
+      automationId: auto.id,
+    });
+    const result = await processDomainEvent(deps, callback.id);
+    // No second run, no resume — the event is requeued for later.
+    expect(result.runsCreated).toBe(0);
+    expect(result.waitsResumed).toBe(0);
+    expect(record).toEqual([]);
+    expect((await store.getEvent(callback.id))?.status).toBe('pending');
+
+    // Once the wait commits, redelivery resumes the same run.
+    await store.insertWait({
+      accountId: 'acct-1',
+      runId: run.id,
+      nodeId: 'w',
+      resumeNodeId: 'a',
+      resumeAt: new Date(Date.now() + 24 * 3600_000).toISOString(),
+      kind: 'event',
+      correlationKey: run.id,
+    });
+    await store.updateRun(run.id, { status: 'waiting' });
+    const retry = await processDomainEvent(deps, callback.id);
+    expect(retry.waitsResumed).toBe(1);
+    expect(retry.runsCreated).toBe(0);
+    expect(record).toEqual(['after-hook']);
+  });
+
+  it('stops deferring after the cap and falls through to matching', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.tag_added', config: { tagId: TAG } },
+          { id: 'w', type: 'wait.external', config: { timeoutHours: 24 } },
+          { id: 'a', type: 'action.record', config: { label: 'after-hook' } },
+        ],
+        [
+          { source: 't', target: 'w' },
+          { source: 'w', target: 'a' },
+        ]
+      )
+    );
+    const deps = { store, registry, db: {} };
+    const trigger = await enqueueTag(store, TAG);
+    await store.markEvent(trigger.id, 'processed');
+    const run = await store.insertRun({
+      accountId: 'acct-1',
+      automationId: auto.id,
+      versionId: auto.publishedVersionId!,
+      contactId: 'contact-1',
+      triggerEventId: trigger.id,
+      currentNodeId: 'w',
+      context: {},
+    });
+    await store.updateRun(run.id, { status: 'running' });
+    const callback = await callbackEvent(store, {
+      runId: run.id,
+      automationId: auto.id,
+    });
+    // Exhaust the deferral budget by re-claiming; each claim bumps attempts.
+    for (let i = 0; i < 10; i++) {
+      await store.claimPendingEvents(1, new Date(Date.now() + (i + 1) * 60_000));
+      await store.deferEvent(callback.id, new Date(0));
+    }
+    const result = await processDomainEvent(deps, callback.id);
+    // Broken flow becomes visible instead of looping forever.
+    expect((await store.getEvent(callback.id))?.status).toBe('processed');
+    expect(result.waitsResumed).toBe(0);
+  });
+
+  it('reclaims a stale claimed wait instead of losing the callback', async () => {
+    const tick = clock(new Date('2026-01-01T00:00:00Z'));
+    const store = createMemoryStore(tick.now);
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.tag_added', config: { tagId: TAG } },
+          { id: 'w', type: 'wait.external', config: { timeoutHours: 24 } },
+          { id: 'a', type: 'action.record', config: { label: 'after-hook' } },
+        ],
+        [
+          { source: 't', target: 'w' },
+          { source: 'w', target: 'a' },
+        ]
+      )
+    );
+    const deps = { store, registry, db: {}, now: tick.now };
+    await processDomainEvent(deps, (await enqueueTag(store, TAG)).id);
+    const waiting = await store.findActiveRun(auto.id, 'contact-1');
+    expect(waiting?.status).toBe('waiting');
+
+    // Simulate the crash window: wait claimed, run never resumed.
+    const claimed = await store.claimEventWait({
+      accountId: 'acct-1',
+      correlationKey: waiting!.id,
+      automationId: auto.id,
+    });
+    expect(claimed?.status).toBe('claimed');
+
+    // A fresh callback inside the lease is still a duplicate.
+    const early = await callbackEvent(store, {
+      runId: waiting!.id,
+      automationId: auto.id,
+    });
+    expect((await processDomainEvent(deps, early.id)).waitsResumed).toBe(0);
+    expect(record).toEqual([]);
+
+    // Past the lease, the orphan is reclaimed and the run resumes.
+    tick.advance(6 * 60_000);
+    const late = await callbackEvent(store, {
+      runId: waiting!.id,
+      automationId: auto.id,
+    });
+    const result = await processDomainEvent(deps, late.id);
+    expect(result.waitsResumed).toBe(1);
+    expect(record).toEqual(['after-hook']);
+    expect((await store.getRun(waiting!.id))?.status).toBe('completed');
+  });
 });

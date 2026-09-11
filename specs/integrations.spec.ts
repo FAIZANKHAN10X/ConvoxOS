@@ -36,7 +36,7 @@ test.describe('integration picker', () => {
     const conditions = page
       .locator('div.mb-4')
       .filter({ hasText: 'Conditions' });
-    await expect(conditions.getByRole('button', { name: /^Condition$/ })).toBeVisible();
+    await expect(conditions.getByRole('button', { name: 'Condition Branch Yes or No' })).toBeVisible();
     await expect(
       conditions.getByRole('button', { name: /HTTP request/ })
     ).toHaveCount(0);

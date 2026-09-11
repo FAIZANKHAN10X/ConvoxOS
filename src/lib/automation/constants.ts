@@ -27,3 +27,21 @@ export const VERSION_RETENTION_DAYS = 30;
 export const MAX_RETAINED_VERSIONS = 10;
 
 export const DEFAULT_REENTRY_POLICY = 'one_active' as const;
+
+/**
+ * A `claimed` event wait older than this is treated as orphaned (the
+ * process died between claim and resume) and may be reclaimed by the
+ * next callback. Must exceed the longest single executeRun duration.
+ */
+export const STALE_EVENT_WAIT_CLAIM_MS = 5 * 60 * 1000;
+
+/**
+ * How long a callback waits for its wait row to commit before the
+ * worker stops deferring and falls through to normal trigger
+ * matching (which surfaces a misconfigured flow visibly instead of
+ * looping forever).
+ */
+export const CALLBACK_DEFERRAL_MS = 30 * 1000;
+
+/** Max deferrals per callback event before falling through to matching. */
+export const MAX_CALLBACK_DEFERRALS = 10;

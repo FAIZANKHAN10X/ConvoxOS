@@ -2,7 +2,10 @@ import { registerNode } from '../registry';
 import type { NodeDefinition } from '../types';
 
 import { addTagAction } from './add-tag';
+import { assignOwnerAction } from './assign-owner';
 import { conditionNode } from './condition';
+import { dealStageChangedTrigger } from './deal-stage-changed';
+import { moveDealAction } from './move-deal';
 import { contactCreatedTrigger } from './contact-created';
 import { inboundWebhookTrigger } from './inbound-webhook';
 import { httpRequestAction } from './http-request';
@@ -13,10 +16,12 @@ import { messageNode } from './message';
 import { removeTagAction } from './remove-tag';
 import { sendTextAction } from './send-text';
 import { tagAddedTrigger } from './tag-added';
+import { completeTaskAction, createTaskAction } from './tasks';
 import { tagRemovedTrigger } from './tag-removed';
 import { waitNode } from './wait';
 import { waitExternalNode } from './wait-external';
 
+export { completeTaskAction, createTaskAction } from './tasks';
 export { tagAddedTrigger } from './tag-added';
 export { tagRemovedTrigger } from './tag-removed';
 export { messageReceivedTrigger } from './message-received';
@@ -30,7 +35,10 @@ export { addTagAction } from './add-tag';
 export { removeTagAction } from './remove-tag';
 export { waitNode } from './wait';
 export { waitExternalNode } from './wait-external';
+export { assignOwnerAction } from './assign-owner';
 export { conditionNode } from './condition';
+export { dealStageChangedTrigger } from './deal-stage-changed';
+export { moveDealAction } from './move-deal';
 export { n8nWorkflowAction } from './n8n-workflow';
 
 export const builtinNodes: NodeDefinition[] = [
@@ -39,6 +47,7 @@ export const builtinNodes: NodeDefinition[] = [
   tagAddedTrigger,
   tagRemovedTrigger,
   contactCreatedTrigger,
+  dealStageChangedTrigger,
   inboundWebhookTrigger,
   httpRequestAction,
   n8nWorkflowAction,
@@ -46,6 +55,10 @@ export const builtinNodes: NodeDefinition[] = [
   messageNode,
   addTagAction,
   removeTagAction,
+  moveDealAction,
+  createTaskAction,
+  completeTaskAction,
+  assignOwnerAction,
   waitNode,
   waitExternalNode,
   conditionNode,

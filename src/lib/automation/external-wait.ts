@@ -1,3 +1,4 @@
+import { STALE_EVENT_WAIT_CLAIM_MS } from './constants';
 import type { EngineDeps } from './engine';
 import { executeRun } from './engine';
 import type { DomainEvent } from './types';
@@ -5,7 +6,18 @@ import type { DomainEvent } from './types';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type ExternalWaitOutcome = 'resumed' | 'duplicate' | 'rejected' | 'none';
+export type ExternalWaitOutcome =
+  | 'resumed'
+  | 'duplicate'
+  | 'rejected'
+  | 'deferred'
+  | 'none';
+
+function isStaleClaim(claimedAt: string | null, now: Date): boolean {
+  if (!claimedAt) return true;
+  return now.getTime() - new Date(claimedAt).getTime() >
+    STALE_EVENT_WAIT_CLAIM_MS;
+}
 
 /**
  * Pull the outbound run id back out of an inbound webhook body.
@@ -78,7 +90,24 @@ export async function resumeExternalWait(
     accountId: event.accountId,
     correlationKey: correlation,
   });
-  if (!existing) return 'none';
+  if (!existing) {
+    // No wait row yet — but the referenced run may simply not have
+    // committed its wait (fast n8n callback racing executeRun). If the
+    // run exists, belongs here, and is still live, defer so the event
+    // retries instead of spawning an unrelated second run.
+    const run = await deps.store.getRun(correlation);
+    if (
+      run &&
+      run.accountId === event.accountId &&
+      run.automationId === automationId &&
+      (run.status === 'queued' ||
+        run.status === 'running' ||
+        run.status === 'waiting')
+    ) {
+      return 'deferred';
+    }
+    return 'none';
+  }
 
   const existingRun = await deps.store.getRun(existing.runId);
   if (!existingRun || existingRun.automationId !== automationId) {
@@ -91,8 +120,15 @@ export async function resumeExternalWait(
   ) {
     return 'rejected';
   }
-  if (existing.status === 'claimed') return 'duplicate';
-  if (existing.status !== 'pending') return 'none';
+  if (existing.status === 'claimed') {
+    // A fresh claim is a duplicate delivery. A stale claim is an
+    // orphaned crash window — fall through and reclaim it atomically.
+    const now = deps.now?.() ?? new Date();
+    if (!isStaleClaim(existing.claimedAt, now)) return 'duplicate';
+  }
+  if (existing.status !== 'pending' && existing.status !== 'claimed') {
+    return 'none';
+  }
 
   const claimed = await deps.store.claimEventWait({
     accountId: event.accountId,

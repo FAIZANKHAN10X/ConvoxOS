@@ -220,6 +220,17 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       throwIfError(error, 'mark domain event');
     },
 
+    async deferEvent(id: string, availableAt: Date) {
+      const { error } = await db
+        .from('domain_events')
+        .update({
+          status: 'pending',
+          available_at: availableAt.toISOString(),
+        })
+        .eq('id', id);
+      throwIfError(error, 'defer domain event');
+    },
+
     async insertAutomation(input: InsertAutomationInput) {
       const { data, error } = await db
         .from('automations')

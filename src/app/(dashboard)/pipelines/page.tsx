@@ -217,19 +217,24 @@ export default function PipelinesPage() {
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
       // Optimistic update — board already animated; just persist.
+      // Goes through the deals API route (not a direct write) so the
+      // move emits `deal_stage_changed` for automations.
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
       );
-      const { error } = await supabase
-        .from("deals")
-        .update({ stage_id: newStageId })
-        .eq("id", dealId);
-      if (error) {
+      try {
+        const response = await fetch(`/api/deals/${dealId}/stage`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stage_id: newStageId }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+      } catch {
         toast.error(t("toastFailedMoveDeal"));
         refreshDeals();
       }
     },
-    [supabase, refreshDeals, t],
+    [refreshDeals, t],
   );
 
   const handleAddDeal = useCallback(

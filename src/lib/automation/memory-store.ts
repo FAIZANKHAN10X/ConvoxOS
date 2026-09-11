@@ -7,6 +7,7 @@ import type {
   RunPatch,
 } from './store';
 import { ActiveRunConflict, isActiveRunStatus } from './store';
+import { STALE_EVENT_WAIT_CLAIM_MS } from './constants';
 import { emptyGraph } from './graph';
 import type {
   Automation,
@@ -27,6 +28,19 @@ function iso(now: Date): string {
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+/** Stale `claimed` rows are crash orphans, safe to reclaim. */
+function isStaleClaim(
+  w: { status: string; claimedAt: string | null },
+  now: Date
+): boolean {
+  if (w.status !== 'claimed') return false;
+  if (!w.claimedAt) return true;
+  return (
+    now.getTime() - new Date(w.claimedAt).getTime() >
+    STALE_EVENT_WAIT_CLAIM_MS
+  );
 }
 
 /**
@@ -116,6 +130,13 @@ export function createMemoryStore(
       ) {
         row.processedAt = iso(clock());
       }
+    },
+
+    async deferEvent(id: string, availableAt: Date) {
+      const row = events.get(id);
+      if (!row) return;
+      row.status = 'pending';
+      row.availableAt = iso(availableAt);
     },
 
     async insertAutomation(input: InsertAutomationInput): Promise<Automation> {
@@ -362,9 +383,10 @@ export function createMemoryStore(
     async claimEventWait(args) {
       const now = clock();
       const match = [...waits.values()].find((w) => {
-        if (w.status !== 'pending' || w.kind !== 'event') return false;
+        if (w.kind !== 'event') return false;
         if (w.accountId !== args.accountId) return false;
         if (w.correlationKey !== args.correlationKey) return false;
+        if (w.status !== 'pending' && !isStaleClaim(w, now)) return false;
         const run = runs.get(w.runId);
         return (
           !!run &&

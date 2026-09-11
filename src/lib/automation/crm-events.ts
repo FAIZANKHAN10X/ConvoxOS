@@ -10,6 +10,10 @@ interface EmitArgs {
   contactId: string;
   payload?: Record<string, unknown>;
   idempotencyKey: string;
+  source?: 'crm' | 'automation';
+  originRunId?: string | null;
+  causationEventId?: string | null;
+  chainDepth?: number;
 }
 
 async function emit(
@@ -22,7 +26,10 @@ async function emit(
     eventType,
     contactId: args.contactId,
     payload: args.payload ?? {},
-    source: 'crm',
+    source: args.source ?? 'crm',
+    originRunId: args.originRunId ?? null,
+    causationEventId: args.causationEventId ?? null,
+    chainDepth: args.chainDepth ?? 0,
     idempotencyKey: args.idempotencyKey,
   });
   kickDomainEvent(event.id);
@@ -42,4 +49,14 @@ export async function emitTaskCreated(args: EmitArgs): Promise<void> {
 
 export async function emitTaskCompleted(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.TASK_COMPLETED, args);
+}
+
+export interface EmitDealStageChangedArgs extends EmitArgs {
+  dealId: string;
+}
+
+export async function emitDealStageChanged(
+  args: EmitDealStageChangedArgs
+): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.DEAL_STAGE_CHANGED, args);
 }

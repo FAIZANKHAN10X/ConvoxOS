@@ -171,14 +171,35 @@ export function DealForm({
     };
 
     if (deal) {
+      // Stage moves go through the deals API route so they emit
+      // `deal_stage_changed` (the direct write below cannot fan out
+      // events from the browser). Exclude a changed stage here; the
+      // route owns that write.
+      const stageChanged = stageId !== deal.stage_id;
+      const { stage_id: _moved, ...rest } = payload;
+      void _moved;
       const { error } = await supabase
         .from("deals")
-        .update(payload)
+        .update(stageChanged ? rest : payload)
         .eq("id", deal.id);
       if (error) {
         toast.error(t("toastFailedSave"));
         setSaving(false);
         return;
+      }
+      if (stageChanged) {
+        try {
+          const response = await fetch(`/api/deals/${deal.id}/stage`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stage_id: stageId }),
+          });
+          if (!response.ok) throw new Error(await response.text());
+        } catch {
+          toast.error(t("toastFailedMoveDeal"));
+          setSaving(false);
+          return;
+        }
       }
     } else {
       const {

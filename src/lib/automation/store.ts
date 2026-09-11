@@ -80,6 +80,12 @@ export interface AutomationStore {
     status: DomainEventStatus,
     error?: string | null
   ): Promise<void>;
+  /**
+   * Requeue a claimed event for later redelivery (callback arrived
+   * before its wait row committed). The next claim bumps `attempts`,
+   * which bounds total deferrals — see worker deferral cap.
+   */
+  deferEvent(id: string, availableAt: Date): Promise<void>;
 
   insertAutomation(input: InsertAutomationInput): Promise<Automation>;
   getAutomation(id: string): Promise<Automation | null>;

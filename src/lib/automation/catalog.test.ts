@@ -12,7 +12,11 @@ describe('automation catalog', () => {
     expect(types).toEqual(
       [
         'action.add_tag',
+        'action.assign_owner',
+        'action.complete_task',
+        'action.create_task',
         'action.http_request',
+        'action.move_deal',
         'action.n8n_workflow',
         'action.remove_tag',
         'action.send_text',
@@ -21,6 +25,7 @@ describe('automation catalog', () => {
         'timing.wait',
         'wait.external',
         'trigger.contact_created',
+        'trigger.deal_stage_changed',
         'trigger.inbound_webhook',
         'trigger.keyword',
         'trigger.message_received',
