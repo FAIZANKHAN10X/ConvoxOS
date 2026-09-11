@@ -39,7 +39,8 @@ const ROLE_CHIP: Record<
     icon: Crown,
     labelKey: 'roleOwner',
     // Amber: scarce, immutable, "the boss" — gets visual emphasis.
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    // Solid chip: readable in both modes (no translucent text-on-tint).
+    className: 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:text-amber-300',
   },
   admin: {
     icon: Shield,
@@ -149,7 +150,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         aria-label={t('closeMenu')}
         onClick={onClose}
         className={cn(
-          'bg-background/70 fixed inset-0 z-30 backdrop-blur-sm transition-opacity lg:hidden',
+          'fixed inset-0 z-30 bg-black/45 transition-opacity lg:hidden',
           open
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'
@@ -159,22 +160,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       <aside
         className={cn(
           // Mobile: fixed drawer that slides in from the left.
-          'border-border bg-card fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r',
+          'border-border/60 bg-sidebar fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r',
           'transition-transform duration-200 ease-out will-change-transform',
           open ? 'translate-x-0' : '-translate-x-full',
           // Desktop: static, always visible — reset all the mobile framing.
-          'lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none'
+          'lg:static lg:z-0 lg:w-56 lg:translate-x-0 lg:transition-none'
         )}
         aria-label="Primary"
       >
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
-        <div className="border-border flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-lg">
-              <MessageSquare className="h-4 w-4" />
+        <div className="border-border/60 flex h-13 shrink-0 items-center justify-between gap-2 border-b px-3.5">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <div className="bg-primary text-primary-foreground flex h-7 w-7 items-center justify-center rounded-md shadow-xs">
+              <MessageSquare className="h-3.5 w-3.5" />
             </div>
-            <span className="text-foreground text-sm font-semibold">
+            <span className="text-foreground text-sm font-semibold tracking-tight">
               {t('title')}
             </span>
           </Link>
@@ -182,15 +183,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             type="button"
             onClick={onClose}
             aria-label={t('closeMenu')}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-9 w-9 items-center justify-center rounded-md lg:hidden"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md lg:hidden"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3">
+          <ul className="flex flex-col gap-0.5">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -212,19 +213,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     href={item.href}
                     title={item.description}
                     className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2',
+                      'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
                       isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{t(item.labelKey as string)}</span>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 truncate">{t(item.labelKey as string)}</span>
                     {item.beta && (
                       <span
                         aria-label={t('beta')}
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-amber-300 uppercase"
+                        className="rounded-full border border-amber-600/30 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wider text-amber-700 uppercase dark:text-amber-300"
                       >
                         {t('beta')}
                       </span>
@@ -234,11 +234,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                         aria-label={t('unreadConversations', {
                           count: totalUnread,
                         })}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
-                        <span className="bg-primary relative inline-flex h-2 w-2 rounded-full" />
-                      </span>
+                        className="h-2 w-2 shrink-0 rounded-full bg-primary"
+                      />
                     )}
                     {showNotificationBadge && (
                       <span
@@ -258,7 +255,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
           <div className="border-border my-4 border-t" />
 
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-0.5">
             {bottomNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               return (
@@ -266,13 +263,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2',
+                      'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
                       isActive
                         ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     )}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className="h-4 w-4 shrink-0" />
                     {t(item.labelKey as string)}
                   </Link>
                 </li>
@@ -305,32 +302,29 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 : null}
             </div>
           ) : null}
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-            <Avatar className="size-8 shrink-0">
+          <div className="flex items-center gap-2.5 rounded-md px-2.5 py-2 hover:bg-muted/40 transition-colors">
+            <Avatar className="size-7 shrink-0">
               {profile?.avatar_url ? (
                 <AvatarImage
                   src={profile.avatar_url}
                   alt={profile.full_name ?? t('defaultAvatar')}
                 />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                 {profile?.full_name?.charAt(0)?.toUpperCase() ??
                   profile?.email?.charAt(0)?.toUpperCase() ??
                   'U'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-foreground truncate text-sm font-medium">
+              <p className="text-foreground truncate text-xs font-medium">
                 {profile?.full_name ?? t('defaultUser')}
               </p>
-              <p className="text-muted-foreground truncate text-xs">
+              <p className="text-muted-foreground truncate text-[11px]">
                 {profile?.email ?? ''}
               </p>
             </div>
           </div>
-          <p className="text-muted-foreground mt-1 px-3 text-[10px]">
-            Account menu in header →
-          </p>
         </div>
       </aside>
     </>

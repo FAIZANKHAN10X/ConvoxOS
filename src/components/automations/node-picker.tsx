@@ -54,22 +54,22 @@ export function NodePicker({
   return (
     <div className="flex w-[400px] flex-col gap-3">
       <div>
-        <p className="text-[15px] font-semibold text-slate-800">
+        <p className="text-sm font-semibold text-foreground">
           {allowTriggers ? 'Choose how it starts' : 'Add a step'}
         </p>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           {allowTriggers
             ? 'Pick a trigger — every automation starts with one.'
             : 'Search or pick a block for this automation.'}
         </p>
       </div>
       <div className="relative">
-        <Search className="pointer-events-none absolute top-2.5 left-2.5 h-4 w-4 text-slate-400" />
+        <Search className="pointer-events-none absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search blocks"
-          className="h-9 border-slate-200 bg-slate-50 pl-8 text-slate-800"
+          className="h-9 pl-8"
           autoFocus
         />
       </div>
@@ -78,7 +78,7 @@ export function NodePicker({
           const Icon = CATEGORY_ICON[category];
           return (
             <div key={category} className="mb-4">
-              <p className="mb-2 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold tracking-[0.12em] text-slate-400 uppercase">
+              <p className="mb-2 flex items-center gap-1.5 px-0.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                 <Icon className="h-3 w-3" />
                 {CATEGORY_LABEL[category]}
               </p>
@@ -92,7 +92,7 @@ export function NodePicker({
                       title={node.description}
                       onClick={() => onPick(node)}
                       className={cn(
-                        'flex flex-col items-center gap-1.5 rounded-xl border border-transparent bg-slate-50 px-2 py-3 text-center hover:border-slate-200 hover:bg-white hover:shadow-sm'
+                        'flex flex-col items-center gap-1.5 rounded-lg border border-transparent bg-muted/50 px-2 py-3 text-center transition-colors hover:border-border hover:bg-muted'
                       )}
                     >
                       <span
@@ -102,7 +102,7 @@ export function NodePicker({
                         <NodeIcon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[13px] leading-tight font-semibold text-slate-800">
+                        <span className="block text-[13px] leading-tight font-semibold text-foreground">
                           {node.label}
                         </span>
                         <span className="sr-only">{node.description}</span>
@@ -115,7 +115,7 @@ export function NodePicker({
           );
         })}
         {grouped.size === 0 && (
-          <p className="px-2 py-8 text-center text-xs text-slate-500">
+          <p className="px-2 py-8 text-center text-xs text-muted-foreground">
             No steps match that search.
           </p>
         )}

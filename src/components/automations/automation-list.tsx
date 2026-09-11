@@ -126,64 +126,67 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#2f6fed]" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-            Automation
-          </p>
-          <h1 className="text-foreground mt-1 text-2xl font-bold">
-            My Automations
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Automations
           </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Free-form canvas builder for multi-channel messaging and CRM workflows.
+          </p>
         </div>
         <GatedButton
           canAct={canEdit}
           gateReason="create automations"
           onClick={() => setNewOpen(true)}
           disabled={creating}
+          size="sm"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           New Automation
         </GatedButton>
       </div>
 
-      {error && <p className="text-destructive text-sm">{error}</p>}
+      {error && <p className="text-destructive text-xs">{error}</p>}
 
       {automations.length === 0 ? (
-        <div className="flex h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3a4150] text-white">
+        <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-card/40">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Zap className="h-5 w-5" />
           </div>
-          <p className="text-sm font-semibold text-slate-800">
+          <p className="text-sm font-semibold text-foreground">
             No automations yet
           </p>
-          <p className="mt-1 max-w-sm text-center text-xs text-slate-500">
+          <p className="mt-1 max-w-sm text-center text-xs text-muted-foreground">
             Start from scratch and build a trigger → message flow on the canvas.
           </p>
           <GatedButton
             canAct={canEdit}
             gateReason="create automations"
             onClick={() => setNewOpen(true)}
-            className="mt-4"
+            size="sm"
+            className="mt-3 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             New Automation
           </GatedButton>
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search automations"
-              className="max-w-xs"
+              placeholder="Search automations..."
+              className="h-8 max-w-xs text-xs bg-card border-border/70 text-foreground placeholder:text-muted-foreground"
             />
             {(
               [
@@ -197,43 +200,43 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
                 key={key}
                 type="button"
                 onClick={() => setStatus(key)}
-                className={`rounded-full border px-3 py-1 text-xs ${
+                className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
                   status === key
-                    ? 'border-slate-800 bg-slate-800 text-white'
-                    : 'border-border text-muted-foreground'
+                    ? 'border-primary/50 bg-primary/10 text-primary font-medium'
+                    : 'border-border/70 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 }`}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className="flex cursor-pointer items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300"
+                className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/70 bg-card px-3.5 py-2.5 shadow-xs transition-colors hover:border-border hover:bg-muted/40"
                 onClick={() => router.push(`/automations/${item.id}`)}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3a4150] text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Zap className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-800">
+                  <p className="truncate text-xs font-semibold text-foreground">
                     {item.name}
                   </p>
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {triggerLabel(item)}
-                    <span className="mx-1.5 text-slate-300">·</span>
+                    <span className="mx-1 text-muted-foreground/60">·</span>
                     {new Date(item.updatedAt).toLocaleString()}
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
                     item.status === 'published'
-                      ? 'bg-emerald-50 text-emerald-700'
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500'
                       : item.status === 'disabled'
-                        ? 'bg-slate-100 text-slate-500'
-                        : 'bg-amber-50 text-amber-700'
+                        ? 'border-border/60 bg-muted/60 text-muted-foreground'
+                        : 'border-amber-500/20 bg-amber-500/10 text-amber-500'
                   }`}
                 >
                   {item.status === 'published'
@@ -245,7 +248,7 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
                 {canEdit && (
                   <DropdownMenu>
                     <DropdownMenuTrigger
-                      className="rounded-md p-1 text-slate-400 hover:bg-slate-100"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <MoreHorizontal className="h-4 w-4" />
@@ -297,7 +300,7 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
             </DialogDescription>
           </DialogHeader>
           <Button
-            className="h-auto justify-start gap-3 bg-[#2f6fed] py-4 text-left text-white hover:bg-[#2559c4]"
+            className="h-auto justify-start gap-3 bg-primary py-4 text-left text-white hover:bg-primary-hover"
             onClick={() => void create()}
             disabled={creating}
           >
@@ -313,11 +316,11 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
               </span>
             </span>
           </Button>
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-sm font-semibold text-slate-700">
+          <div className="rounded-lg border border-dashed border-border bg-muted/50 px-4 py-3">
+            <p className="text-sm font-semibold text-foreground">
               Start from a template
             </p>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Ready-made flows (welcome series, abandoned chat, lead follow-up)
               are coming soon. Templates will install as editable copies.
             </p>

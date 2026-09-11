@@ -381,68 +381,68 @@ export function ContactDetailView({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
+        className="bg-card border-l border-border/70 text-foreground sm:max-w-lg w-full p-0 shadow-xl"
       >
         {loading || !contact ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <Loader2 className="size-5 animate-spin text-primary" />
           </div>
         ) : (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <SheetHeader className="p-4 border-b border-border/50">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-12 bg-muted border border-border">
-                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+            <SheetHeader className="p-4 border-b border-border/60">
+              <div className="flex items-start gap-3">
+                <Avatar className="size-11 bg-muted/80 border border-border/70">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                     {getInitials(contact.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-popover-foreground truncate">
+                  <SheetTitle className="text-foreground text-base font-bold tracking-tight truncate">
                     {contact.name || t('unnamed')}
                   </SheetTitle>
-                  <SheetDescription className="text-muted-foreground text-xs mt-0.5">
+                  <SheetDescription className="text-muted-foreground text-[11px] mt-0.5">
                     {t('contactDetailsDesc')}
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     <button
                       onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      className="flex items-center gap-1 font-mono text-xs tabular-nums text-foreground/90 hover:text-primary transition-colors cursor-pointer"
                     >
-                      <Phone className="size-3" />
+                      <Phone className="size-3 text-muted-foreground" />
                       {contact.phone}
                       {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
+                        <Check className="size-3 text-emerald-500" />
                       ) : (
-                        <Copy className="size-3" />
+                        <Copy className="size-3 opacity-60" />
                       )}
                     </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
-                        <Mail className="size-3" />
+                        <Mail className="size-3 text-muted-foreground" />
                         {contact.email}
                       </span>
                     )}
                     {contact.company && (
                       <span className="flex items-center gap-1">
-                        <Building2 className="size-3" />
+                        <Building2 className="size-3 text-muted-foreground" />
                         {contact.company}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex items-center gap-2">
                 <Button
                   size="sm"
                   onClick={() => setTemplatePickerOpen(true)}
                   disabled={sendingTemplate}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   {sendingTemplate ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-3.5 animate-spin" />
                   ) : (
-                    <LayoutTemplate className="size-4" />
+                    <LayoutTemplate className="size-3.5" />
                   )}
                   {t('sendTemplateBtn')}
                 </Button>
@@ -451,40 +451,40 @@ export function ContactDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
+              <TabsList className="bg-muted/40 border border-border/60 mx-4 mt-2.5 h-8 p-0.5 rounded-md">
                 <TabsTrigger
                   value="details"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs"
                 >
                   {t('tabs.details')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="tags"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs text-muted-foreground"
                 >
                   {t('tabs.tags')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs text-muted-foreground"
                 >
                   {t('tabs.notes')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="custom"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs text-muted-foreground"
                 >
                   {t('tabs.custom')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="deals"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs text-muted-foreground"
                 >
                   {t('tabs.deals')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="activity"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className="h-7 text-xs data-active:bg-card data-active:text-foreground data-active:shadow-xs text-muted-foreground"
                 >
                   Activity
                 </TabsTrigger>

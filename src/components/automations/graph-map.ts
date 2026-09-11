@@ -36,10 +36,10 @@ export function toFlowEdges(graph: AutomationGraph): Edge[] {
       height: 16,
       color:
         edge.sourceHandle === 'true'
-          ? '#22c55e'
+          ? 'var(--edge-true)'
           : edge.sourceHandle === 'false'
-            ? '#ef4444'
-            : '#b7c0cc',
+            ? 'var(--edge-false)'
+            : 'var(--edge-idle)',
     },
   }));
 }

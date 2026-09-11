@@ -20,8 +20,8 @@ interface Action {
 
 const ACTIONS: Action[] = [
   { labelKey: 'newContact', href: '/contacts' as Route, icon: UserPlus, tint: 'text-primary' },
-  { labelKey: 'newDeal', href: '/pipelines' as Route, icon: Briefcase, tint: 'text-blue-400' },
-  { labelKey: 'newBroadcast', href: '/broadcasts/new' as Route, icon: Radio, tint: 'text-amber-400' },
+  { labelKey: 'newDeal', href: '/pipelines' as Route, icon: Briefcase, tint: 'text-sky-700 dark:text-sky-400' },
+  { labelKey: 'newBroadcast', href: '/broadcasts/new' as Route, icon: Radio, tint: 'text-amber-700 dark:text-amber-400' },
   // NOTE: the old `newAutomation` quick action was retired with the
   // automation engine. It returns with Automations v2 (clean rebuild).
 ]
@@ -37,7 +37,7 @@ export function QuickActions() {
           <Link
             key={a.href}
             href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-border hover:bg-muted/60"
+            className="group flex items-center gap-3 rounded-lg border border-border/70 bg-card px-4 py-3 shadow-xs transition-colors hover:bg-muted/40"
           >
             <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
               <Icon className="h-4 w-4" />

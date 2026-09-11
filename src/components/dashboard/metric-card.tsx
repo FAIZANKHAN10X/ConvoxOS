@@ -23,18 +23,18 @@ interface MetricCardProps {
 
 export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-4 w-4" />
+    <div className="rounded-lg border border-border/70 bg-card p-3.5 shadow-xs transition-colors hover:border-border">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/60 text-muted-foreground">
+          <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] leading-none font-bold tabular-nums text-foreground">
+      <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
         {value}
       </p>
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
-        <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
       ) : null}
     </div>
   )
@@ -45,7 +45,7 @@ function DeltaRow({ sign, label }: { sign: number; label: string }) {
     sign > 0
       ? 'text-primary'
       : sign < 0
-      ? 'text-red-400'
+      ? 'text-destructive'
       : 'text-muted-foreground'
   const Arrow = sign > 0 ? ArrowUp : sign < 0 ? ArrowDown : Minus
   return (

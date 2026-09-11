@@ -108,11 +108,11 @@ export function AgentOverview({ onNavigate }: OverviewProps) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />
+        <div className="h-32 animate-pulse rounded-lg border border-border/70 bg-card" />
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="h-24 animate-pulse rounded-xl border border-border bg-card" />
-          <div className="h-24 animate-pulse rounded-xl border border-border bg-card" />
-          <div className="h-24 animate-pulse rounded-xl border border-border bg-card" />
+          <div className="h-24 animate-pulse rounded-lg border border-border/70 bg-card" />
+          <div className="h-24 animate-pulse rounded-lg border border-border/70 bg-card" />
+          <div className="h-24 animate-pulse rounded-lg border border-border/70 bg-card" />
         </div>
       </div>
     );

@@ -53,15 +53,15 @@ interface StatCardProps {
 function StatCard({ label, value, total, icon, color }: StatCardProps) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-lg border border-border/70 bg-card p-3 shadow-xs">
       <div className="flex items-center justify-between">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
+        <div className={`flex h-7 w-7 items-center justify-center rounded-md ${color}`}>
           {icon}
         </div>
-        <span className="text-xs text-muted-foreground">{pct}%</span>
+        <span className="text-[11px] tabular-nums text-muted-foreground">{pct}%</span>
       </div>
-      <p className="mt-3 text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value.toLocaleString()}</p>
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -80,8 +80,8 @@ interface FunnelStep {
 function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   const max = Math.max(...steps.map((s) => s.value), 1);
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <h3 className="mb-4 text-sm font-medium text-foreground">Funnel</h3>
+    <div className="rounded-lg border border-border/70 bg-card p-4 shadow-xs">
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Funnel</h3>
       <div className="space-y-2">
         {steps.map((step) => {
           const pctOfMax = Math.max(5, Math.round((step.value / max) * 100));
@@ -348,7 +348,7 @@ export default function BroadcastDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-foreground">{broadcast.name}</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{broadcast.name}</h1>
               <span
                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
               >
@@ -412,7 +412,7 @@ export default function BroadcastDetailPage() {
       {/* Resume / retry (issue #472). Only rendered when there is
           actually something outstanding. */}
       {(pendingCount > 0 || retryableCount > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card p-3 shadow-xs">
           <div className="text-sm">
             <p className="font-medium text-foreground">
               {isStalled ? t('resumeStalledTitle') : t('resumeTitle')}
@@ -507,7 +507,7 @@ export default function BroadcastDetailPage() {
       <FunnelChart steps={funnelSteps} />
 
       {/* Recipients Table */}
-      <div className="rounded-xl border border-border bg-card">
+      <div className="rounded-lg border border-border/70 bg-card shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h2 className="text-sm font-medium text-foreground">
             {statusFilter !== 'all'

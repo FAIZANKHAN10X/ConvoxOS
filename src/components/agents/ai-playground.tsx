@@ -88,7 +88,7 @@ export function AiPlayground({ onGoToSetup, initialInput }: { onGoToSetup?: () =
   };
 
   return (
-    <div className="flex h-[60vh] min-h-[420px] flex-col rounded-xl border border-border bg-card">
+    <div className="flex h-[60vh] min-h-[420px] flex-col rounded-lg border border-border/70 bg-card shadow-xs">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">

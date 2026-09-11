@@ -50,16 +50,16 @@ export function EndpointPickerField({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-slate-600">Endpoint</Label>
+      <Label>Endpoint</Label>
       <Select
         value={selected}
         onValueChange={(next) => onChange(next)}
         disabled={disabled}
       >
-        <SelectTrigger className="w-full border-slate-200">
+        <SelectTrigger className="w-full">
           <SelectValue placeholder="Choose an endpoint" />
         </SelectTrigger>
-        <SelectContent className="bg-white text-slate-800 ring-slate-200">
+        <SelectContent>
           {endpoints.map((endpoint) => (
             <SelectItem key={endpoint.id} value={endpoint.id}>
               {endpoint.name}
@@ -69,17 +69,17 @@ export function EndpointPickerField({
       </Select>
       {onCreate && !disabled && (
         creating ? (
-          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+          <div className="space-y-2 rounded-lg border border-border/70 p-3">
             <Input
               placeholder="Name"
               value={name}
-              className="border-slate-200"
+              className="border-border/70"
               onChange={(event) => setName(event.target.value)}
             />
             <Input
               placeholder="https://n8n.example/webhook/…"
               value={url}
-              className="border-slate-200"
+              className="border-border/70"
               onChange={(event) => setUrl(event.target.value)}
             />
             <div className="flex gap-2">
@@ -117,7 +117,7 @@ export function EndpointPickerField({
         ) : (
           <button
             type="button"
-            className="text-xs font-medium text-[#2f6fed]"
+            className="text-xs font-medium text-primary"
             onClick={() => setCreating(true)}
           >
             Add endpoint
@@ -161,28 +161,28 @@ export function InboundHookField({
 
   return (
     <div className="space-y-2">
-      <Label className="text-slate-600">Inbound hook</Label>
+      <Label>Inbound hook</Label>
       {hook ? (
         <Select
           value={selected || hook.id}
           onValueChange={(next) => onChange(next)}
           disabled={disabled}
         >
-          <SelectTrigger className="w-full border-slate-200">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="This automation's hook" />
           </SelectTrigger>
-          <SelectContent className="bg-white text-slate-800 ring-slate-200">
+          <SelectContent>
             <SelectItem value={hook.id}>This automation&apos;s hook</SelectItem>
           </SelectContent>
         </Select>
       ) : (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Create a hook so external systems can start this automation.
         </p>
       )}
       {url && <CopyRow label="Webhook URL" value={url} />}
       {!url && hook && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           The URL was shown when this hook was created. Rotate to issue a new
           one.
         </p>
@@ -217,7 +217,7 @@ export function InboundHookField({
               size="sm"
               variant="outline"
               disabled={busy}
-              className="border-slate-200"
+              className="border-border/70"
               onClick={() => {
                 setBusy(true);
                 void onRotate()
@@ -242,9 +242,9 @@ export function InboundHookField({
 function CopyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[11px] font-medium text-slate-500">{label}</p>
+      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
       <div className="flex items-center gap-1">
-        <code className="min-w-0 flex-1 truncate rounded-md bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-muted/50 px-2 py-1 font-mono text-[11px] text-foreground">
           {value}
         </code>
         <Button

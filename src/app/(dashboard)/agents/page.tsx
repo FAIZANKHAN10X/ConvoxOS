@@ -50,13 +50,13 @@ export default function AgentsPage() {
           <Bot className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">AI Agent</h1>
-          <p className="text-sm text-muted-foreground">One agent for the workspace — teach it, test it, then go live.</p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">AI Agent</h1>
+          <p className="text-[13px] text-muted-foreground">One agent for the workspace — teach it, test it, then go live.</p>
         </div>
       </div>
 
       {!decided ? (
-        <div className="mt-6 h-64 animate-pulse rounded-xl border border-border bg-card" />
+        <div className="mt-6 h-64 animate-pulse rounded-lg border border-border/70 bg-card" />
       ) : (
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="mt-6">
           <div className="overflow-x-auto">
@@ -88,7 +88,7 @@ export default function AgentsPage() {
           <TabsContent value="configure" className="mt-4 space-y-6">
             {/* New IA: Identity/Behaviour/Advanced (local) + existing provider wiring */}
             <AgentConfigure />
-            <div className="rounded-xl border border-dashed border-border p-1">
+            <div className="rounded-lg border border-dashed border-border/70 p-1">
               <AiConfig />
             </div>
             <p className="text-xs text-muted-foreground">

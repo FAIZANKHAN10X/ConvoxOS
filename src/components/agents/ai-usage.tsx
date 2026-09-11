@@ -223,7 +223,7 @@ function Stat({
   icon?: typeof Bot;
 }) {
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className="rounded-lg border border-border/70 p-3 shadow-xs">
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         {Icon && <Icon className="h-3 w-3" />}
         {label}

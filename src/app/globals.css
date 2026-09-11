@@ -88,61 +88,70 @@
 
 :root,
 html[data-mode="dark"] {
-  --background: oklch(0.13 0.01 260);
+  --background: oklch(0.15 0.01 260);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.18 0.01 260);
-  --card-2: oklch(0.205 0.01 260);
+  --card: oklch(0.19 0.01 260);
+  --card-2: oklch(0.22 0.01 260);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.18 0.01 260);
+  --popover: oklch(0.19 0.01 260);
   --popover-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.22 0.01 260);
+  --secondary: oklch(0.24 0.01 260);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.22 0.01 260);
-  --muted-foreground: oklch(0.65 0.01 260);
-  --accent: oklch(0.22 0.01 260);
+  --muted-foreground: oklch(0.68 0.01 260);
+  --accent: oklch(0.24 0.01 260);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.28 0.01 260);
-  --input: oklch(0.28 0.01 260);
+  --border: oklch(0.28 0.01 260 / 0.5);
+  --input: oklch(0.28 0.01 260 / 0.6);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.16 0.01 260);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.165 0.01 260);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.22 0.01 260);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.28 0.01 260);
+  --sidebar-border: oklch(0.26 0.01 260 / 0.5);
+  --whatsapp: #25d366;
+  --telegram: #229ed9;
+  /* Automation canvas edge inks. Muted idle gray keeps the graph
+   * calm; branch colors are restrained success/destructive tones. */
+  --edge-idle: #8b94a3;
+  --edge-true: #16a34a;
+  --edge-false: #dc2626;
 }
 
 html[data-mode="light"] {
-  --background: oklch(0.99 0.002 260);
+  --background: #f9fafb;
   --foreground: oklch(0.21 0.01 260);
-  --card: oklch(1 0 0);
-  --card-2: oklch(0.985 0.002 260);
+  --card: #ffffff;
+  --card-2: #f3f4f6;
   --card-foreground: oklch(0.21 0.01 260);
-  --popover: oklch(1 0 0);
+  --popover: #ffffff;
   --popover-foreground: oklch(0.21 0.01 260);
-  --secondary: oklch(0.967 0.003 260);
+  --secondary: #f3f4f6;
   --secondary-foreground: oklch(0.25 0.01 260);
-  --muted: oklch(0.967 0.003 260);
-  --muted-foreground: oklch(0.52 0.015 260);
-  --accent: oklch(0.96 0.004 260);
+  --muted: #f3f4f6;
+  --muted-foreground: oklch(0.5 0.015 260);
+  --accent: #f3f4f6;
   --accent-foreground: oklch(0.25 0.01 260);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0.004 260);
-  --input: oklch(0.922 0.004 260);
+  --border: #e5e7eb;
+  --input: #e5e7eb;
   --chart-2: oklch(0.6 0.1 260);
   --chart-3: oklch(0.7 0.06 260);
   --chart-4: oklch(0.8 0.04 260);
   --chart-5: oklch(0.87 0.03 260);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0.002 260);
+  --radius: 0.5rem;
+  --sidebar: #ffffff;
   --sidebar-foreground: oklch(0.21 0.01 260);
-  --sidebar-accent: oklch(0.96 0.004 260);
+  --sidebar-accent: #f3f4f6;
   --sidebar-accent-foreground: oklch(0.25 0.01 260);
-  --sidebar-border: oklch(0.922 0.004 260);
+  --sidebar-border: #e5e7eb;
+  --whatsapp: #25d366;
+  --telegram: #229ed9;
 }
 
 /* ---- ACCENT: primary color ---- */
@@ -222,9 +231,33 @@ html[data-theme="rose"] {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
   html {
     @apply font-sans;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.015em;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Static automation-canvas dot grid. Pure CSS radial-gradient tile
+   * (no blur, no animation, no extra DOM): one 24px background tile
+   * painted by the compositor. Dots use the border token at low alpha
+   * so they stay subtle under every accent in both modes. */
+  .canvas-dotgrid {
+    background-image: radial-gradient(
+      circle,
+      var(--border) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+    background-position: 0 0;
   }
 }

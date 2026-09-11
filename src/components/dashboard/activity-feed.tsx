@@ -30,10 +30,10 @@ interface KindTheme {
 }
 
 const KIND_THEME: Record<ActivityKind, KindTheme> = {
-  message: { icon: MessageSquare, badge: 'bg-blue-500/10 text-blue-400' },
+  message: { icon: MessageSquare, badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-400' },
   contact: { icon: UserPlus, badge: 'bg-primary/10 text-primary' },
   deal: { icon: Briefcase, badge: 'bg-primary/10 text-primary' },
-  broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-400' },
+  broadcast: { icon: Radio, badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' },
 }
 
 import { useTranslations } from 'next-intl'
@@ -55,9 +55,9 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
     i === 0 || totalLoaded > PAGE_SIZES[i - 1]
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">{t('title')}</h2>
+    <section className="rounded-lg border border-border/70 bg-card shadow-xs">
+      <header className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('title')}</h2>
         <Link
           href="/inbox"
           className="text-xs font-medium text-primary hover:text-primary/80"

@@ -360,63 +360,64 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="text-xs text-muted-foreground">
             {totalCount > 0 ? t('subtitle', { count: totalCount }) : t('subtitleZero')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {canEditSettings && (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setCustomFieldsOpen(true)}
-              className="border-border text-muted-foreground hover:bg-muted"
+              className="border-border/70 text-xs text-muted-foreground hover:bg-muted/60"
             >
-              <SlidersHorizontal className="size-4" />
+              <SlidersHorizontal className="size-3.5" />
               {t('customFieldsBtn')}
             </Button>
           )}
           <GatedButton
             variant="outline"
+            size="sm"
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={() => setImportOpen(true)}
-            className="border-border text-muted-foreground hover:bg-muted"
+            className="border-border/70 text-xs text-muted-foreground hover:bg-muted/60"
           >
-            <Upload className="size-4" />
+            <Upload className="size-3.5" />
             {t('importBtn')}
           </GatedButton>
           <GatedButton
+            size="sm"
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={openAddForm}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium"
           >
-            <Plus className="size-4" />
+            <Plus className="size-3.5" />
             {t('addContactBtn')}
           </GatedButton>
         </div>
       </div>
 
-      {/* Search + tag filter */}
+      {/* Search + tag filter bar */}
       <div className="space-y-2">
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
           <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                // Reset pagination when the query changes — the result
-                // set shrinks/grows, page N may no longer be valid.
                 setPage(0);
               }}
               placeholder={t('searchPlaceholder')}
-              className="pl-8 bg-card border-border text-foreground placeholder:text-muted-foreground"
+              className="h-8 pl-8 text-xs bg-card border-border/70 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
@@ -425,14 +426,15 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
               render={
                 <Button
                   variant="outline"
-                  className="border-border text-muted-foreground hover:bg-muted shrink-0"
+                  size="sm"
+                  className="h-8 border-border/70 text-xs text-muted-foreground hover:bg-muted/60 shrink-0"
                 />
               }
             >
-              <Filter className="size-4" />
+              <Filter className="size-3.5" />
               {t('filterByTags')}
               {selectedTagIds.length > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-semibold text-primary-foreground tabular-nums">
                   {selectedTagIds.length}
                 </span>
               )}
@@ -548,10 +550,10 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-lg border border-border/70 overflow-hidden bg-card shadow-xs">
         <Table>
           <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
+            <TableRow className="border-b border-border/60 hover:bg-transparent">
               <TableHead className="w-10">
                 <Checkbox
                   checked={allOnPageSelected}
@@ -572,20 +574,20 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow className="border-border">
+              <TableRow className="border-border/60">
                 <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="size-6 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">{t('loading')}</p>
+                    <Loader2 className="size-5 animate-spin text-primary" />
+                    <p className="text-xs text-muted-foreground">{t('loading')}</p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : contacts.length === 0 ? (
-              <TableRow className="border-border">
+              <TableRow className="border-border/60">
                 <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
-                    <Users className="size-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
+                    <Users className="size-7 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
                       {hasActiveFilters
                         ? t('noContactsMatch')
                         : t('noContactsYet')}
@@ -597,7 +599,7 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
                         variant="outline"
                         size="sm"
                         onClick={openAddForm}
-                        className="mt-2 border-border text-muted-foreground hover:bg-muted"
+                        className="mt-2 border-border/70 text-xs text-muted-foreground hover:bg-muted"
                       >
                         <Plus className="size-3.5" />
                         {t('addFirstContact')}
@@ -610,7 +612,7 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
               contacts.map((contact) => (
                 <TableRow
                   key={contact.id}
-                  className="border-border hover:bg-muted/50 cursor-pointer"
+                  className="border-b border-border/60 hover:bg-muted/40 cursor-pointer transition-colors"
                   onClick={() => openDetail(contact.id)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -621,16 +623,23 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
                     />
                   </TableCell>
                   <TableCell className="text-foreground font-medium">
-                    {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                        {(contact.name || contact.phone || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate text-xs font-medium text-foreground">
+                        {contact.name || <span className="text-muted-foreground italic">{t('unnamed')}</span>}
+                      </span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
+                  <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">
                     {contact.phone}
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden md:table-cell text-sm">
-                    {contact.email || <span className="text-muted-foreground">-</span>}
+                  <TableCell className="text-muted-foreground hidden md:table-cell text-xs">
+                    {contact.email || <span className="text-muted-foreground/60">-</span>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-muted-foreground">-</span>}
+                  <TableCell className="text-muted-foreground hidden lg:table-cell text-xs">
+                    {contact.company || <span className="text-muted-foreground/60">-</span>}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">

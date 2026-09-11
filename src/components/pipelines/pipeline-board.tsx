@@ -211,34 +211,34 @@ function StageColumn({
     // restore the flex-1 share-the-row behavior. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
+    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-lg border border-border/70 bg-card/50 p-3 shadow-xs lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
       {/* 3px colored top border — sits above the column's padding */}
       <div
-        className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
+        className="-mx-3 -mt-3 h-[3px] rounded-t-lg"
         style={{ backgroundColor: stage.color }}
       />
-      <div className="flex items-center justify-between pt-3">
-        <h3 className="truncate text-sm font-semibold text-foreground">
+      <div className="flex items-center justify-between pt-2.5">
+        <h3 className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {stage.name}
         </h3>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span className="shrink-0 rounded-full bg-muted/80 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
           {deals.length}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs font-bold tabular-nums text-foreground mt-0.5">
         {formatCurrency(totalValue, currency)}
       </p>
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
+        className={`mt-2.5 flex flex-1 flex-col gap-2 rounded-md transition-all ${
           isOver
             ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
             : ""
         }`}
       >
         {deals.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed border-border py-10 text-xs text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-border/70 py-8 text-xs text-muted-foreground">
             {t("dropDealHere")}
           </div>
         ) : (
@@ -257,7 +257,7 @@ function StageColumn({
         variant="ghost"
         size="sm"
         onClick={() => onAddDeal(stage.id)}
-        className="mt-3 w-full justify-start border border-dashed border-border bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+        className="mt-2.5 h-7 w-full justify-start border border-dashed border-border/70 bg-muted/20 text-xs text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground"
       >
         <Plus className="mr-1 h-3 w-3" />
         {t("addDeal")}

@@ -972,6 +972,11 @@ export function MessageThread({
     [conversation, onAssignChange],
   );
 
+  // Grouped messages for date separators. Hook sits before the
+  // empty-state early return below (rules-of-hooks): grouping an empty
+  // array is harmless when no conversation is selected.
+  const messageGroups = useMemo(() => groupMessagesByDate(messages), [messages]);
+
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
@@ -992,7 +997,6 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone || contact.telegram_username || 'Unknown';
-  const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );

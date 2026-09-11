@@ -119,7 +119,7 @@ export function FieldInput({
           rows={4}
           value={list}
           disabled={disabled}
-          className="border-slate-200 font-mono text-[13px]"
+          className="font-mono text-[13px]"
           placeholder="One per line"
           onChange={(event) =>
             onChange(
@@ -135,7 +135,7 @@ export function FieldInput({
   }
   if (field.type === 'boolean') {
     return (
-      <label className="flex items-center gap-2 text-sm text-slate-700">
+      <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
           checked={Boolean(value)}
@@ -172,16 +172,16 @@ export function FieldInput({
   if (field.type === 'tag') {
     return (
       <div className="space-y-1.5">
-        <Label className="text-slate-600">{field.label}</Label>
+        <Label>{field.label}</Label>
         <Select
           value={typeof value === 'string' ? value : ''}
           onValueChange={(next) => onChange(next)}
           disabled={disabled}
         >
-          <SelectTrigger className="w-full border-slate-200">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Choose a tag" />
           </SelectTrigger>
-          <SelectContent className="bg-white text-slate-800 ring-slate-200">
+          <SelectContent>
             {tags.map((tag) => (
               <SelectItem key={tag.id} value={tag.id}>
                 {tag.name}
@@ -195,18 +195,18 @@ export function FieldInput({
   if (field.type === 'enum') {
     return (
       <div className="space-y-1.5">
-        <Label className="text-slate-600">{field.label}</Label>
+        <Label>{field.label}</Label>
         <Select
           value={typeof value === 'string' ? value : ''}
           onValueChange={(next) => onChange(next)}
           disabled={disabled}
         >
-          <SelectTrigger className="w-full border-slate-200">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder={`Choose ${field.label}`}>
               {typeof value === 'string' && value ? labelFor(value) : null}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-white text-slate-800 ring-slate-200">
+          <SelectContent>
             {(field.enumValues ?? []).map((option) => (
               <SelectItem key={option} value={option}>
                 {labelFor(option)}
@@ -220,12 +220,12 @@ export function FieldInput({
   if (field.type === 'number') {
     return (
       <div className="space-y-1.5">
-        <Label className="text-slate-600">{field.label}</Label>
+        <Label>{field.label}</Label>
         <Input
           type="number"
           value={typeof value === 'number' ? value : ''}
           disabled={disabled}
-          className="border-slate-200"
+          className="border-border/70"
           onChange={(event) =>
             onChange(
               event.target.value ? Number(event.target.value) : undefined
@@ -262,7 +262,7 @@ export function FieldInput({
           rows={5}
           value={text}
           disabled={disabled}
-          className="border-slate-200 text-[15px] leading-relaxed"
+          className="text-sm leading-relaxed"
           placeholder="Write the message…"
           onChange={(event) => onChange(event.target.value)}
         />
@@ -281,7 +281,7 @@ export function FieldInput({
       <Input
         value={text}
         disabled={disabled}
-        className="border-slate-200"
+        className="border-border/70"
         onChange={(event) => onChange(event.target.value)}
       />
     </div>
@@ -301,7 +301,7 @@ function FieldLabel({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="text-slate-600">{label}</Label>
+      <Label>{label}</Label>
       <VariableInsert paths={paths} disabled={disabled} onInsert={onInsert} />
     </div>
   );
@@ -353,9 +353,9 @@ export function ObjectListField({
 
   return (
     <div className="space-y-2">
-      <Label className="text-slate-600">{field.label}</Label>
+      <Label>{field.label}</Label>
       {rows.length === 0 && (
-        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+        <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
           No {field.label.toLowerCase()} yet.
         </p>
       )}
@@ -364,10 +364,10 @@ export function ObjectListField({
         return (
           <div
             key={index}
-            className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+            className="space-y-3 rounded-lg border border-border/70 bg-muted/40 p-3"
           >
             <div className="flex items-center justify-between gap-1">
-              <p className="text-xs font-semibold text-slate-500">
+              <p className="text-xs font-semibold text-muted-foreground">
                 {rowTitle
                   ? rowTitle(values, index)
                   : `${field.label} ${index + 1}`}
@@ -416,7 +416,7 @@ export function ObjectListField({
         type="button"
         disabled={disabled}
         onClick={() => update([...rows, {}])}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-slate-500 hover:border-[#2f6fed] hover:text-[#2f6fed] disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40"
       >
         <Plus className="h-3.5 w-3.5" />
         Add {field.label.toLowerCase()}
@@ -445,7 +445,7 @@ function RowActions({
   onRemove: () => void;
 }) {
   const btn =
-    'rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30';
+    'rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30';
   return (
     <div className="flex items-center gap-1">
       <button
@@ -481,7 +481,7 @@ function RowActions({
         type="button"
         disabled={disabled}
         aria-label="Remove"
-        className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+        className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
         onClick={onRemove}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -550,17 +550,17 @@ export function ItemListField({
   return (
     <div className="space-y-2">
       {items.length === 0 && (
-        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+        <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
           {emptyText}
         </p>
       )}
       {items.map((item, index) => (
         <div
           key={typeof item.id === 'string' ? item.id : index}
-          className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+          className="space-y-3 rounded-lg border border-border/70 bg-muted/40 p-3"
         >
           <div className="flex items-center justify-between gap-1">
-            <p className="truncate text-xs font-semibold text-slate-600">
+            <p className="truncate text-xs font-semibold text-muted-foreground">
               {getTitle(item, index)}
             </p>
             <RowActions
@@ -616,11 +616,11 @@ function TypePicker({
       >
         <SelectTrigger
           aria-label="Choose block type"
-          className="w-full border-slate-200"
+          className="w-full"
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="bg-white text-slate-800 ring-slate-200">
+        <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -635,7 +635,7 @@ function TypePicker({
           onPick(value);
           setValue('');
         }}
-        className="flex shrink-0 items-center gap-1 rounded-lg bg-[#2f6fed] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2559c4] disabled:opacity-40"
+        className="flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-40"
       >
         <Plus className="h-3.5 w-3.5" />
         Add

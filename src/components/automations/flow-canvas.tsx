@@ -47,7 +47,7 @@ const defaultEdgeOptions = {
   type: INSERT_EDGE,
   markerEnd: {
     type: MarkerType.ArrowClosed,
-    color: '#b7c0cc',
+    color: 'var(--edge-idle)',
     width: 16,
     height: 16,
   },
@@ -497,9 +497,9 @@ export function FlowCanvas({
   }
 
   return (
-    <div className="relative h-full min-h-[420px] w-full bg-[#f7f9fc]">
+    <div className="canvas-dotgrid relative h-full min-h-[420px] w-full bg-background">
       {selected && (
-        <aside className="step-editor absolute inset-y-0 left-0 z-30 flex w-[min(100%,380px)] flex-col border-r border-slate-200 bg-white shadow-[4px_0_24px_rgba(15,23,42,0.08)]">
+        <aside className="step-editor absolute inset-y-0 left-0 z-30 flex w-[min(100%,380px)] flex-col border-r border-border/70 bg-card text-card-foreground shadow-xl">
           <ConfigPanel
             catalog={selectedCatalog}
             catalogList={catalog}
@@ -570,7 +570,7 @@ export function FlowCanvas({
           setPicker({ mode: 'free', position });
         }}
         deleteKeyCode={readOnly ? noKeys : deleteKeys}
-        className="bg-[#f7f9fc]"
+        className="bg-background"
         defaultEdgeOptions={defaultEdgeOptions}
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Shift"
@@ -581,7 +581,7 @@ export function FlowCanvas({
         <Controls
           showInteractive={!readOnly}
           position="bottom-right"
-          className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-8 [&>button]:!w-8 [&>button]:!rounded-lg [&>button]:!border [&>button]:!border-slate-200 [&>button]:!bg-white [&>button]:!shadow-sm"
+          className="!m-4 !gap-1 !border-0 !bg-transparent !shadow-none [&>button]:!h-7 [&>button]:!w-7 [&>button]:!rounded-md [&>button]:!border [&>button]:!border-border/70 [&>button]:!bg-card [&>button]:!text-foreground [&>button]:!shadow-xs hover:[&>button]:!bg-muted"
         />
       </ReactFlow>
 
@@ -601,7 +601,7 @@ export function FlowCanvas({
           style={{ right: 16 }}
         >
           {picker && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-[0_12px_40px_rgba(31,41,55,0.12)]">
+            <div className="rounded-lg border border-border/70 bg-popover p-3 text-popover-foreground shadow-lg">
               <NodePicker
                 catalog={catalog}
                 allowTriggers={!hasTrigger}
@@ -611,7 +611,7 @@ export function FlowCanvas({
           )}
           <button
             type="button"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2f6fed] text-white shadow-lg hover:bg-[#2559c4]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-colors hover:bg-primary-hover"
             onClick={() =>
               setPicker((current) =>
                 current
@@ -623,7 +623,7 @@ export function FlowCanvas({
             }
             aria-label="Add a step"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
           </button>
         </div>
       )}

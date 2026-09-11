@@ -22,13 +22,13 @@ export function ChooseFirstStep({ x, y, onPick }: ChooseFirstStepProps) {
       type="button"
       onClick={onPick}
       aria-label="Choose first step"
-      className="absolute z-10 w-[240px] rounded-2xl border-2 border-dashed border-slate-300 bg-white/85 p-4 text-left shadow-sm backdrop-blur-[1px] transition-colors hover:border-[#2f6fed] hover:bg-white"
+      className="absolute z-10 w-[240px] rounded-lg border border-dashed border-border bg-card p-4 text-left shadow-xs transition-colors hover:border-primary"
       style={{ left: x * zoom + vx + 312 * zoom, top: y * zoom + vy }}
     >
-      <p className="text-[15px] font-semibold text-slate-800">
-        Choose first step 👇
+      <p className="text-sm font-semibold text-foreground">
+        Choose first step
       </p>
-      <p className="mt-0.5 text-xs leading-snug text-slate-500">
+      <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
         Pick what happens after the trigger.
       </p>
     </button>

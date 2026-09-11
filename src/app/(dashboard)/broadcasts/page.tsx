@@ -182,8 +182,8 @@ export default function BroadcastsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="text-[13px] text-muted-foreground">
             {t('subtitle')}
           </p>
         </div>
@@ -199,7 +199,7 @@ export default function BroadcastsPage() {
       </div>
 
       {broadcasts.length === 0 ? (
-        <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-border/70 bg-card shadow-xs">
           <Radio className="mb-3 h-10 w-10 text-muted-foreground" />
           <p className="text-sm font-medium text-foreground">{t('noBroadcastsYet')}</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -216,7 +216,7 @@ export default function BroadcastsPage() {
           </GatedButton>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-lg border border-border/70 bg-card shadow-xs">
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -268,15 +268,12 @@ export default function BroadcastsPage() {
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
                       >
                         {status.pulse && (
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                          </span>
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-yellow-500" />
                         )}
                         {tStatus(status.label)}
                       </span>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                    <TableCell className="hidden tabular-nums text-muted-foreground sm:table-cell">
                       {new Date(broadcast.created_at).toLocaleDateString()}
                     </TableCell>
                   </TableRow>

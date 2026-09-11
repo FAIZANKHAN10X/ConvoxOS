@@ -82,7 +82,7 @@ export function HistoryPanel({ automationId }: { automationId: string }) {
 
   return (
     <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      <div className="border-border/70 bg-card overflow-hidden rounded-lg border shadow-xs">
         <ul className="divide-border divide-y">
           {runs.map((run) => (
             <li key={run.id}>
@@ -113,7 +113,7 @@ export function HistoryPanel({ automationId }: { automationId: string }) {
           ))}
         </ul>
       </div>
-      <div className="border-border bg-card rounded-xl border p-4">
+      <div className="border-border/70 bg-card rounded-lg border p-4 shadow-xs">
         {!openId ? (
           <p className="text-muted-foreground text-sm">Select a run.</p>
         ) : (
@@ -149,7 +149,7 @@ export function HistoryPanel({ automationId }: { automationId: string }) {
                       </p>
                     )}
                     {step.output && Object.keys(step.output).length > 0 && (
-                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-700">
+                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted/50 p-2 font-mono text-[11px] text-foreground">
                         {JSON.stringify(step.output, null, 2)}
                       </pre>
                     )}

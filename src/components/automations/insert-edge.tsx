@@ -29,22 +29,23 @@ export function InsertEdge({
     sourcePosition,
     targetPosition,
   });
-  // Branch paths follow the declared port: Yes → green, No → red,
-  // everything else ManyChat gray. Driven by the edge's source handle,
-  // never by node type.
+  // Branch paths follow the declared port: Yes → success green, No →
+  // destructive red, everything else the muted-foreground token. Driven
+  // by the edge's source handle, never by node type. Colors are
+  // theme-aware CSS vars so edges stay readable in both modes.
   const stroke =
     data?.sourceHandle === 'true'
-      ? '#22c55e'
+      ? 'var(--edge-true, #16a34a)'
       : data?.sourceHandle === 'false'
-        ? '#ef4444'
-        : '#b7c0cc';
+        ? 'var(--edge-false, #dc2626)'
+        : 'var(--edge-idle, #9aa4b2)';
 
   return (
     <>
       <BaseEdge
         id={id}
         path={path}
-        style={{ stroke, strokeWidth: 2 }}
+        style={{ stroke, strokeWidth: 1.75 }}
         markerEnd={markerEnd}
       />
       <EdgeLabelRenderer>
@@ -59,7 +60,7 @@ export function InsertEdge({
         >
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-[#2f6fed] hover:text-[#2f6fed]"
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-border/70 bg-card text-muted-foreground shadow-xs transition-colors hover:border-primary hover:text-primary"
             onClick={(event) => {
               event.stopPropagation();
               data?.onInsert?.(id);

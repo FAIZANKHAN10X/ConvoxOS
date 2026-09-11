@@ -146,7 +146,7 @@ export function ConfigPanel({
 
   if (!catalog) {
     return (
-      <div className="p-5 text-sm text-slate-500">
+      <div className="p-5 text-sm text-muted-foreground">
         This step is not in the node registry.
       </div>
     );
@@ -156,26 +156,26 @@ export function ConfigPanel({
   const accent = CATEGORY_ACCENT[catalog.category];
 
   return (
-    <div className="flex h-full flex-col bg-white">
-      <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+    <div className="flex h-full flex-col bg-card text-card-foreground">
+      <div className="flex items-start gap-3 border-b border-border/60 px-5 py-4">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white"
           style={{ background: accent }}
         >
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-slate-800">
+          <p className="text-sm font-semibold text-foreground">
             {catalog.label}
           </p>
-          <p className="text-xs leading-snug text-slate-500">
+          <p className="text-xs leading-snug text-muted-foreground">
             {catalog.description}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -184,7 +184,7 @@ export function ConfigPanel({
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {errors.filter((error) => !error.startsWith('Connect the')).length >
           0 && (
-          <ul className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+          <ul className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {errors
               .filter((error) => !error.startsWith('Connect the'))
               .map((error) => (
@@ -194,7 +194,7 @@ export function ConfigPanel({
         )}
         {catalog.kind === 'trigger' && onChangeType && (
           <div className="space-y-1.5">
-            <Label className="text-slate-600">Trigger</Label>
+            <Label>Trigger</Label>
             <Select
               value={catalog.type}
               onValueChange={(value) => {
@@ -202,10 +202,10 @@ export function ConfigPanel({
               }}
               disabled={readOnly}
             >
-              <SelectTrigger className="w-full border-slate-200">
+              <SelectTrigger className="w-full">
                 <SelectValue>{catalog.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent className="bg-white text-slate-800 ring-slate-200">
+              <SelectContent>
                 {catalogList
                   .filter((node) => node.kind === 'trigger')
                   .map((node) => (
@@ -269,13 +269,12 @@ export function ConfigPanel({
           );
         })}
         {catalog.flags?.testable && automationId && (
-          <div className="space-y-2 border-t border-slate-100 pt-4">
+          <div className="space-y-2 border-t border-border/60 pt-4">
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={readOnly || testing}
-              className="border-slate-200"
               onClick={() => {
                 setTesting(true);
                 setTestState(null);
@@ -310,7 +309,7 @@ export function ConfigPanel({
               Test this step
             </Button>
             {testState && (
-              <pre className="max-h-40 overflow-auto rounded-md bg-slate-50 p-2 font-mono text-[11px] text-slate-700">
+              <pre className="max-h-40 overflow-auto rounded-md border border-border/60 bg-muted/50 p-2 font-mono text-[11px] text-foreground">
                 {testState}
               </pre>
             )}
@@ -374,7 +373,7 @@ function BlockListField({
   const byType = new Map(blocks.map((block) => [block.blockType, block]));
   return (
     <div className="space-y-1.5">
-      <Label className="text-slate-600">Content blocks</Label>
+      <Label>Content blocks</Label>
       <ItemListField
         items={items}
         typeKey="blockType"
@@ -439,7 +438,7 @@ function TaskListField({
   const byType = new Map(tasks.map((task) => [task.taskType, task]));
   return (
     <div className="space-y-1.5">
-      <Label className="text-slate-600">Actions</Label>
+      <Label>Actions</Label>
       <ItemListField
         items={items}
         typeKey="taskType"
