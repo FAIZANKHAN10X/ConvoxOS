@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -34,6 +35,8 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
   const [status, setStatus] = useState<'all' | AutomationStatus>('all');
   const [creating, setCreating] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Automation | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const byType = useMemo(
     () => new Map(catalog.map((node) => [node.type, node])),
@@ -82,6 +85,27 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
     });
     const body = await response.json();
     if (response.ok) router.push(`/automations/${body.automation.id}`);
+  }
+
+  async function remove() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    const response = await fetch(`/api/automations/${pendingDelete.id}`, {
+      method: 'DELETE',
+    });
+    setDeleting(false);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setError(
+        (body as { error?: string }).error ?? 'Could not delete automation'
+      );
+      setPendingDelete(null);
+      return;
+    }
+    setAutomations((current) =>
+      current.filter((item) => item.id !== pendingDelete.id)
+    );
+    setPendingDelete(null);
   }
 
   async function toggle(item: Automation) {
@@ -245,6 +269,15 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
                           {item.status === 'disabled' ? 'Turn on' : 'Turn off'}
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPendingDelete(item);
+                        }}
+                      >
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -289,6 +322,41 @@ export function AutomationList({ catalog }: { catalog: CatalogNode[] }) {
               are coming soon. Templates will install as editable copies.
             </p>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this automation?</DialogTitle>
+            <DialogDescription>
+              {pendingDelete
+                ? `"${pendingDelete.name}" will be permanently removed, including versions and run history.`
+                : 'This cannot be undone.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void remove()}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -2,21 +2,33 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ReactFlowProvider } from '@xyflow/react';
 import {
   ArrowLeft,
   Eye,
   History,
+  LayoutDashboard,
   Loader2,
+  MessageSquare,
   MoreHorizontal,
   Redo2,
   Undo2,
+  Users,
 } from 'lucide-react';
 
 import type { CatalogNode } from '@/lib/automation/catalog';
 import { validateDraftGraph } from '@/lib/automation/client-validate';
 import type { Automation, AutomationGraph } from '@/lib/automation/types';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +47,14 @@ interface BuilderShellProps {
   catalog: CatalogNode[];
 }
 
+const APP_JUMPS = [
+  { href: '/inbox', label: 'Inbox', icon: MessageSquare },
+  { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+] as const;
+
 export function BuilderShell({ initial, catalog }: BuilderShellProps) {
+  const router = useRouter();
   const canEdit = useCan('send-messages');
   const [automation, setAutomation] = useState(initial);
   const [graph, setGraph] = useState<AutomationGraph>(initial.draftGraph);
@@ -45,6 +64,8 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   );
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [view, setView] = useState<'builder' | 'history' | 'preview'>(
     'builder'
   );
@@ -178,16 +199,51 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
     else setPublishError(body.error ?? 'Could not update status');
   }
 
+  async function remove() {
+    setDeleting(true);
+    const response = await fetch(`/api/automations/${automation.id}`, {
+      method: 'DELETE',
+    });
+    setDeleting(false);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setPublishError(
+        (body as { error?: string }).error ?? 'Could not delete automation'
+      );
+      setDeleteOpen(false);
+      return;
+    }
+    router.push('/automations');
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
         <Link
           href="/automations"
-          className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          Automations
+          Back to Automations
         </Link>
+        <nav
+          aria-label="App"
+          className="flex items-center gap-0.5 border-l border-slate-200 pl-2"
+        >
+          {APP_JUMPS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
         <Input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -245,6 +301,28 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
                 Unpublished changes
               </span>
             )}
+          {(view === 'history' || view === 'preview') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-200"
+              onClick={() => setView('builder')}
+            >
+              Back to canvas
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-200 bg-white text-slate-700"
+            onClick={() =>
+              setView(view === 'history' ? 'builder' : 'history')
+            }
+            aria-label="Run history"
+          >
+            <History className="h-4 w-4" />
+            History
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -266,25 +344,24 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
             {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
             {automation.status === 'published' ? 'Update' : 'Set Live'}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
-              <MoreHorizontal className="h-4 w-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="bg-white text-slate-800"
-            >
-              <DropdownMenuItem onClick={() => setView('history')}>
-                <History className="h-4 w-4" />
-                Run history
-              </DropdownMenuItem>
-              {(view === 'history' || view === 'preview') && (
-                <DropdownMenuItem onClick={() => setView('builder')}>
-                  Back to builder
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="bg-white text-slate-800"
+              >
+                <DropdownMenuItem
+                  onClick={() => setDeleteOpen(true)}
+                  className="text-red-600"
+                >
+                  Delete automation
                 </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </header>
       {publishError && (
@@ -320,11 +397,39 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
             <p className="max-w-sm text-center text-sm text-slate-500">
               The visual builder is desktop-only. Open this automation on a
               larger screen to edit the canvas. Run history is available from
-              the menu.
+              History in the header.
             </p>
           </div>
         </>
       )}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this automation?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the automation, its versions, and run
+              history. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void remove()}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -89,6 +89,7 @@ export interface AutomationStore {
 
   insertAutomation(input: InsertAutomationInput): Promise<Automation>;
   getAutomation(id: string): Promise<Automation | null>;
+  deleteAutomation(id: string): Promise<void>;
   updateAutomation(
     id: string,
     patch: Partial<

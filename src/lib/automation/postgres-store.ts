@@ -258,6 +258,11 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       return data ? mapAutomation(data) : null;
     },
 
+    async deleteAutomation(id) {
+      const { error } = await db.from('automations').delete().eq('id', id);
+      throwIfError(error, 'delete automation');
+    },
+
     async updateAutomation(id, patch) {
       const row: Record<string, unknown> = {};
       if (patch.name !== undefined) row.name = patch.name;

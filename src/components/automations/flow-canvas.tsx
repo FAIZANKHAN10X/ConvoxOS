@@ -497,9 +497,9 @@ export function FlowCanvas({
   }
 
   return (
-    <div className="flex h-full min-h-[420px] w-full bg-[#f7f9fc]">
+    <div className="relative h-full min-h-[420px] w-full bg-[#f7f9fc]">
       {selected && (
-        <aside className="step-editor z-30 flex h-full w-[min(100%,380px)] shrink-0 flex-col border-r border-slate-200 bg-white">
+        <aside className="step-editor absolute inset-y-0 left-0 z-30 flex w-[min(100%,380px)] flex-col border-r border-slate-200 bg-white shadow-[4px_0_24px_rgba(15,23,42,0.08)]">
           <ConfigPanel
             catalog={selectedCatalog}
             catalogList={catalog}
@@ -542,7 +542,7 @@ export function FlowCanvas({
           />
         </aside>
       )}
-      <div className="relative min-w-0 flex-1">
+      <div className="h-full w-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}

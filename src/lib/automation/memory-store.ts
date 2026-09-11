@@ -163,6 +163,10 @@ export function createMemoryStore(
       return row ? clone(row) : null;
     },
 
+    async deleteAutomation(id) {
+      automations.delete(id);
+    },
+
     async updateAutomation(id, patch) {
       const row = automations.get(id);
       if (!row) throw new Error(`automation ${id} not found`);

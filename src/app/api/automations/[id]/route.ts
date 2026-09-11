@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth/account';
 import { createPostgresStore, saveDraft } from '@/lib/automation';
 import type { AutomationGraph } from '@/lib/automation';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 function isGraph(value: unknown): value is AutomationGraph {
   return (
@@ -63,6 +64,24 @@ export async function PATCH(
       automation = await saveDraft(store, id, body.graph);
     }
     return NextResponse.json({ automation });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const ctx = await requireRole('agent');
+    const existing = await createPostgresStore(ctx.supabase).getAutomation(id);
+    if (!existing || existing.accountId !== ctx.accountId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    await createPostgresStore(supabaseAdmin()).deleteAutomation(id);
+    return NextResponse.json({ deleted: true });
   } catch (error) {
     return toErrorResponse(error);
   }
