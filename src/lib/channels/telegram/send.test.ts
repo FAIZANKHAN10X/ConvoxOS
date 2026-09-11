@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   fetchMock: vi.fn(),
 }));
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: h.decrypt,
   encrypt: h.encrypt,
   isLegacyFormat: h.isLegacyFormat,

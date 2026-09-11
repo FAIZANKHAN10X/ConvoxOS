@@ -79,7 +79,7 @@ connected_at TIMESTAMPTZ, created_at/updated_at + trigger 040:55
 
 ## Authentication / Security
 
-- Credentials encrypted `AES-256-GCM` via `src/lib/whatsapp/encryption.ts:37` (`ENCRYPTION_KEY` hex), GCM self-heal for legacy `send.ts:91`.
+- Credentials encrypted `AES-256-GCM` via `src/lib/crypto/encryption.ts` (`ENCRYPTION_KEY` hex), GCM self-heal for legacy `send.ts:91`.
 - Never returned: `GET/POST/DELETE` responses contain `bot_username/bot_id/webhook_url` only; `route.test.ts` asserts `JSON.stringify(j).not.toContain(token)`.
 - Never logged: `api.ts:24 sanitizeTelegramMessage` truncates provider descriptions; `config route` never `console.log` token.
 - Roles: `POST/DELETE` `requireRole('admin')` `route:164/315`, `GET` `requireRole('viewer')` (Inbox needs it), `POST /api/telegram/send` `requireRole('agent')` + `checkRateLimit('send-telegram:<userId>')`.

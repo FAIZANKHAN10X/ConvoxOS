@@ -18,7 +18,7 @@ vi.mock('@/lib/automation/kick', () => ({
   },
 }));
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: (s: string) => s,
   encrypt: (s: string) => s,
 }));

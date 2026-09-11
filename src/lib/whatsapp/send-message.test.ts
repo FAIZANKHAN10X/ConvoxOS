@@ -176,7 +176,7 @@ vi.mock('@/lib/whatsapp/meta-api', async (importOriginal) => ({
   sendInteractiveList: vi.fn(async () => ({ messageId: 'wamid.list' })),
 }));
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: (v: string) => v,
   encrypt: (v: string) => v,
   isLegacyFormat: () => false,

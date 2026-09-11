@@ -8,7 +8,7 @@ import {
 
 // Contact resolution and token decryption are exercised elsewhere — stub
 // them so these tests focus on the persistence boundary.
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: () => 'plain-access-token',
 }));
 vi.mock('@/lib/api/v1/contacts', () => ({

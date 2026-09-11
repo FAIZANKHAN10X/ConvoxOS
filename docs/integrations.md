@@ -173,7 +173,7 @@ the already-answered `202`/`4xx`.
 ## Security model (summary)
 
 - Secrets AES-256-GCM at rest, plaintext shown once, never
-  RLS-selected by clients (`lib/whatsapp/encryption.ts`).
+  RLS-selected by clients (`lib/crypto/encryption.ts`).
 - Hook tokens SHA-256-hashed like API keys; scanners get 404s.
 - SSRF guard + no-redirect + timeout on every caller-influenced URL.
 - Scopes-only API auth (`integrations:manage` added; no migration).

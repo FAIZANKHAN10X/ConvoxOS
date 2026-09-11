@@ -8,7 +8,7 @@
  *
  * Do not add a switch on node type in the engine.
  */
-import './nodes';
+import './nodes/index';
 
 export {
   MAX_EVENT_CHAIN_DEPTH,
@@ -38,7 +38,7 @@ export {
 } from './publish';
 export { validateGraph } from './validate';
 export { graphFromNodes, emptyGraph, starterGraph } from './graph';
-export { builtinNodes } from './nodes';
+export { builtinNodes } from './nodes/index';
 export { catalogFromRegistry } from './catalog';
 export type { CatalogNode } from './catalog';
 export {

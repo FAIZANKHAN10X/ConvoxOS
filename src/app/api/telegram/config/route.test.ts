@@ -72,7 +72,7 @@ vi.mock('@/lib/auth/account', async () => {
   };
 });
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   encrypt: hoisted.encryptMock,
   decrypt: hoisted.decryptMock,
   isLegacyFormat: vi.fn(() => false),

@@ -1,3 +1,7 @@
+// Server-side account member lookup (profiles.id ↔ auth.users).
+// Client UI member lists live in lib/account/members.ts — different
+// boundary (fetch + email visibility), not a duplicate of this file.
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface AccountMember {

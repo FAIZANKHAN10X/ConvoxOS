@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { decrypt } from '@/lib/crypto/encryption'
 import { normalizeTelegramUpdate } from '@/lib/channels/telegram/normalize'
 import { processNormalizedInbound } from '@/lib/inbound/processNormalizedInbound'
 import type { NormalizedInbound, TelegramUpdate } from '@/lib/channels/types'

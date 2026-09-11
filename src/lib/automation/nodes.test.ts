@@ -11,7 +11,7 @@ import {
   tagAddedTrigger,
   tagRemovedTrigger,
   waitNode,
-} from './nodes';
+} from './nodes/index';
 import { listPredicates } from './predicates';
 import type { DomainEvent, ExecutionContext } from './types';
 

@@ -13,7 +13,7 @@ import {
 } from './validate';
 import { defaultRegistry, NodeRegistry } from './registry';
 import { resolvePortsForConfig } from './ports';
-import './nodes';
+import './nodes/index';
 
 const textBlock = {
   blockType: 'text',

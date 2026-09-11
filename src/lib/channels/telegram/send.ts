@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { Json } from '@/types/database';
-import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
+import { decrypt, isLegacyFormat, encrypt } from '@/lib/crypto/encryption';
 
 export class SendTelegramError extends Error {
   readonly code: string;

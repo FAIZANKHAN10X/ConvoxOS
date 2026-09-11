@@ -18,7 +18,7 @@ vi.mock('@/lib/integrations/signed-post', async (importOriginal) => {
   return { ...actual, postSignedJson: vi.fn() };
 });
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: (s: string) => {
     if (s === 'garbage') throw new Error('bad ciphertext');
     return s;

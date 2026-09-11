@@ -59,7 +59,7 @@ vi.mock('@supabase/supabase-js', () => ({
   }),
 }))
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: (v: string) => h.state.decrypt(v),
   encrypt: (v: string) => `enc-${v}`,
 }))

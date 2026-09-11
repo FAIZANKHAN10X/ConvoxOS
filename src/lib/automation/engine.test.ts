@@ -9,7 +9,7 @@ import { cancelRun, createRunFromMatch, executeRun } from './engine';
 import { graphFromNodes } from './graph';
 import { matchTriggers } from './match';
 import { createMemoryStore } from './memory-store';
-import { builtinNodes } from './nodes';
+import { builtinNodes } from './nodes/index';
 import { disableAutomation, publishAutomation, saveDraft } from './publish';
 import { NodeRegistry } from './registry';
 import type { AutomationStore } from './store';

@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { patchGraphifyHtml } from "../../../scripts/patch-graphify-smooth.mjs";
-import { requireGraphifyVersion, runGraphifyWorkflow } from "../../../scripts/update-graphify-smooth.mjs";
+import { patchGraphifyHtml } from "./patch-graphify-smooth.mjs";
+import { requireGraphifyVersion, runGraphifyWorkflow } from "./update-graphify-smooth.mjs";
 
 function fixtureHtml(nodes: unknown[], edges: unknown[]) {
   return `<!doctype html><script>

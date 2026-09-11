@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { graphFromNodes } from './graph';
-import { builtinNodes } from './nodes';
+import { builtinNodes } from './nodes/index';
 import { NodeRegistry } from './registry';
 import { validateGraph } from './validate';
 

@@ -12,7 +12,7 @@ import { randomBytes } from 'node:crypto';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { decrypt, encrypt } from '@/lib/whatsapp/encryption';
+import { decrypt, encrypt } from '@/lib/crypto/encryption';
 
 /** Secret prefix — self-identifying, like `whsec_` for webhooks. */
 export const INTEGRATION_SECRET_PREFIX = 'intsec_';

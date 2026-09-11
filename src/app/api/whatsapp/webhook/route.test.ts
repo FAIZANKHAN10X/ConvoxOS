@@ -161,7 +161,7 @@ vi.mock('@supabase/supabase-js', () => ({
   }),
 }))
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: () => 'plain-token',
   encrypt: (v: string) => v,
   isLegacyFormat: () => false,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { catalogFromRegistry } from './catalog';
-import './nodes';
+import './nodes/index';
 import {
   defaultsFromCatalog,
   placeholderFor,

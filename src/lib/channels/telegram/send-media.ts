@@ -3,7 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
-import { decrypt, isLegacyFormat, encrypt } from '@/lib/whatsapp/encryption';
+import { decrypt, isLegacyFormat, encrypt } from '@/lib/crypto/encryption';
 import { SendTelegramError } from './send';
 import type { TelegramInlineMarkup } from './keyboard';
 import { validateTelegramInlineMarkup, toTelegramReplyMarkup } from './keyboard';

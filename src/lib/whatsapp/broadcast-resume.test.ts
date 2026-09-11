@@ -9,7 +9,7 @@ import {
   RESUME_MAX_PER_REQUEST,
 } from './broadcast-resume';
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   decrypt: (v: string) => `decrypted:${v}`,
 }));
 

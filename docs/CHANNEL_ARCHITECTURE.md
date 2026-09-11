@@ -66,7 +66,7 @@ These stay in the host, shared across channels:
   (`processNormalizedInbound` → `FlowRun.trigger_channel` + `AutomationContext.trigger_channel` → `send_* {channel_target: current|whatsapp|telegram}` → `ChannelSocket dispatch`)
 - Account webhooks (`/api/v1/webhooks`), API keys, MCP
 - Shared crypto primitive (`encrypt` / `decrypt` — currently lives
-  under `src/lib/whatsapp/encryption.ts` but is already reused by
+  under `src/lib/crypto/encryption.ts` but is already reused by
   Telegram)
 
 Shared inbound host:

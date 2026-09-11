@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { catalogFromRegistry } from './catalog';
 import { defaultRegistry, NodeRegistry } from './registry';
 import { fieldsFromJsonSchema } from './schema-fields';
-import './nodes';
+import './nodes/index';
 
 describe('automation catalog', () => {
   it('exposes every registered builtin without a hardcoded type list in the UI', () => {

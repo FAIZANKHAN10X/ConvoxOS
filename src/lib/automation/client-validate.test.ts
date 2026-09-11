@@ -4,7 +4,7 @@ import { catalogFromRegistry } from './catalog';
 import { validateDraftGraph } from './client-validate';
 import { starterGraph } from './graph';
 import { defaultRegistry } from './registry';
-import './nodes';
+import './nodes/index';
 
 describe('validateDraftGraph', () => {
   it('asks the starter trigger to connect its Next path', () => {

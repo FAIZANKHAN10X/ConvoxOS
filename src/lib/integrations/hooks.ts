@@ -20,7 +20,7 @@ import { extractTrigger } from '@/lib/automation/graph';
 import { bindHookIdInGraph } from '@/lib/automation/nodes/inbound-webhook';
 import type { AutomationGraph } from '@/lib/automation/types';
 import { generateWebhookSecret } from '@/lib/webhooks/endpoints';
-import { decrypt, encrypt } from '@/lib/whatsapp/encryption';
+import { decrypt, encrypt } from '@/lib/crypto/encryption';
 
 /** Bearer prefix — self-identifying in URLs and logs. */
 export const HOOK_TOKEN_PREFIX = 'whk_';

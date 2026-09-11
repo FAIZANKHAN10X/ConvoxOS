@@ -1,7 +1,9 @@
 import crypto from 'crypto'
 
 /**
- * WhatsApp token encryption.
+ * AES-256-GCM secret encryption (tokens, webhook secrets, integration
+ * credentials). Shared by WhatsApp, Telegram, AI config, and the
+ * integration layer — not WhatsApp-specific.
  *
  * Format — GCM (current):
  *   `<iv-hex>:<ciphertext-hex>:<authTag-hex>`      (three colons)

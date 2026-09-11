@@ -1,3 +1,6 @@
+// Client-side member roster via /api/account/members.
+// Server-side profile-id resolution is lib/members.ts (getAccountMember).
+
 import type { AccountMember } from '@/types';
 
 /**

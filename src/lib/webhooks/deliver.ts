@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { decrypt } from '@/lib/crypto/encryption';
 import { SAFE_FETCH_DEFAULT_TIMEOUT_MS, safeFetch, SafeFetchError } from '@/lib/http/safe-fetch';
 import { buildSignatureHeader } from '@/lib/webhooks/sign';
 import type { WebhookEvent } from '@/lib/webhooks/events';

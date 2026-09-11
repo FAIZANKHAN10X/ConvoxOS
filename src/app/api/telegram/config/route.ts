@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import { encrypt, decrypt } from '@/lib/crypto/encryption';
 import { getTelegramMe, setTelegramWebhook, deleteTelegramWebhook, TelegramApiError } from '@/lib/channels/telegram/api';
-
-// We intentionally use the shared encryption primitive under whatsapp/encryption
-// (core crypto), not a Telegram-specific copy.
 
 function resolveWebhookBase(request: Request): string | null {
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();

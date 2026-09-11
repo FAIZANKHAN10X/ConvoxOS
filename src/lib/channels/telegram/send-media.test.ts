@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/whatsapp/encryption', () => ({
+vi.mock('@/lib/crypto/encryption', () => ({
   encrypt: vi.fn((s: string) => `enc:${s}`),
   decrypt: vi.fn((s: string) => {
     if (s.startsWith('enc:')) return s.slice(4);

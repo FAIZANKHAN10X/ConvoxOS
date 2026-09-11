@@ -1,4 +1,3 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { reopenClosedConversation } from '@/lib/conversations/reopen';
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply';
@@ -8,17 +7,7 @@ import {
   emitMessageReceived,
 } from '@/lib/automation/crm-events';
 import type { Channel, NormalizedInbound } from '@/lib/channels/types';
-
-let _adminClient: SupabaseClient | null = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // ----- helpers copied from whatsapp webhook for shared use -----
 
