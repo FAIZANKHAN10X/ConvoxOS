@@ -16,6 +16,17 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# playwright run screenshots (spec files stay tracked, output does not)
+/specs/screenshots/
+
+# local agent tooling installs
+.opencode/
+
+# generated knowledge-graph index (rebuild via `npm run graphify:update`)
+graphify-out/
+
+# supabase CLI working files
+supabase/.temp/
 
 # next.js
 /.next/
