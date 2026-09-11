@@ -77,6 +77,7 @@ export const n8nWorkflowAction: NodeDefinition<N8nWorkflowConfig> = {
     const data: Record<string, unknown> = {
       contact_id: ctx.contactId,
       run_id: ctx.runId,
+      correlation_id: ctx.runId,
       automation_id: ctx.automationId,
       event_type: ctx.event.eventType,
     };

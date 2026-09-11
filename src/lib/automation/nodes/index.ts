@@ -15,6 +15,7 @@ import { sendTextAction } from './send-text';
 import { tagAddedTrigger } from './tag-added';
 import { tagRemovedTrigger } from './tag-removed';
 import { waitNode } from './wait';
+import { waitExternalNode } from './wait-external';
 
 export { tagAddedTrigger } from './tag-added';
 export { tagRemovedTrigger } from './tag-removed';
@@ -28,6 +29,7 @@ export { sendTextAction } from './send-text';
 export { addTagAction } from './add-tag';
 export { removeTagAction } from './remove-tag';
 export { waitNode } from './wait';
+export { waitExternalNode } from './wait-external';
 export { conditionNode } from './condition';
 export { n8nWorkflowAction } from './n8n-workflow';
 
@@ -45,6 +47,7 @@ export const builtinNodes: NodeDefinition[] = [
   addTagAction,
   removeTagAction,
   waitNode,
+  waitExternalNode,
   conditionNode,
 ];
 

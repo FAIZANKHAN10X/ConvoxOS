@@ -132,6 +132,8 @@ function mapWait(row: Record<string, unknown>): AutomationWait {
     resumeNodeId: (row.resume_node_id as string | null) ?? null,
     resumeAt: row.resume_at as string,
     status: row.status as AutomationWait['status'],
+    kind: (row.kind as AutomationWait['kind']) ?? 'time',
+    correlationKey: (row.correlation_key as string | null) ?? null,
     claimedAt: (row.claimed_at as string | null) ?? null,
     createdAt: row.created_at as string,
   };
@@ -490,6 +492,8 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
           node_id: input.nodeId,
           resume_node_id: input.resumeNodeId,
           resume_at: input.resumeAt,
+          kind: input.kind ?? 'time',
+          correlation_key: input.correlationKey ?? null,
         })
         .select('*')
         .single();
@@ -503,6 +507,31 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       });
       throwIfError(error, 'claim automation waits');
       return ((data ?? []) as Record<string, unknown>[]).map(mapWait);
+    },
+
+    async claimEventWait(args) {
+      const { data, error } = await db.rpc('claim_event_wait', {
+        p_account_id: args.accountId,
+        p_correlation_key: args.correlationKey,
+        p_automation_id: args.automationId,
+      });
+      throwIfError(error, 'claim event wait');
+      const row = Array.isArray(data) ? data[0] : data;
+      return row ? mapWait(row as Record<string, unknown>) : null;
+    },
+
+    async findEventWait(args) {
+      const { data, error } = await db
+        .from('automation_waits')
+        .select('*')
+        .eq('account_id', args.accountId)
+        .eq('correlation_key', args.correlationKey)
+        .eq('kind', 'event')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      throwIfError(error, 'find event wait');
+      return data ? mapWait(data as Record<string, unknown>) : null;
     },
 
     async cancelWaitsForRun(runId) {

@@ -1,5 +1,6 @@
 import { MAX_EVENT_CHAIN_DEPTH } from './constants';
 import { createRunFromMatch, executeRun, type EngineDeps } from './engine';
+import { resumeExternalWait } from './external-wait';
 import { matchTriggers } from './match';
 import './nodes';
 import type { DomainEvent } from './types';
@@ -63,6 +64,18 @@ export async function processClaimedEvent(
   }
 
   try {
+    const continuation = await resumeExternalWait(deps, event);
+    if (continuation === 'resumed') {
+      result.waitsResumed += 1;
+      result.runsExecuted += 1;
+      await deps.store.markEvent(event.id, 'processed');
+      return result;
+    }
+    if (continuation === 'duplicate' || continuation === 'rejected') {
+      await deps.store.markEvent(event.id, 'processed');
+      return result;
+    }
+
     const matches = await matchTriggers(deps.store, deps.registry, event);
     for (const match of matches) {
       const run = await createRunFromMatch(deps, event, {
@@ -114,10 +127,22 @@ export async function runAutomationWorker(
       continue;
     }
     if (wait.resumeNodeId) {
+      const context =
+        wait.kind === 'event'
+          ? {
+              ...run.context,
+              lastOutput: {
+                ...((run.context.lastOutput as Record<string, unknown>) ?? {}),
+                resumed: false,
+                timedOut: true,
+              },
+            }
+          : run.context;
       await deps.store.updateRun(run.id, {
         status: 'queued',
         currentNodeId: wait.resumeNodeId,
         waitUntil: null,
+        context,
       });
     }
     await executeRun(deps, run.id);

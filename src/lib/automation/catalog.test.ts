@@ -19,6 +19,7 @@ describe('automation catalog', () => {
         'logic.condition',
         'message.send',
         'timing.wait',
+        'wait.external',
         'trigger.contact_created',
         'trigger.inbound_webhook',
         'trigger.keyword',
@@ -37,6 +38,9 @@ describe('automation catalog', () => {
     expect(
       catalog.find((node) => node.type === 'logic.condition')?.category
     ).toBe('logic');
+    expect(
+      catalog.find((node) => node.type === 'wait.external')?.category
+    ).toBe('integration');
   });
 
   it('discovers builtins from the nodes/ folder without an engine switch', () => {

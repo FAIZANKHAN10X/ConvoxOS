@@ -237,6 +237,7 @@ describe('trigger.inbound_webhook matching', () => {
     expect(call.payload).toMatchObject({
       contact_id: 'c',
       run_id: 'r',
+      correlation_id: 'r',
       order: 'ord-9',
       static: 'x',
     });

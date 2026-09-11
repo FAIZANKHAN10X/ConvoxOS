@@ -47,6 +47,7 @@ export const BASE_INTERPOLATION_PATHS: Array<{ path: string; label: string }> = 
   { path: 'event.payload', label: 'Event payload' },
   { path: 'event.payload.body', label: 'Inbound webhook body' },
   { path: 'lastOutput', label: 'Previous step output' },
+  { path: 'callback', label: 'Webhook callback body' },
 ];
 
 export function interpolationPathsForGraph(

@@ -331,6 +331,20 @@ export async function executeRun(
 
     if (result.status === 'wait') {
       const resumeNodeId = nextNodeId(graph, node.id, 'default');
+      const waitKind = result.waitKind === 'event' ? 'event' : 'time';
+      if (result.output) {
+        const priorOutputs =
+          contextVars.outputs &&
+          typeof contextVars.outputs === 'object' &&
+          !Array.isArray(contextVars.outputs)
+            ? (contextVars.outputs as Record<string, unknown>)
+            : {};
+        contextVars = {
+          ...contextVars,
+          lastOutput: result.output,
+          outputs: { ...priorOutputs, [node.id]: result.output },
+        };
+      }
       if (!succeeded) {
         await store.insertWait({
           accountId: run.accountId,
@@ -338,6 +352,8 @@ export async function executeRun(
           nodeId: node.id,
           resumeNodeId,
           resumeAt: result.waitUntil,
+          kind: waitKind,
+          correlationKey: waitKind === 'event' ? run.id : null,
         });
       }
       return store.updateRun(runId, {

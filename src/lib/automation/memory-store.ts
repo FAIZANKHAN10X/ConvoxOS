@@ -332,6 +332,8 @@ export function createMemoryStore(
         resumeNodeId: input.resumeNodeId,
         resumeAt: input.resumeAt,
         status: 'pending',
+        kind: input.kind ?? 'time',
+        correlationKey: input.correlationKey ?? null,
         claimedAt: null,
         createdAt: iso(clock()),
       };
@@ -355,6 +357,35 @@ export function createMemoryStore(
         claimed.push(clone(w));
       }
       return claimed;
+    },
+
+    async claimEventWait(args) {
+      const now = clock();
+      const match = [...waits.values()].find((w) => {
+        if (w.status !== 'pending' || w.kind !== 'event') return false;
+        if (w.accountId !== args.accountId) return false;
+        if (w.correlationKey !== args.correlationKey) return false;
+        const run = runs.get(w.runId);
+        return (
+          !!run &&
+          run.automationId === args.automationId &&
+          run.status === 'waiting'
+        );
+      });
+      if (!match) return null;
+      match.status = 'claimed';
+      match.claimedAt = iso(now);
+      return clone(match);
+    },
+
+    async findEventWait(args) {
+      const match = [...waits.values()].find(
+        (w) =>
+          w.accountId === args.accountId &&
+          w.correlationKey === args.correlationKey &&
+          w.kind === 'event'
+      );
+      return match ? clone(match) : null;
     },
 
     async cancelWaitsForRun(runId) {

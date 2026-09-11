@@ -97,6 +97,17 @@ valid POST cannot 202 with zero runs because the UUID was never
 pasted. Contact resolution is lookup-only: `contact_id` (must
 belong to the account) else `phone`, else the event is logged
 contactless and starts no run. Unknown/inactive hooks 404 alike;
+
+To **resume the same run** after async n8n/HTTP work, place a
+`wait.external` ("Wait for webhook") node after the outbound call.
+The outbound payload already includes `run_id` (and `correlation_id`,
+the same value). The callback JSON must include that `run_id`. If a
+pending event wait exists for that run on this automation and
+account, the worker claims it, merges `body` into `callback` /
+`lastOutput` / `outputs.<waitNodeId>`, and continues the original
+run. Duplicate deliveries are no-ops. A callback without a matching
+wait still starts a new run via `trigger.inbound_webhook` as before.
+
 bad signatures 401; oversized bodies 413.
 
 ### Verifying `X-Wacrm-Signature` in n8n (Code node)

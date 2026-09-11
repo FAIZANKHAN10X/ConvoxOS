@@ -13,6 +13,7 @@ import type {
   RunStep,
   StepStatus,
   TriggerSpec,
+  WaitKind,
 } from './types';
 
 export interface InsertAutomationInput {
@@ -50,6 +51,8 @@ export interface InsertWaitInput {
   nodeId: string;
   resumeNodeId: string | null;
   resumeAt: string;
+  kind?: WaitKind;
+  correlationKey?: string | null;
 }
 
 export interface RunPatch {
@@ -131,6 +134,15 @@ export interface AutomationStore {
 
   insertWait(input: InsertWaitInput): Promise<AutomationWait>;
   claimDueWaits(limit: number, now: Date): Promise<AutomationWait[]>;
+  claimEventWait(args: {
+    accountId: string;
+    correlationKey: string;
+    automationId: string;
+  }): Promise<AutomationWait | null>;
+  findEventWait(args: {
+    accountId: string;
+    correlationKey: string;
+  }): Promise<AutomationWait | null>;
   cancelWaitsForRun(runId: string): Promise<void>;
 }
 

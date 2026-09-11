@@ -9,6 +9,8 @@ export type StepStatus = 'running' | 'succeeded' | 'failed' | 'skipped';
 
 export type WaitStatus = 'pending' | 'claimed' | 'cancelled';
 
+export type WaitKind = 'time' | 'event';
+
 export type DomainEventStatus =
   'pending' | 'processing' | 'processed' | 'failed' | 'skipped';
 
@@ -270,6 +272,8 @@ export interface AutomationWait {
   resumeNodeId: string | null;
   resumeAt: string;
   status: WaitStatus;
+  kind: WaitKind;
+  correlationKey: string | null;
   claimedAt: string | null;
   createdAt: string;
 }
@@ -283,7 +287,12 @@ export interface PublishedTrigger {
 
 export type NodeResult =
   | { status: 'ok'; output?: Record<string, unknown> }
-  | { status: 'wait'; waitUntil: string; output?: Record<string, unknown> }
+  | {
+      status: 'wait';
+      waitUntil: string;
+      waitKind?: WaitKind;
+      output?: Record<string, unknown>;
+    }
   | { status: 'branch'; branch: string; output?: Record<string, unknown> }
   | { status: 'end'; output?: Record<string, unknown> }
   | { status: 'fail'; error: string; retryable?: boolean };

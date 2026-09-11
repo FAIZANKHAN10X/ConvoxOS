@@ -647,3 +647,184 @@ describe('node registry extension', () => {
     expect(created).toEqual(['New deal']);
   });
 });
+
+describe('same-run external wait', () => {
+  const HOOK = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+  async function startWaiting() {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.tag_added', config: { tagId: TAG } },
+          { id: 'w', type: 'wait.external', config: { timeoutHours: 24 } },
+          { id: 'a', type: 'action.record', config: { label: 'after-hook' } },
+        ],
+        [
+          { source: 't', target: 'w' },
+          { source: 'w', target: 'a' },
+        ]
+      )
+    );
+    const deps = { store, registry, db: {} };
+    await processDomainEvent(deps, (await enqueueTag(store, TAG)).id);
+    const waiting = await store.findActiveRun(auto.id, 'contact-1');
+    return { store, registry, record, auto, deps, waiting };
+  }
+
+  function callbackEvent(
+    store: AutomationStore,
+    args: {
+      runId: string;
+      automationId: string;
+      accountId?: string;
+      contactId?: string | null;
+      body?: Record<string, unknown>;
+      idempotencyKey?: string;
+    }
+  ) {
+    return store.insertEvent({
+      accountId: args.accountId ?? 'acct-1',
+      eventType: 'external.received',
+      contactId:
+        args.contactId === undefined ? 'contact-1' : args.contactId,
+      payload: {
+        hook_id: HOOK,
+        automation_id: args.automationId,
+        body: { run_id: args.runId, enriched: true, ...args.body },
+      },
+      source: 'external',
+      idempotencyKey: args.idempotencyKey ?? crypto.randomUUID(),
+    });
+  }
+
+  it('pauses on wait.external and exposes run_id as the correlation', async () => {
+    const { waiting } = await startWaiting();
+    expect(waiting?.status).toBe('waiting');
+    expect(waiting?.context).toMatchObject({
+      lastOutput: { runId: waiting!.id, correlation: waiting!.id },
+    });
+  });
+
+  it('resumes the same run and merges the callback body', async () => {
+    const { store, deps, record, auto, waiting } = await startWaiting();
+    const callback = await callbackEvent(store, {
+      runId: waiting!.id,
+      automationId: auto.id,
+    });
+    const result = await processDomainEvent(deps, callback.id);
+    expect(result.waitsResumed).toBe(1);
+    expect(result.runsCreated).toBe(0);
+    expect(record).toEqual(['after-hook']);
+    expect((await store.getEvent(callback.id))?.status).toBe('processed');
+    const finished = await store.getRun(waiting!.id);
+    expect(finished?.status).toBe('completed');
+    expect(finished?.id).toBe(waiting!.id);
+    expect(finished?.context).toMatchObject({
+      callback: { run_id: waiting!.id, enriched: true },
+      outputs: {
+        w: {
+          resumed: true,
+          body: { run_id: waiting!.id, enriched: true },
+        },
+      },
+    });
+  });
+
+  it('treats a duplicate callback as idempotent', async () => {
+    const { store, deps, record, auto, waiting } = await startWaiting();
+    await processDomainEvent(
+      deps,
+      (
+        await callbackEvent(store, {
+          runId: waiting!.id,
+          automationId: auto.id,
+          idempotencyKey: 'cb-1',
+        })
+      ).id
+    );
+    expect(record).toEqual(['after-hook']);
+    await processDomainEvent(
+      deps,
+      (
+        await callbackEvent(store, {
+          runId: waiting!.id,
+          automationId: auto.id,
+          idempotencyKey: 'cb-2',
+        })
+      ).id
+    );
+    expect(record).toEqual(['after-hook']);
+    const runs = await store.findActiveRun(auto.id, 'contact-1');
+    expect(runs).toBeNull();
+  });
+
+  it('rejects a callback for the wrong contact without starting another run', async () => {
+    const { store, deps, record, auto, waiting } = await startWaiting();
+    const callback = await callbackEvent(store, {
+      runId: waiting!.id,
+      automationId: auto.id,
+      contactId: 'someone-else',
+    });
+    const result = await processDomainEvent(deps, callback.id);
+    expect(result.waitsResumed).toBe(0);
+    expect(result.runsCreated).toBe(0);
+    expect(record).toEqual([]);
+    expect((await store.getRun(waiting!.id))?.status).toBe('waiting');
+  });
+
+  it('does not resume when the run_id does not match the waiting run', async () => {
+    const { store, deps, record, auto, waiting } = await startWaiting();
+    const callback = await callbackEvent(store, {
+      runId: crypto.randomUUID(),
+      automationId: auto.id,
+    });
+    const result = await processDomainEvent(deps, callback.id);
+    expect(result.waitsResumed).toBe(0);
+    expect(record).toEqual([]);
+    expect((await store.getRun(waiting!.id))?.status).toBe('waiting');
+  });
+
+  it('does not resume a run from another account', async () => {
+    const { store, deps, record, auto, waiting } = await startWaiting();
+    const callback = await callbackEvent(store, {
+      runId: waiting!.id,
+      automationId: auto.id,
+      accountId: 'acct-other',
+    });
+    const result = await processDomainEvent(deps, callback.id);
+    expect(result.waitsResumed).toBe(0);
+    expect(record).toEqual([]);
+    expect((await store.getRun(waiting!.id))?.status).toBe('waiting');
+  });
+
+  it('ignores a callback with no matching wait and keeps inbound-trigger starts', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.inbound_webhook', config: { hookId: HOOK } },
+          { id: 'a', type: 'action.record', config: { label: 'fresh' } },
+        ],
+        [{ source: 't', target: 'a' }]
+      )
+    );
+    const deps = { store, registry, db: {} };
+    const event = await callbackEvent(store, {
+      runId: crypto.randomUUID(),
+      automationId: auto.id,
+    });
+    const result = await processDomainEvent(deps, event.id);
+    expect(result.waitsResumed).toBe(0);
+    expect(result.runsCreated).toBe(1);
+    expect(record).toEqual(['fresh']);
+  });
+});

@@ -95,6 +95,20 @@ BEGIN
       'domain_events.source does not allow external — migration 059 did not apply';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'automation_waits'
+      AND column_name = 'correlation_key'
+  ) THEN
+    RAISE EXCEPTION
+      'automation_waits.correlation_key is missing — migration 061 did not apply';
+  END IF;
+  IF to_regprocedure('public.claim_event_wait(uuid, text, uuid)') IS NULL THEN
+    RAISE EXCEPTION 'claim_event_wait is missing — migration 061 did not apply';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
