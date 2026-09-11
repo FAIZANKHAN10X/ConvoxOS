@@ -64,8 +64,11 @@ envelope:
 
 Headers: `Content-Type: application/json`,
 `X-Wacrm-Event: automation.n8n_call`,
+`Idempotency-Key: <runId>:<nodeId>` (stable across engine retries of
+the same step),
 `X-Wacrm-Signature: t=<unix>,v1=<hex HMAC-SHA256>` over
-`"<t>.<exact raw body>"`. Create endpoints via
+`"<t>.<exact raw body>"`. Envelope `id` uses the same delivery key.
+Create endpoints via
 `POST /api/v1/integrations` (scope `integrations:manage`) — the
 secret is shown once. Delete via
 `DELETE /api/v1/integrations/[id]`; in-flight runs fail closed.
@@ -88,8 +91,10 @@ Deliveries are `POST <url>` with a JSON object body and the headers:
 A valid delivery becomes an `external.received` domain event and
 enters the standard worker pipeline: trigger matching, runs,
 waits, retries, and history behave exactly like native events.
-Only automations whose `trigger.inbound_webhook` references that
-hook fire. Contact resolution is lookup-only: `contact_id` (must
+Matching prefers `config.hookId` (stamped onto the draft when the
+hook is created) and otherwise the hook's `automation_id`, so a
+valid POST cannot 202 with zero runs because the UUID was never
+pasted. Contact resolution is lookup-only: `contact_id` (must
 belong to the account) else `phone`, else the event is logged
 contactless and starts no run. Unknown/inactive hooks 404 alike;
 bad signatures 401; oversized bodies 413.

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { interpolateTemplate } from './interpolate';
+import {
+  interpolateTemplate,
+  interpolationPathsForGraph,
+} from './interpolate';
 
 describe('interpolateTemplate', () => {
   it('resolves dotted paths against the scope', () => {
@@ -26,5 +29,17 @@ describe('interpolateTemplate', () => {
 
   it('leaves non-template text untouched', () => {
     expect(interpolateTemplate('{"k":"v"}', {})).toBe('{"k":"v"}');
+  });
+});
+
+describe('interpolationPathsForGraph', () => {
+  it('includes run-context paths and prior node outputs', () => {
+    const paths = interpolationPathsForGraph([
+      { id: 't', type: 'trigger.tag_added', label: 'Tag added' },
+      { id: 'http', type: 'action.http_request', label: 'HTTP request' },
+    ]);
+    expect(paths.some((item) => item.path === 'contactId')).toBe(true);
+    expect(paths.some((item) => item.path === 'outputs.http')).toBe(true);
+    expect(paths.some((item) => item.path === 'outputs.t')).toBe(false);
   });
 });

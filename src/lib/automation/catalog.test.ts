@@ -28,6 +28,15 @@ describe('automation catalog', () => {
       ].sort()
     );
     expect(catalog.every((node) => node.ports.outgoing.length >= 1)).toBe(true);
+    expect(
+      catalog.find((node) => node.type === 'action.http_request')?.category
+    ).toBe('integration');
+    expect(
+      catalog.find((node) => node.type === 'action.n8n_workflow')?.category
+    ).toBe('integration');
+    expect(
+      catalog.find((node) => node.type === 'logic.condition')?.category
+    ).toBe('logic');
   });
 
   it('discovers builtins from the nodes/ folder without an engine switch', () => {
@@ -76,5 +85,21 @@ describe('schema fields', () => {
     const keyword = catalog.find((n) => n.type === 'trigger.keyword');
     const fields = fieldsFromJsonSchema(keyword?.jsonSchema);
     expect(fields.some((field) => field.type === 'stringList')).toBe(true);
+  });
+
+  it('maps endpointId and hookId to pickers without a node-type switch', () => {
+    const catalog = catalogFromRegistry(defaultRegistry);
+    const n8n = catalog.find((n) => n.type === 'action.n8n_workflow');
+    const hook = catalog.find((n) => n.type === 'trigger.inbound_webhook');
+    expect(
+      fieldsFromJsonSchema(n8n?.jsonSchema).some(
+        (field) => field.type === 'integrationEndpoint'
+      )
+    ).toBe(true);
+    expect(
+      fieldsFromJsonSchema(hook?.jsonSchema).some(
+        (field) => field.type === 'inboundHook'
+      )
+    ).toBe(true);
   });
 });

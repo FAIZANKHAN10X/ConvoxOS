@@ -12,10 +12,14 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, okList, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
-import { createAutomationHook } from '@/lib/integrations/hooks';
+import {
+  createAutomationHook,
+  hookUrlFromToken,
+  publicHookFromRow,
+} from '@/lib/integrations/hooks';
 
 const PUBLIC_COLUMNS =
-  'id, automation_id, is_active, last_received_at, created_at';
+  'id, automation_id, is_active, last_received_at, created_at, token_enc';
 
 export async function GET(request: Request) {
   try {
@@ -31,7 +35,13 @@ export async function GET(request: Request) {
       console.error('[api/v1/integrations/hooks] list error:', error);
       return fail('internal', 'Failed to list inbound hooks', 500);
     }
-    return okList((data ?? []) as Record<string, unknown>[], null);
+    const origin = new URL(request.url).origin;
+    return okList(
+      ((data ?? []) as Record<string, unknown>[]).map((row) =>
+        publicHookFromRow(row, origin)
+      ),
+      null
+    );
   } catch (err) {
     return toApiErrorResponse(err);
   }
@@ -73,7 +83,7 @@ export async function POST(request: Request) {
       {
         id: created.id,
         automation_id: automationId,
-        url: `${origin}/api/hooks/${created.token}`,
+        url: hookUrlFromToken(origin, created.token),
         token: created.token,
         secret: created.secret,
       },

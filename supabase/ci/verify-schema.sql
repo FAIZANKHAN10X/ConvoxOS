@@ -73,6 +73,15 @@ BEGIN
   IF to_regclass('public.automation_inbound_hooks') IS NULL THEN
     RAISE EXCEPTION 'public.automation_inbound_hooks is missing — migration 058 did not apply';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'automation_inbound_hooks'
+      AND column_name = 'token_enc'
+  ) THEN
+    RAISE EXCEPTION 'automation_inbound_hooks.token_enc is missing — migration 060 did not apply';
+  END IF;
 
   -- Inbound webhooks enqueue source = 'external' (059).
   IF NOT EXISTS (

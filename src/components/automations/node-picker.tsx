@@ -38,8 +38,8 @@ export function NodePicker({
     // triggers first when the canvas has none (trigger-first creation),
     // then message content, CRM actions, branching logic, timing.
     const order: CatalogNode['category'][] = allowTriggers
-      ? ['trigger', 'communication', 'crm', 'logic', 'timing']
-      : ['communication', 'crm', 'logic', 'timing', 'trigger'];
+      ? ['trigger', 'communication', 'crm', 'logic', 'integration', 'timing']
+      : ['communication', 'crm', 'logic', 'integration', 'timing', 'trigger'];
     const map = new Map<CatalogNode['category'], CatalogNode[]>();
     for (const category of order) map.set(category, []);
     for (const node of filtered) {

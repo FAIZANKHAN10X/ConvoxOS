@@ -10,6 +10,16 @@ import {
 } from 'lucide-react';
 
 import type { SchemaField } from '@/lib/automation/schema-fields';
+import {
+  EndpointPickerField,
+  InboundHookField,
+  type EndpointOption,
+  type HookOption,
+} from '@/components/automations/integration-fields';
+import {
+  VariableInsert,
+  type InterpolationPath,
+} from '@/components/automations/variable-insert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,6 +44,23 @@ export interface FieldChrome {
   /** Sibling values, for conditional (fieldWhen) visibility. */
   values?: Record<string, unknown>;
   when?: Record<string, { field: string; values: string[] }>;
+  interpolationPaths?: InterpolationPath[];
+  endpoints?: EndpointOption[];
+  hook?: HookOption | null;
+  onCreateEndpoint?: (input: {
+    name: string;
+    url: string;
+  }) => Promise<{ id: string; secret?: string } | null>;
+  onCreateHook?: () => Promise<{
+    id: string;
+    url: string;
+    secret: string;
+  } | null>;
+  onRotateHook?: () => Promise<{
+    id: string;
+    url: string;
+    secret: string;
+  } | null>;
 }
 
 /**
@@ -50,6 +77,12 @@ export function FieldInput({
   tags,
   labels,
   when,
+  interpolationPaths = [],
+  endpoints = [],
+  hook = null,
+  onCreateEndpoint,
+  onCreateHook,
+  onRotateHook,
 }: FieldChrome & {
   field: SchemaField;
   value: unknown;
@@ -72,7 +105,16 @@ export function FieldInput({
         : '';
     return (
       <div className="space-y-1.5">
-        <Label className="text-slate-600">{field.label}</Label>
+        <FieldLabel
+          label={field.label}
+          paths={interpolationPaths}
+          disabled={disabled}
+          onInsert={(token) =>
+            onChange(
+              [...list.split('\n').map((line) => line.trim()).filter(Boolean), token]
+            )
+          }
+        />
         <Textarea
           rows={4}
           value={list}
@@ -102,6 +144,29 @@ export function FieldInput({
         />
         {field.label}
       </label>
+    );
+  }
+  if (field.type === 'integrationEndpoint') {
+    return (
+      <EndpointPickerField
+        value={value}
+        endpoints={endpoints}
+        disabled={disabled}
+        onChange={onChange}
+        onCreate={onCreateEndpoint}
+      />
+    );
+  }
+  if (field.type === 'inboundHook') {
+    return (
+      <InboundHookField
+        value={value}
+        hook={hook}
+        disabled={disabled}
+        onChange={onChange}
+        onCreate={onCreateHook}
+        onRotate={onRotateHook}
+      />
     );
   }
   if (field.type === 'tag') {
@@ -184,12 +249,18 @@ export function FieldInput({
     );
   }
   if (field.name === 'text') {
+    const text = typeof value === 'string' ? value : '';
     return (
       <div className="space-y-1.5">
-        <Label className="text-slate-600">{field.label}</Label>
+        <FieldLabel
+          label={field.label}
+          paths={interpolationPaths}
+          disabled={disabled}
+          onInsert={(token) => onChange(text + token)}
+        />
         <Textarea
           rows={5}
-          value={typeof value === 'string' ? value : ''}
+          value={text}
           disabled={disabled}
           className="border-slate-200 text-[15px] leading-relaxed"
           placeholder="Write the message…"
@@ -198,15 +269,40 @@ export function FieldInput({
       </div>
     );
   }
+  const text = typeof value === 'string' ? value : '';
   return (
     <div className="space-y-1.5">
-      <Label className="text-slate-600">{field.label}</Label>
+      <FieldLabel
+        label={field.label}
+        paths={interpolationPaths}
+        disabled={disabled}
+        onInsert={(token) => onChange(text + token)}
+      />
       <Input
-        value={typeof value === 'string' ? value : ''}
+        value={text}
         disabled={disabled}
         className="border-slate-200"
         onChange={(event) => onChange(event.target.value)}
       />
+    </div>
+  );
+}
+
+function FieldLabel({
+  label,
+  paths,
+  disabled,
+  onInsert,
+}: {
+  label: string;
+  paths: InterpolationPath[];
+  disabled?: boolean;
+  onInsert: (token: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <Label className="text-slate-600">{label}</Label>
+      <VariableInsert paths={paths} disabled={disabled} onInsert={onInsert} />
     </div>
   );
 }
@@ -230,6 +326,12 @@ export function ObjectListField({
   tags,
   labels,
   when,
+  interpolationPaths,
+  endpoints,
+  hook,
+  onCreateEndpoint,
+  onCreateHook,
+  onRotateHook,
   rowTitle,
 }: FieldChrome & {
   field: SchemaField;
@@ -290,6 +392,12 @@ export function ObjectListField({
                 tags={tags}
                 labels={labels}
                 when={when}
+                interpolationPaths={interpolationPaths}
+                endpoints={endpoints}
+                hook={hook}
+                onCreateEndpoint={onCreateEndpoint}
+                onCreateHook={onCreateHook}
+                onRotateHook={onRotateHook}
                 onChange={(next) =>
                   update(
                     rows.map((r, i) =>

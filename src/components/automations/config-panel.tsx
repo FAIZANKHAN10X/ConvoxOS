@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2, Play, X } from 'lucide-react';
 
 import type { CatalogBlock, CatalogNode, CatalogTask } from '@/lib/automation/catalog';
+import { interpolationPathsForGraph } from '@/lib/automation/interpolate';
 import { fieldsFromJsonSchema } from '@/lib/automation/schema-fields';
+import type { AutomationGraph } from '@/lib/automation/types';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -24,6 +27,9 @@ interface ConfigPanelProps {
   config: Record<string, unknown>;
   errors: string[];
   readOnly?: boolean;
+  automationId?: string;
+  nodeId?: string;
+  graph?: AutomationGraph;
   onChange: (config: Record<string, unknown>) => void;
   onChangeType?: (type: string) => void;
   onClose: () => void;
@@ -35,6 +41,9 @@ export function ConfigPanel({
   config,
   errors,
   readOnly,
+  automationId,
+  nodeId,
+  graph,
   onChange,
   onChangeType,
   onClose,
@@ -48,6 +57,92 @@ export function ConfigPanel({
     () => Object.entries(tagNames).map(([id, name]) => ({ id, name })),
     [tagNames]
   );
+  const interpolationPaths = useMemo(
+    () =>
+      interpolationPathsForGraph(
+        (graph?.nodes ?? []).map((node) => ({
+          id: node.id,
+          type: node.type,
+          label: catalogList.find((entry) => entry.type === node.type)?.label,
+        }))
+      ),
+    [catalogList, graph]
+  );
+  const [endpoints, setEndpoints] = useState<
+    Array<{ id: string; name: string; url: string }>
+  >([]);
+  const [hook, setHook] = useState<{ id: string; url: string | null } | null>(
+    null
+  );
+  const [testState, setTestState] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/integrations/endpoints')
+      .then(async (response) => {
+        const body = await response.json();
+        if (!cancelled && response.ok) {
+          setEndpoints(body.endpoints ?? []);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!automationId) return;
+    let cancelled = false;
+    void fetch(`/api/automations/${automationId}/hooks`)
+      .then(async (response) => {
+        const body = await response.json();
+        if (!cancelled && response.ok) {
+          setHook(body.hook ?? null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [automationId]);
+
+  async function createEndpoint(input: { name: string; url: string }) {
+    const response = await fetch('/api/integrations/endpoints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const body = await response.json();
+    if (!response.ok) return null;
+    const endpoint = body.endpoint as {
+      id: string;
+      name: string;
+      url: string;
+      secret?: string;
+    };
+    setEndpoints((current) => [endpoint, ...current]);
+    return { id: endpoint.id, secret: endpoint.secret };
+  }
+
+  async function createOrRotateHook() {
+    if (!automationId) return null;
+    const response = await fetch(`/api/automations/${automationId}/hooks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const body = await response.json();
+    if (!response.ok) return null;
+    const created = body.hook as {
+      id: string;
+      url: string;
+      secret: string;
+    };
+    setHook({ id: created.id, url: created.url });
+    return created;
+  }
 
   if (!catalog) {
     return (
@@ -131,6 +226,7 @@ export function ConfigPanel({
                 value={config[field.name]}
                 disabled={readOnly}
                 tags={tags}
+                interpolationPaths={interpolationPaths}
                 onChange={(next) =>
                   onChange({ ...config, [field.name]: next })
                 }
@@ -145,6 +241,7 @@ export function ConfigPanel({
                 value={config[field.name]}
                 disabled={readOnly}
                 tags={tags}
+                interpolationPaths={interpolationPaths}
                 onChange={(next) =>
                   onChange({ ...config, [field.name]: next })
                 }
@@ -161,10 +258,64 @@ export function ConfigPanel({
               tags={tags}
               labels={catalog.fieldLabels}
               when={catalog.fieldWhen}
+              interpolationPaths={interpolationPaths}
+              endpoints={endpoints}
+              hook={hook}
+              onCreateEndpoint={createEndpoint}
+              onCreateHook={createOrRotateHook}
+              onRotateHook={createOrRotateHook}
               onChange={(next) => onChange({ ...config, [field.name]: next })}
             />
           );
         })}
+        {catalog.flags?.testable && automationId && (
+          <div className="space-y-2 border-t border-slate-100 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={readOnly || testing}
+              className="border-slate-200"
+              onClick={() => {
+                setTesting(true);
+                setTestState(null);
+                void fetch(`/api/automations/${automationId}/test-node`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    nodeType: catalog.type,
+                    nodeId,
+                    config,
+                  }),
+                })
+                  .then(async (response) => {
+                    const body = await response.json();
+                    setTestState(
+                      JSON.stringify(body.result ?? body.error ?? body, null, 2)
+                    );
+                  })
+                  .catch((error: unknown) => {
+                    setTestState(
+                      error instanceof Error ? error.message : 'Test failed'
+                    );
+                  })
+                  .finally(() => setTesting(false));
+              }}
+            >
+              {testing ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="mr-1 h-3.5 w-3.5" />
+              )}
+              Test this step
+            </Button>
+            {testState && (
+              <pre className="max-h-40 overflow-auto rounded-md bg-slate-50 p-2 font-mono text-[11px] text-slate-700">
+                {testState}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -178,6 +329,7 @@ function fieldInputsForSchema(
     tags: Array<{ id: string; name: string }>;
     labels?: Record<string, Record<string, string>>;
     when?: Record<string, { field: string; values: string[] }>;
+    interpolationPaths?: Array<{ path: string; label: string }>;
     onChange: (next: Record<string, unknown>) => void;
   }
 ) {
@@ -191,6 +343,7 @@ function fieldInputsForSchema(
       tags={chrome.tags}
       labels={chrome.labels}
       when={chrome.when}
+      interpolationPaths={chrome.interpolationPaths}
       onChange={(next) => chrome.onChange({ ...values, [field.name]: next })}
     />
     )
@@ -207,12 +360,14 @@ function BlockListField({
   value,
   disabled,
   tags,
+  interpolationPaths,
   onChange,
 }: {
   blocks: CatalogBlock[];
   value: unknown;
   disabled?: boolean;
   tags: Array<{ id: string; name: string }>;
+  interpolationPaths?: Array<{ path: string; label: string }>;
   onChange: (value: Array<Record<string, unknown>>) => void;
 }) {
   const items = Array.isArray(value) ? value : [];
@@ -246,6 +401,7 @@ function BlockListField({
                 disabled,
                 tags,
                 labels: block.fieldLabels,
+                interpolationPaths,
                 onChange: onConfigChange,
               })}
             </>
@@ -269,12 +425,14 @@ function TaskListField({
   value,
   disabled,
   tags,
+  interpolationPaths,
   onChange,
 }: {
   tasks: CatalogTask[];
   value: unknown;
   disabled?: boolean;
   tags: Array<{ id: string; name: string }>;
+  interpolationPaths?: Array<{ path: string; label: string }>;
   onChange: (value: Array<Record<string, unknown>>) => void;
 }) {
   const items = Array.isArray(value) ? value : [];
@@ -309,6 +467,7 @@ function TaskListField({
                 disabled,
                 tags,
                 labels: task.fieldLabels,
+                interpolationPaths,
                 onChange: onConfigChange,
               })}
             </>

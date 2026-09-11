@@ -7,21 +7,34 @@ import { httpRequestAction } from './http-request';
 import './index';
 
 vi.mock('@/lib/http/safe-fetch', () => ({
+  MAX_CAPTURED_BYTES: 32 * 1024,
+  parseCapturedBody: (text: string) => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  },
   SafeFetchError: class SafeFetchError extends Error {
     code: string;
     status?: number;
     retryable: boolean;
+    body?: unknown;
+    truncated?: boolean;
     constructor(
       code: 'ssrf_refused' | 'timeout' | 'network' | 'http_error',
       message: string,
       retryable: boolean,
-      status?: number
+      status?: number,
+      extras?: { body?: unknown; truncated?: boolean }
     ) {
       super(message);
       this.name = 'SafeFetchError';
       this.code = code;
       this.retryable = retryable;
       this.status = status;
+      this.body = extras?.body;
+      this.truncated = extras?.truncated;
     }
   },
   safeFetch: vi.fn(),
@@ -37,6 +50,7 @@ function ctx(vars: Record<string, unknown> = {}): ExecutionContext {
     accountId: 'a',
     contactId: 'c',
     runId: 'r',
+    nodeId: 'n1',
     automationId: 'u',
     versionId: 'v',
     event: {
@@ -136,7 +150,7 @@ describe('action.http_request execution', () => {
     expect(url).toBe('https://n8n.test/hook/c');
     expect(opts).toMatchObject({
       method: 'POST',
-      headers: { 'X-Name': 'Ada' },
+      headers: { 'X-Name': 'Ada', 'Idempotency-Key': 'r:n1' },
       body: '{"to":"c"}',
       timeoutMs: 10000,
     });
@@ -183,7 +197,10 @@ describe('action.http_request execution', () => {
     ).rejects.toBeInstanceOf(NodeExecutionError);
 
     mockedFetch.mockRejectedValueOnce(
-      new SafeFetchError('http_error', 'bad', false, 400)
+      new SafeFetchError('http_error', 'bad', false, 400, {
+        body: { error: 'nope' },
+        truncated: false,
+      })
     );
     await expect(
       httpRequestAction.execute?.(ctx(), {
@@ -192,6 +209,12 @@ describe('action.http_request execution', () => {
         captureResponse: false,
         timeoutMs: 10000,
       })
-    ).rejects.toMatchObject({ retryable: false });
+    ).rejects.toMatchObject({
+      retryable: false,
+      details: {
+        status: 400,
+        response: { status: 400, body: { error: 'nope' }, truncated: false },
+      },
+    });
   });
 });

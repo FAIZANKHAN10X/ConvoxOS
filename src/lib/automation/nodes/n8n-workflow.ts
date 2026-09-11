@@ -5,7 +5,10 @@ import {
   decryptEndpointSecret,
   getIntegrationEndpoint,
 } from '@/lib/integrations/endpoints';
-import { postSignedJson } from '@/lib/integrations/signed-post';
+import {
+  outboundDeliveryId,
+  postSignedJson,
+} from '@/lib/integrations/signed-post';
 
 import { interpolateTemplate } from '../interpolate';
 import { NodeExecutionError } from '../types';
@@ -40,7 +43,8 @@ export const n8nWorkflowAction: NodeDefinition<N8nWorkflowConfig> = {
   kind: 'action',
   label: 'n8n workflow',
   description: 'Run an n8n workflow, then continue',
-  category: 'logic',
+  category: 'integration',
+  flags: { testable: true },
   configSchema: n8nWorkflowConfig,
   summarize() {
     return 'Call n8n workflow';
@@ -91,6 +95,7 @@ export const n8nWorkflowAction: NodeDefinition<N8nWorkflowConfig> = {
         event: 'automation.n8n_call',
         accountId: ctx.accountId,
         timeoutMs: config.timeoutMs,
+        deliveryId: outboundDeliveryId(ctx),
       });
       void touchEndpoint(db, endpoint.id, true).catch(() => undefined);
       const output: Record<string, unknown> = { status: result.status };
@@ -105,7 +110,17 @@ export const n8nWorkflowAction: NodeDefinition<N8nWorkflowConfig> = {
     } catch (error) {
       void touchEndpoint(db, endpoint.id, false).catch(() => undefined);
       if (error instanceof SafeFetchError) {
-        throw new NodeExecutionError(error.message, error.retryable);
+        throw new NodeExecutionError(error.message, error.retryable, {
+          status: error.status,
+          response:
+            error.body !== undefined
+              ? {
+                  status: error.status,
+                  body: error.body,
+                  truncated: error.truncated ?? false,
+                }
+              : undefined,
+        });
       }
       throw error;
     }

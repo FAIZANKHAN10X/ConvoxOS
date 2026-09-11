@@ -70,6 +70,7 @@ describe('inbound hook credentials', () => {
     const payload = upsert?.payload as Record<string, unknown>;
     expect(payload.token_hash).toBe(hashHookToken(created.token));
     expect(payload.secret_enc).not.toContain(created.secret);
+    expect(payload.token_enc).not.toContain(created.token);
     expect(payload.account_id).toBe('acct-1');
     expect(payload.automation_id).toBe('auto-1');
   });

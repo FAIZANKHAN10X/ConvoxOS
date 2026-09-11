@@ -110,7 +110,11 @@ describe('postSignedJson', () => {
     expect(url).toBe('https://n8n.test/hook');
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-Wacrm-Event']).toBe('automation.n8n_call');
+    expect(opts.headers['Idempotency-Key']).toBeTruthy();
     expect(opts.headers['X-Wacrm-Signature']).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/);
+    expect(JSON.parse(opts.body as string).id).toBe(
+      opts.headers['Idempotency-Key']
+    );
     // The signature verifies against the exact sent bytes.
     const sent: string = opts.body;
     const header: string = opts.headers['X-Wacrm-Signature'];

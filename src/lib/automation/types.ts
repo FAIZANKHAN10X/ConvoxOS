@@ -33,7 +33,12 @@ export interface NodePorts {
 }
 
 export type NodeCategory =
-  'trigger' | 'communication' | 'crm' | 'logic' | 'timing';
+  | 'trigger'
+  | 'communication'
+  | 'crm'
+  | 'logic'
+  | 'timing'
+  | 'integration';
 
 /**
  * A content block type a container node may hold (ManyChat block
@@ -84,6 +89,8 @@ export interface TaskItem {
 
 export interface NodeFlags {
   nondeterministic?: boolean;
+  /** Node can be invoked from the builder without publishing a run. */
+  testable?: boolean;
   pausesFlow?: boolean;
   /**
    * Container block types whose presence pauses the run (ManyChat:
@@ -285,6 +292,8 @@ export interface ExecutionContext {
   accountId: string;
   contactId: string;
   runId: string;
+  /** Current graph node. Used to stabilize outbound Idempotency-Key. */
+  nodeId?: string;
   automationId: string;
   versionId: string;
   event: DomainEvent;
@@ -363,7 +372,11 @@ export interface NodeDefinition<TConfig = unknown> {
    */
   flags?: NodeFlags;
   validate?(config: TConfig, graph: AutomationGraph): string[];
-  match?(event: DomainEvent, config: TConfig): boolean;
+  match?(
+    event: DomainEvent,
+    config: TConfig,
+    ctx?: { automationId: string }
+  ): boolean;
   execute?(
     ctx: ExecutionContext,
     config: TConfig
@@ -377,11 +390,17 @@ export interface ValidationIssue {
 
 export class NodeExecutionError extends Error {
   readonly retryable: boolean;
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, retryable = false) {
+  constructor(
+    message: string,
+    retryable = false,
+    details?: Record<string, unknown>
+  ) {
     super(message);
     this.name = 'NodeExecutionError';
     this.retryable = retryable;
+    this.details = details;
   }
 }
 

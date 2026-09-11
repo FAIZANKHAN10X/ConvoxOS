@@ -148,6 +148,11 @@ export function HistoryPanel({ automationId }: { automationId: string }) {
                         {step.error}
                       </p>
                     )}
+                    {step.output && Object.keys(step.output).length > 0 && (
+                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-700">
+                        {JSON.stringify(step.output, null, 2)}
+                      </pre>
+                    )}
                   </li>
                 ))}
               </ol>

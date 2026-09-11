@@ -16,6 +16,9 @@ import { randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { hashApiKey } from '@/lib/api-keys/keys';
+import { extractTrigger } from '@/lib/automation/graph';
+import { bindHookIdInGraph } from '@/lib/automation/nodes/inbound-webhook';
+import type { AutomationGraph } from '@/lib/automation/types';
 import { generateWebhookSecret } from '@/lib/webhooks/endpoints';
 import { decrypt, encrypt } from '@/lib/whatsapp/encryption';
 
@@ -24,10 +27,20 @@ export const HOOK_TOKEN_PREFIX = 'whk_';
 
 export interface CreatedHook {
   id: string;
-  /** Bearer token for the URL. Shown once — never stored. */
+  /** Bearer token for the URL. Shown once as plaintext (also stored encrypted). */
   token: string;
   /** HMAC signing secret. Shown once — stored encrypted. */
   secret: string;
+}
+
+export interface PublicHook {
+  id: string;
+  automation_id: string;
+  is_active: boolean;
+  last_received_at: string | null;
+  created_at: string;
+  /** Reconstructed from token_enc when present. HMAC secret is never included. */
+  url: string | null;
 }
 
 export function generateHookToken(): string {
@@ -65,6 +78,7 @@ export async function createAutomationHook(
         created_by: args.createdBy,
         token_hash: hashHookToken(token),
         secret_enc: encrypt(secret),
+        token_enc: encrypt(token),
         is_active: true,
       },
       { onConflict: 'automation_id' }
@@ -76,7 +90,65 @@ export async function createAutomationHook(
       `failed to create inbound hook: ${error?.message ?? 'no row'}`
     );
   }
-  return { id: (data as { id: string }).id, token, secret };
+  const created = { id: (data as { id: string }).id, token, secret };
+  await bindDraftHookId(db, args.automationId, created.id);
+  return created;
+}
+
+export function hookUrlFromToken(origin: string, token: string): string {
+  return `${origin.replace(/\/$/, '')}/api/hooks/${token}`;
+}
+
+export function decryptHookToken(tokenEnc: string): string {
+  return decrypt(tokenEnc);
+}
+
+export function publicHookFromRow(
+  row: Record<string, unknown>,
+  origin: string
+): PublicHook {
+  let url: string | null = null;
+  const tokenEnc = row.token_enc;
+  if (typeof tokenEnc === 'string' && tokenEnc) {
+    try {
+      url = hookUrlFromToken(origin, decryptHookToken(tokenEnc));
+    } catch {
+      url = null;
+    }
+  }
+  return {
+    id: row.id as string,
+    automation_id: row.automation_id as string,
+    is_active: Boolean(row.is_active),
+    last_received_at: (row.last_received_at as string | null) ?? null,
+    created_at: row.created_at as string,
+    url,
+  };
+}
+
+async function bindDraftHookId(
+  db: SupabaseClient,
+  automationId: string,
+  hookId: string
+): Promise<void> {
+  try {
+    const { data, error } = await db
+      .from('automations')
+      .select('draft_graph')
+      .eq('id', automationId)
+      .maybeSingle();
+    if (error || !data) return;
+    const graph = data.draft_graph as AutomationGraph | null;
+    if (!graph || !Array.isArray(graph.nodes)) return;
+    const next = bindHookIdInGraph(graph, hookId);
+    const trigger = extractTrigger(next);
+    await db
+      .from('automations')
+      .update({ draft_graph: next, draft_trigger: trigger })
+      .eq('id', automationId);
+  } catch (error) {
+    console.error('[integrations] failed to stamp inbound hook on draft', error);
+  }
 }
 
 export async function findHookByTokenHash(

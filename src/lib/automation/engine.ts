@@ -186,6 +186,7 @@ export async function executeRun(
       accountId: run.accountId,
       contactId: run.contactId,
       runId: run.id,
+      nodeId: node.id,
       automationId: run.automationId,
       versionId: run.versionId,
       event,
@@ -261,7 +262,12 @@ export async function executeRun(
           error instanceof NodeExecutionError ? error.retryable : true;
         const message =
           error instanceof Error ? error.message : 'node execution failed';
-        await store.updateStep(step.id, { status: 'failed', error: message });
+        await store.updateStep(step.id, {
+          status: 'failed',
+          error: message,
+          output:
+            error instanceof NodeExecutionError ? error.details ?? null : null,
+        });
 
         if (retryable && attempt < MAX_NODE_ATTEMPTS) {
           return store.updateRun(runId, {

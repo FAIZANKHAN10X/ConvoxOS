@@ -4,7 +4,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { catalogFromRegistry } from '../catalog';
 import { defaultRegistry } from '../registry';
 import { n8nWorkflowAction } from './n8n-workflow';
-import { inboundWebhookTrigger } from './inbound-webhook';
+import {
+  bindHookIdInGraph,
+  inboundWebhookTrigger,
+} from './inbound-webhook';
 import { DOMAIN_EVENT } from '../event-types';
 import type { ExecutionContext } from '../types';
 import './index';
@@ -170,6 +173,26 @@ describe('trigger.inbound_webhook matching', () => {
     };
   }
 
+  it('stamps hookId onto inbound webhook trigger nodes', () => {
+    const graph = bindHookIdInGraph(
+      {
+        nodes: [
+          {
+            id: 't',
+            type: 'trigger.inbound_webhook',
+            position: { x: 0, y: 0 },
+            data: { config: {} },
+          },
+        ],
+        edges: [],
+      },
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    );
+    expect(graph.nodes[0]?.data?.config).toEqual({
+      hookId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    });
+  });
+
   it('matches only its own hook id', () => {
     const config = { hookId: 'hook-1' };
     expect(inboundWebhookTrigger.match?.(hookEvent('hook-1'), config)).toBe(true);
@@ -209,6 +232,7 @@ describe('trigger.inbound_webhook matching', () => {
       event: 'automation.n8n_call',
       accountId: 'a',
       timeoutMs: 10000,
+      deliveryId: 'r:node',
     });
     expect(call.payload).toMatchObject({
       contact_id: 'c',

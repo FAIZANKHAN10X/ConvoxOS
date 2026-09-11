@@ -304,6 +304,7 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
                 graph={graph}
                 catalog={catalog}
                 readOnly={!canEdit}
+                automationId={automation.id}
                 onChange={changeGraph}
               />
             </ReactFlowProvider>

@@ -36,3 +36,27 @@ export function interpolateTemplate(
     renderValue(lookup(scope, path))
   );
 }
+
+/** Paths available on every run. Builder picker is sourced from this list. */
+export const BASE_INTERPOLATION_PATHS: Array<{ path: string; label: string }> = [
+  { path: 'contactId', label: 'Contact ID' },
+  { path: 'accountId', label: 'Account ID' },
+  { path: 'runId', label: 'Run ID' },
+  { path: 'automationId', label: 'Automation ID' },
+  { path: 'event.type', label: 'Event type' },
+  { path: 'event.payload', label: 'Event payload' },
+  { path: 'event.payload.body', label: 'Inbound webhook body' },
+  { path: 'lastOutput', label: 'Previous step output' },
+];
+
+export function interpolationPathsForGraph(
+  nodes: Array<{ id: string; type: string; label?: string }>
+): Array<{ path: string; label: string }> {
+  const fromNodes = nodes
+    .filter((node) => !node.type.startsWith('trigger.'))
+    .map((node) => ({
+      path: `outputs.${node.id}`,
+      label: `${node.label ?? node.type} output`,
+    }));
+  return [...BASE_INTERPOLATION_PATHS, ...fromNodes];
+}

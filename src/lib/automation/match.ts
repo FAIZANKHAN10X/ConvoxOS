@@ -29,7 +29,8 @@ export async function matchTriggers(
 
     const parsed = def.configSchema.safeParse(trigger.trigger.config);
     if (!parsed.success) continue;
-    if (!def.match(event, parsed.data)) continue;
+    if (!def.match(event, parsed.data, { automationId: trigger.automationId }))
+      continue;
 
     matches.push({ trigger });
   }

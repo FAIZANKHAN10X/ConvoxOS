@@ -11,18 +11,32 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { safeFetch } from '@/lib/http/safe-fetch';
+import {
+  MAX_CAPTURED_BYTES,
+  parseCapturedBody,
+  safeFetch,
+} from '@/lib/http/safe-fetch';
 import { buildSignatureHeader } from '@/lib/webhooks/sign';
 
-/** Truncate stored response bodies so one chatty sink can't bloat runs. */
-export const MAX_CAPTURED_BYTES = 32 * 1024;
+export { MAX_CAPTURED_BYTES, parseCapturedBody } from '@/lib/http/safe-fetch';
 
-export function parseCapturedBody(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+/** Stable across engine retries of the same run+node. */
+export function outboundDeliveryId(ctx: {
+  runId: string;
+  nodeId?: string;
+}): string {
+  return `${ctx.runId}:${ctx.nodeId ?? 'node'}`;
+}
+
+export function withIdempotencyKey(
+  headers: Record<string, string>,
+  key: string
+): Record<string, string> {
+  const hasKey = Object.keys(headers).some(
+    (name) => name.toLowerCase() === 'idempotency-key'
+  );
+  if (hasKey) return headers;
+  return { ...headers, 'Idempotency-Key': key };
 }
 
 export interface SignedPostResult {
@@ -39,9 +53,12 @@ export async function postSignedJson(args: {
   accountId: string;
   timeoutMs: number;
   extraHeaders?: Record<string, string>;
+  /** When set, envelope `id` and Idempotency-Key stay stable across retries. */
+  deliveryId?: string;
 }): Promise<SignedPostResult> {
+  const deliveryId = args.deliveryId ?? randomUUID();
   const rawBody = JSON.stringify({
-    id: randomUUID(),
+    id: deliveryId,
     event: args.event,
     occurred_at: new Date().toISOString(),
     account_id: args.accountId,
@@ -50,12 +67,15 @@ export async function postSignedJson(args: {
   const tsSeconds = Math.floor(Date.now() / 1000);
   const res = await safeFetch(args.url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Wacrm-Event': args.event,
-      'X-Wacrm-Signature': buildSignatureHeader(rawBody, args.secret, tsSeconds),
-      ...args.extraHeaders,
-    },
+    headers: withIdempotencyKey(
+      {
+        'Content-Type': 'application/json',
+        'X-Wacrm-Event': args.event,
+        'X-Wacrm-Signature': buildSignatureHeader(rawBody, args.secret, tsSeconds),
+        ...args.extraHeaders,
+      },
+      deliveryId
+    ),
     body: rawBody,
     timeoutMs: args.timeoutMs,
   });

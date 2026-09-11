@@ -75,23 +75,37 @@ describe('safeFetch', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    fetchMock.mockResolvedValue({ ok: false, status: 503 } as Response);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => '',
+    } as Response);
     await expect(safeFetch('https://a.test/hook')).rejects.toMatchObject({
       code: 'http_error',
       status: 503,
       retryable: true,
     });
 
-    fetchMock.mockResolvedValue({ ok: false, status: 429 } as Response);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      text: async () => '',
+    } as Response);
     await expect(safeFetch('https://a.test/hook')).rejects.toMatchObject({
       retryable: true,
     });
 
-    fetchMock.mockResolvedValue({ ok: false, status: 400 } as Response);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":"nope"}',
+    } as Response);
     await expect(safeFetch('https://a.test/hook')).rejects.toMatchObject({
       code: 'http_error',
       status: 400,
       retryable: false,
+      body: { error: 'nope' },
+      truncated: false,
     });
 
     fetchMock.mockRejectedValue(

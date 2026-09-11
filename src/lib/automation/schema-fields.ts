@@ -7,6 +7,8 @@ export interface SchemaField {
     | 'enum'
     | 'boolean'
     | 'tag'
+    | 'integrationEndpoint'
+    | 'inboundHook'
     | 'stringList'
     | 'objectList';
   enumValues?: string[];
@@ -27,6 +29,16 @@ function titleCase(name: string): string {
 function isTagField(name: string): boolean {
   const lower = name.toLowerCase();
   return lower === 'tagid' || lower.endsWith('tagid') || lower === 'tag_id';
+}
+
+function isEndpointField(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === 'endpointid' || lower === 'endpoint_id';
+}
+
+function isHookField(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === 'hookid' || lower === 'hook_id';
 }
 
 /**
@@ -101,6 +113,26 @@ function pushField(
         name,
         label: 'Tag',
         type: 'tag',
+        required: required.has(name),
+        defaultValue: prop.default,
+      });
+      return;
+    }
+    if (isEndpointField(name)) {
+      fields.push({
+        name,
+        label: 'Endpoint',
+        type: 'integrationEndpoint',
+        required: required.has(name),
+        defaultValue: prop.default,
+      });
+      return;
+    }
+    if (isHookField(name)) {
+      fields.push({
+        name,
+        label: 'Inbound hook',
+        type: 'inboundHook',
         required: required.has(name),
         defaultValue: prop.default,
       });

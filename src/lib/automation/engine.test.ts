@@ -199,6 +199,36 @@ describe('inbound webhook → native automation', () => {
     expect(record).toEqual([]);
     expect((await store.getEvent(event.id))?.status).toBe('processed');
   });
+
+  it('matches a published inbound webhook by automation id when hookId is unset', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    const auto = await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.inbound_webhook', config: {} },
+          { id: 'a', type: 'action.record', config: { label: 'wired' } },
+        ],
+        [{ source: 't', target: 'a' }]
+      )
+    );
+
+    const rebound = await store.insertEvent({
+      accountId: 'acct-1',
+      eventType: 'external.received',
+      contactId: 'contact-1',
+      payload: { hook_id: HOOK, automation_id: auto.id },
+      source: 'external',
+      idempotencyKey: 'unbound-2',
+    });
+    const deps = { store, registry, db: {} };
+    const result = await processDomainEvent(deps, rebound.id);
+    expect(result.runsCreated).toBe(1);
+    expect(record).toEqual(['wired']);
+  });
 });
 
 describe('execution', () => {

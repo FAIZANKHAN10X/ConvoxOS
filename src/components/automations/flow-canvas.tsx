@@ -59,6 +59,7 @@ interface FlowCanvasProps {
   graph: AutomationGraph;
   catalog: CatalogNode[];
   readOnly?: boolean;
+  automationId?: string;
   onChange: (graph: AutomationGraph) => void;
 }
 
@@ -90,6 +91,7 @@ export function FlowCanvas({
   graph,
   catalog,
   readOnly,
+  automationId,
   onChange,
 }: FlowCanvasProps) {
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -504,6 +506,9 @@ export function FlowCanvas({
             config={selected.data.config}
             errors={issues.get(selected.id) ?? []}
             readOnly={readOnly}
+            automationId={automationId}
+            nodeId={selected.id}
+            graph={graph}
             onClose={() => setSelectedId(null)}
             onChangeType={(type) => {
               const def = catalogMap.get(type);

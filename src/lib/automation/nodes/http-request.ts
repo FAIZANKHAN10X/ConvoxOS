@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { safeFetch, SafeFetchError } from '@/lib/http/safe-fetch';
 import {
   MAX_CAPTURED_BYTES,
+  outboundDeliveryId,
   parseCapturedBody,
+  withIdempotencyKey,
 } from '@/lib/integrations/signed-post';
 
 import { interpolateTemplate } from '../interpolate';
@@ -46,7 +48,8 @@ export const httpRequestAction: NodeDefinition<HttpRequestConfig> = {
   kind: 'action',
   label: 'HTTP request',
   description: 'Call an external API (n8n, SaaS, webhooks)',
-  category: 'logic',
+  category: 'integration',
+  flags: { testable: true },
   fieldLabels: {
     method: { GET: 'GET', POST: 'POST', PUT: 'PUT', PATCH: 'PATCH', DELETE: 'DELETE' },
   },
@@ -91,6 +94,8 @@ export const httpRequestAction: NodeDefinition<HttpRequestConfig> = {
         scope
       );
     }
+    const deliveryId = outboundDeliveryId(ctx);
+    Object.assign(headers, withIdempotencyKey(headers, deliveryId));
     // GET cannot carry a body (undici throws; that would look like a
     // retryable network error). Empty interpolated bodies are omitted
     // so a blank form field does not send Content-Length: 0.
@@ -113,7 +118,17 @@ export const httpRequestAction: NodeDefinition<HttpRequestConfig> = {
       });
     } catch (error) {
       if (error instanceof SafeFetchError) {
-        throw new NodeExecutionError(error.message, error.retryable);
+        throw new NodeExecutionError(error.message, error.retryable, {
+          status: error.status,
+          response:
+            error.body !== undefined
+              ? {
+                  status: error.status,
+                  body: error.body,
+                  truncated: error.truncated ?? false,
+                }
+              : undefined,
+        });
       }
       throw error;
     }

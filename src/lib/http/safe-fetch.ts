@@ -27,18 +27,24 @@ export class SafeFetchError extends Error {
   readonly status?: number;
   /** Whether the automation engine should retry with backoff. */
   readonly retryable: boolean;
+  /** Parsed/truncated response body when the server replied. */
+  readonly body?: unknown;
+  readonly truncated?: boolean;
 
   constructor(
     code: SafeFetchErrorCode,
     message: string,
     retryable: boolean,
-    status?: number
+    status?: number,
+    extras?: { body?: unknown; truncated?: boolean }
   ) {
     super(message);
     this.name = 'SafeFetchError';
     this.code = code;
     this.retryable = retryable;
     this.status = status;
+    this.body = extras?.body;
+    this.truncated = extras?.truncated;
   }
 }
 
@@ -52,6 +58,17 @@ export interface SafeFetchOptions {
 
 /** Matches the historical webhook delivery budget. */
 export const SAFE_FETCH_DEFAULT_TIMEOUT_MS = 5000;
+
+/** Truncate captured response bodies so one chatty sink can't bloat runs. */
+export const MAX_CAPTURED_BYTES = 32 * 1024;
+
+export function parseCapturedBody(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
@@ -105,11 +122,22 @@ export async function safeFetch(
   }
 
   if (!res.ok) {
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      text = '';
+    }
+    const truncated = text.length > MAX_CAPTURED_BYTES;
     throw new SafeFetchError(
       'http_error',
       `endpoint responded ${res.status}`,
       isRetryableStatus(res.status),
-      res.status
+      res.status,
+      {
+        body: parseCapturedBody(text.slice(0, MAX_CAPTURED_BYTES)),
+        truncated,
+      }
     );
   }
 

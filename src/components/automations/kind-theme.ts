@@ -3,6 +3,7 @@ import {
   Clock,
   GitBranch,
   MessageSquare,
+  Plug,
   Tag,
   Zap,
   type LucideIcon,
@@ -13,6 +14,7 @@ export const CATEGORY_LABEL: Record<CatalogNode['category'], string> = {
   communication: 'Content',
   crm: 'Actions',
   logic: 'Conditions',
+  integration: 'Integrations',
   timing: 'Smart Delay',
 };
 
@@ -21,6 +23,7 @@ export const CATEGORY_ICON: Record<CatalogNode['category'], LucideIcon> = {
   communication: MessageSquare,
   crm: Tag,
   logic: GitBranch,
+  integration: Plug,
   timing: Clock,
 };
 
@@ -30,6 +33,7 @@ export const CATEGORY_ACCENT: Record<CatalogNode['category'], string> = {
   communication: '#2f6fed',
   crm: '#eab308',
   logic: '#14b8a6',
+  integration: '#7c3aed',
   timing: '#f43f5e',
 };
 
@@ -43,6 +47,7 @@ export const CATEGORY_BAND: Record<CatalogNode['category'], string> = {
   communication: '#ffffff',
   crm: '#fef9c3',
   logic: '#ccfbf1',
+  integration: '#ede9fe',
   timing: '#ffe4e6',
 };
 
@@ -52,5 +57,6 @@ export const CATEGORY_BADGE: Record<CatalogNode['category'], string> = {
   communication: '#2f6fed',
   crm: '#eab308',
   logic: '#14b8a6',
+  integration: '#7c3aed',
   timing: '#f43f5e',
 };
