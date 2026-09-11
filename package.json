@@ -1,6 +1,6 @@
 {
   "name": "convoxos",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "description": "ConvoxOS — a CRM/operations platform with a unified Inbox. WhatsApp is the existing core channel; Telegram is the first external channel module.",
   "license": "MIT",

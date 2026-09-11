@@ -11,6 +11,45 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [0.9.0] — 2026-09-11
+
+Automation runtime correctness wave plus the lite-premium visual redesign.
+No API, engine-architecture, or node-behavior changes beyond the
+correctness fixes listed.
+
+> **Migration required:** apply `supabase/migrations/063_runtime_claim_recovery.sql`
+> (reclaim functions for orphaned waits/runs plus the
+> `messages.idempotency_key` column for send idempotency).
+
+### Fixed
+
+- **Automation double-execution.** `executeRun` now claims the run
+  atomically (`queued`/`waiting` → `running`); a kick racing the cron
+  can no longer execute the same run twice.
+- **Orphaned waits and runs.** Stale `claimed` waits (5-minute lease)
+  and crashed `running` runs (10-minute heartbeat) are reclaimed by the
+  worker instead of stalling forever; cancel covers `claimed` waits.
+- **Duplicate message sends on retry.** Native sends carry a stable
+  `run:node:block` idempotency key; retries reuse the persisted row
+  instead of re-sending.
+- **Tag-event duplication.** Tag add/remove events use deterministic
+  idempotency keys per (contact, tag, causation) with a successor key
+  for genuine remove→add cycles.
+- **AI CRM tool isolation.** Fixed the `custom_field_id` column mismatch
+  and added contact/field/tag account-ownership checks.
+- **Telegram webhook open endpoint.** Missing secrets now fail closed;
+  comparison is timing-safe.
+- **WhatsApp status cross-account fan-out.** Status mirrors and fan-out
+  are scoped per owning account; `has_tag` is account-scoped.
+
+### Changed
+
+- **Lite-premium visual system.** Restraint-first redesign: unified
+  card/button/input geometry, solid overlays instead of blur, static
+  status dots instead of ping animations, token-driven chart and
+  builder colors (5-accent switcher retained), static CSS dot-grid
+  automation canvas. No routes or data flows changed.
+
 ## [0.8.1] — 2026-07-10
 
 Fixes inbound chats fragmenting into multiple threads for the same
