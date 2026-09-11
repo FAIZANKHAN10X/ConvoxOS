@@ -122,6 +122,85 @@ describe('trigger matching', () => {
   });
 });
 
+describe('inbound webhook → native automation', () => {
+  const HOOK = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const OTHER = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  function enqueueHook(
+    store: AutomationStore,
+    extras: {
+      hookId?: string;
+      contactId?: string | null;
+      idempotencyKey?: string;
+    } = {}
+  ) {
+    return store.insertEvent({
+      accountId: 'acct-1',
+      eventType: 'external.received',
+      contactId: extras.contactId === undefined ? 'contact-1' : extras.contactId,
+      payload: { hook_id: extras.hookId ?? HOOK, automation_id: 'auto-1' },
+      source: 'external',
+      idempotencyKey: extras.idempotencyKey ?? crypto.randomUUID(),
+    });
+  }
+
+  it('matches only its own hook and starts a run that executes native nodes', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.inbound_webhook', config: { hookId: HOOK } },
+          { id: 'a', type: 'action.record', config: { label: 'from-hook' } },
+        ],
+        [{ source: 't', target: 'a' }]
+      )
+    );
+
+    const hit = await enqueueHook(store);
+    const miss = await enqueueHook(store, {
+      hookId: OTHER,
+      idempotencyKey: 'other-hook',
+    });
+    expect((await matchTriggers(store, registry, hit)).length).toBe(1);
+    expect((await matchTriggers(store, registry, miss)).length).toBe(0);
+
+    const deps = { store, registry, db: {} };
+    const result = await processDomainEvent(deps, hit.id);
+    expect(result.runsCreated).toBe(1);
+    expect(record).toEqual(['from-hook']);
+    const processed = await store.getEvent(hit.id);
+    expect(processed?.status).toBe('processed');
+  });
+
+  it('records contactless deliveries without starting a run', async () => {
+    const store = createMemoryStore();
+    const record: string[] = [];
+    const registry = makeRegistry([], record);
+    await seedPublished(
+      store,
+      registry,
+      graphFromNodes(
+        [
+          { id: 't', type: 'trigger.inbound_webhook', config: { hookId: HOOK } },
+          { id: 'a', type: 'action.record', config: { label: 'nope' } },
+        ],
+        [{ source: 't', target: 'a' }]
+      )
+    );
+
+    const event = await enqueueHook(store, { contactId: null });
+    const deps = { store, registry, db: {} };
+    const result = await processDomainEvent(deps, event.id);
+    expect(result.runsCreated).toBe(0);
+    expect(record).toEqual([]);
+    expect((await store.getEvent(event.id))?.status).toBe('processed');
+  });
+});
+
 describe('execution', () => {
   it('runs tag_added → action and completes', async () => {
     const store = createMemoryStore();

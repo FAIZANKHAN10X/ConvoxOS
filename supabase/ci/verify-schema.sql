@@ -66,6 +66,26 @@ BEGIN
     RAISE EXCEPTION 'claim_domain_events is missing — migration 057 did not apply';
   END IF;
 
+  -- Integration layer (058).
+  IF to_regclass('public.integration_endpoints') IS NULL THEN
+    RAISE EXCEPTION 'public.integration_endpoints is missing — migration 058 did not apply';
+  END IF;
+  IF to_regclass('public.automation_inbound_hooks') IS NULL THEN
+    RAISE EXCEPTION 'public.automation_inbound_hooks is missing — migration 058 did not apply';
+  END IF;
+
+  -- Inbound webhooks enqueue source = 'external' (059).
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.domain_events'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%external%'
+  ) THEN
+    RAISE EXCEPTION
+      'domain_events.source does not allow external — migration 059 did not apply';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;

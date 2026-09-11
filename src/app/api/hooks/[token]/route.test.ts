@@ -195,6 +195,7 @@ describe('POST /api/hooks/[token]', () => {
       table: 'domain_events',
       account_id: 'acct-1',
       event_type: 'external.received',
+      source: 'external',
       contact_id: 'contact-1',
       idempotency_key: 'hook:hook-1:n8n-1',
     });

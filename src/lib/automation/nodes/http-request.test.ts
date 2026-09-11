@@ -107,6 +107,20 @@ describe('action.http_request registry', () => {
 });
 
 describe('action.http_request execution', () => {
+  it('omits the body on GET even if a template is configured', async () => {
+    mockedFetch.mockResolvedValue(okResponse(200, ''));
+    await httpRequestAction.execute?.(ctx(), {
+      method: 'GET',
+      url: 'https://n8n.test/hook',
+      body: '{"should":"not-send"}',
+      captureResponse: false,
+      timeoutMs: 10000,
+    });
+    const [, opts] = mockedFetch.mock.calls[0];
+    expect(opts).toMatchObject({ method: 'GET' });
+    expect(opts?.body).toBeUndefined();
+  });
+
   it('interpolates URL/headers/body and returns status', async () => {
     mockedFetch.mockResolvedValue(okResponse(200, '{"ok":true}'));
     const result = await httpRequestAction.execute?.(ctx({ name: 'Ada' }), {

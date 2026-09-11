@@ -91,10 +91,17 @@ export const httpRequestAction: NodeDefinition<HttpRequestConfig> = {
         scope
       );
     }
-    const body =
+    // GET cannot carry a body (undici throws; that would look like a
+    // retryable network error). Empty interpolated bodies are omitted
+    // so a blank form field does not send Content-Length: 0.
+    const interpolatedBody =
       config.body === undefined
         ? undefined
         : interpolateTemplate(config.body, scope);
+    const body =
+      config.method === 'GET' || !interpolatedBody
+        ? undefined
+        : interpolatedBody;
 
     let res: Response;
     try {
