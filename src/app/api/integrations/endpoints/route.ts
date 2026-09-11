@@ -9,6 +9,7 @@ import {
   createIntegrationEndpoint,
   INTEGRATION_SECRET_PREFIX,
 } from '@/lib/integrations/endpoints';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { normalizeWebhookUrl } from '@/lib/webhooks/endpoints';
 
 const PUBLIC_COLUMNS =
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       );
     }
     const kind = body?.kind === 'generic' ? 'generic' : 'n8n';
-    const created = await createIntegrationEndpoint(ctx.supabase, {
+    const created = await createIntegrationEndpoint(supabaseAdmin(), {
       accountId: ctx.accountId,
       createdBy: ctx.userId,
       name,

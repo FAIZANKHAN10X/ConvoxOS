@@ -10,6 +10,7 @@ import {
   hookUrlFromToken,
   publicHookFromRow,
 } from '@/lib/integrations/hooks';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const PUBLIC_COLUMNS =
   'id, automation_id, is_active, last_received_at, created_at, token_enc';
@@ -57,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const created = await createAutomationHook(ctx.supabase, {
+    const created = await createAutomationHook(supabaseAdmin(), {
       accountId: ctx.accountId,
       automationId: id,
       createdBy: ctx.userId,
