@@ -40,15 +40,27 @@ import { SendEmailError } from '@/lib/email/send';
 
 const context = {
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: { id: 'conv-1' }, error: null }),
-          }),
-        }),
-      }),
-    }),
+    from: (table: string) => {
+      const builder: Record<string, unknown> = {
+        select: () => builder,
+        eq: () => builder,
+        not: () => builder,
+        order: () => builder,
+        limit: () => builder,
+      };
+      if (table === 'messages') {
+        (builder as Record<string, unknown>).maybeSingle = async () => ({
+          data: { subject: 'Prior subject' },
+          error: null,
+        });
+      } else {
+        (builder as Record<string, unknown>).maybeSingle = async () => ({
+          data: { id: 'conv-1' },
+          error: null,
+        });
+      }
+      return builder;
+    },
   },
   accountId: 'account-1',
   userId: 'user-1',
@@ -96,10 +108,22 @@ describe('POST /api/email/send', () => {
     });
   });
 
-  it('rejects missing subject/body before sending', async () => {
+  it('rejects missing body before sending', async () => {
     const response = await POST(request({ conversation_id: 'conv-1' }));
     expect(response.status).toBe(400);
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the thread subject when omitted', async () => {
+    const response = await POST(
+      request({ conversation_id: 'conv-1', content_text: 'Quick reply' })
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.send).toHaveBeenCalledWith(
+      context.supabase,
+      'account-1',
+      expect.objectContaining({ subject: 'Re: Prior subject' })
+    );
   });
 
   it('maps sender errors to responses', async () => {
