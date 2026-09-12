@@ -240,7 +240,7 @@ export type ContentType =
 export type MessageStatus =
   'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
-export type Channel = 'whatsapp' | 'telegram';
+export type Channel = 'whatsapp' | 'telegram' | 'email';
 
 export interface Message {
   id: string;

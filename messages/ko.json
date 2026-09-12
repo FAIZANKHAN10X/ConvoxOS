@@ -1328,7 +1328,10 @@
       "close": "Close",
       "whatsappConnectedHint": "WhatsApp is wired for this workspace.",
       "telegramNotConnectedHint": "Connect a Telegram bot to receive and reply to Telegram messages.",
-      "telegramConnectedHint": "Telegram integration is being finalized."
+      "telegramConnectedHint": "Telegram integration is being finalized.",
+      "emailTitle": "이메일",
+      "emailDesc": "Resend — 이메일 채널 모듈",
+      "emailNotConnectedHint": "CRM에서 이메일을 주고받으려면 Resend를 연결하세요."
     },
     "telegram": {
       "title": "Telegram",
@@ -1367,6 +1370,28 @@
       "webhookDesc": "Telegram delivers updates to this URL. It is registered automatically when you connect.",
       "webhookUrlLabel": "Webhook URL",
       "webhookCopied": "Webhook URL copied"
+    },
+    "email": {
+      "title": "이메일",
+      "description": "Resend를 연결하세요. 발신 이메일은 내 주소로 발송되고, 답장은 통합 받은편지함에 도착합니다.",
+      "loading": "불러오는 중…",
+      "connectedHint": "이 작업공간에 이메일이 연결되어 있습니다.",
+      "notConnectedHint": "이메일이 연결되어 있지 않습니다.",
+      "fieldsRequired": "API 키와 발신 주소가 필요합니다",
+      "apiKeyLabel": "Resend API 키",
+      "apiKeyHint": "암호화되어 저장되며 다시 표시되지 않습니다.",
+      "fromLabel": "발신 주소",
+      "fromNameLabel": "발신자 이름",
+      "connect": "연결",
+      "reconnect": "다시 연결",
+      "saveFailed": "이메일을 연결할 수 없습니다",
+      "connectedSuccess": "이메일이 연결되었습니다.",
+      "webhookTitle": "Resend 웹훅 (대시보드에 한 번 붙여넣으세요)",
+      "webhookHint": "비밀 키는 한 번만 표시됩니다. 이벤트와 수신 메일이 여기로 도착합니다.",
+      "copied": "복사됨",
+      "disconnect": "연결 해제",
+      "disconnectFailed": "이메일 연결을 해제할 수 없습니다",
+      "disconnectedSuccess": "이메일 연결이 해제되었습니다."
     }
   },
   "Tasks": {

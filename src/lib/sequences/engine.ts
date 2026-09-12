@@ -208,14 +208,15 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
     const conversationId = (conv as { id: string }).id
     const channelTarget = (cfg.channel_target as string | undefined) ?? 'current'
     // For sequences, channel_target current should resolve to last inbound channel? For now, default to whatsapp if current and no context
-    let channel: 'whatsapp' | 'telegram' = 'whatsapp'
+    let channel: 'whatsapp' | 'telegram' | 'email' = 'whatsapp'
     if (channelTarget === 'telegram') channel = 'telegram'
     else if (channelTarget === 'whatsapp') channel = 'whatsapp'
+    else if (channelTarget === 'email') channel = 'email'
     else {
       // current — try to infer from last message, else whatsapp
       const { data: lastMsg } = await db.from('messages').select('channel').eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(1).maybeSingle()
       const lastChannel = (lastMsg as { channel?: string } | null)?.channel
-      if (lastChannel === 'telegram' || lastChannel === 'whatsapp') channel = lastChannel as 'whatsapp' | 'telegram'
+      if (lastChannel === 'telegram' || lastChannel === 'whatsapp' || lastChannel === 'email') channel = lastChannel as 'whatsapp' | 'telegram' | 'email'
     }
 
     if (step.step_type === 'send_message') {

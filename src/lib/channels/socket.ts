@@ -9,11 +9,12 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendMessageToConversation, SendMessageError } from '@/lib/whatsapp/send-message';
+import { sendEmailToConversation, SendEmailError } from '@/lib/email/send';
 import { sendTelegramText, SendTelegramError } from '@/lib/channels/telegram/send';
 import { sendTelegramMedia } from '@/lib/channels/telegram/send-media';
 import type { TelegramInlineMarkup } from '@/lib/channels/telegram/keyboard';
 
-export type SocketChannel = 'whatsapp' | 'telegram';
+export type SocketChannel = 'whatsapp' | 'telegram' | 'email';
 
 export class ChannelSocketError extends Error {
   readonly code: string;
@@ -40,6 +41,8 @@ export interface SocketTextArgs {
    * Omitted for manual sends.
    */
   idempotencyKey?: string | null;
+  /** Email-only: subject line (required when channel is email). */
+  subject?: string | null;
 }
 
 export interface SocketMediaArgs {
@@ -74,6 +77,24 @@ export interface SocketInteractiveArgs {
  */
 export async function dispatchText(args: SocketTextArgs): Promise<{ providerMessageId: string; messageId: string }> {
   const { db, accountId, conversationId, channel, text, replyToMessageId, inlineKeyboard, idempotencyKey } = args;
+
+  if (channel === 'email') {
+    try {
+      const result = await sendEmailToConversation(db, accountId, {
+        conversationId,
+        subject: args.subject ?? null,
+        contentText: text,
+        replyToMessageId: replyToMessageId ?? null,
+        idempotencyKey: idempotencyKey ?? null,
+      });
+      return { providerMessageId: `resend_${result.emailId}`, messageId: result.messageId };
+    } catch (err) {
+      if (err instanceof SendEmailError) {
+        throw new ChannelSocketError(err.code, err.message, err.status);
+      }
+      throw err;
+    }
+  }
 
   if (channel === 'telegram') {
     const result = await sendTelegramText(db, accountId, {
@@ -241,9 +262,9 @@ export function resolveChannelTarget(
 ): SocketChannel | null {
   if (!channelTarget || channelTarget === 'current') {
     if (!triggerChannel) return null; // no conversational context
-    if (triggerChannel === 'whatsapp' || triggerChannel === 'telegram') return triggerChannel as SocketChannel;
+    if (triggerChannel === 'whatsapp' || triggerChannel === 'telegram' || triggerChannel === 'email') return triggerChannel as SocketChannel;
     return null;
   }
-  if (channelTarget === 'whatsapp' || channelTarget === 'telegram') return channelTarget as SocketChannel;
+  if (channelTarget === 'whatsapp' || channelTarget === 'telegram' || channelTarget === 'email') return channelTarget as SocketChannel;
   return null;
 }

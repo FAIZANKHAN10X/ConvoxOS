@@ -1,14 +1,13 @@
 /**
- * Minimal channel boundary for Phase 1 inbound-only.
+ * Channel boundary (Phase 1 inbound-only heritage, now multi-channel).
  *
- * Approved constraints:
+ * Approved constraints (unchanged):
  * - conversations remain unified (single thread per contact); messages carry channel
  * - no generic `channels` table, no ChannelSender, no Conversation.channel
- * - Telegram inbound-only, no outbound/broadcast
  * - NormalizedInbound is provider → CRM boundary
+ * - each new plug adds its own config table + identity columns
  */
-
-export type Channel = 'whatsapp' | 'telegram'
+export type Channel = 'whatsapp' | 'telegram' | 'email'
 
 export type NormalizedKind = 'text' | 'interactive_reply' | 'media' | 'location' | 'reaction'
 
@@ -44,6 +43,13 @@ export interface NormalizedInbound {
   /** Sender phone for WA (digits), display name */
   senderPhone?: string | null
   senderName?: string | null
+  /** For email: sender address, subject, provider message id */
+  senderEmail?: string | null
+  emailSubject?: string | null
+  emailMessageId?: string | null
+  /** In-Reply-To / References threading headers, if present */
+  emailInReplyTo?: string | null
+  emailReferences?: string[] | null
 }
 
 export interface TelegramUpdate {

@@ -49,7 +49,7 @@ export interface ConversationChannelSummary {
   latestChannel: Channel | null;
 }
 
-const CHANNEL_ORDER: Channel[] = ["whatsapp", "telegram"];
+const CHANNEL_ORDER: Channel[] = ["whatsapp", "telegram", "email"];
 
 /**
  * Derive the channels represented by a thread without adding channel state to
@@ -174,7 +174,9 @@ export function getAvailableContactChannels(contact: Contact | null): Channel[] 
   return CHANNEL_ORDER.filter((channel) =>
     channel === "whatsapp"
       ? Boolean(contact.phone)
-      : Boolean(contact.telegram_user_id),
+      : channel === "telegram"
+        ? Boolean(contact.telegram_user_id)
+        : Boolean(contact.email),
   );
 }
 

@@ -93,7 +93,9 @@ async function handleReactionShared(
   if (error) console.error('[inbound] reaction upsert failed:', error.message);
 }
 
-// channel-aware contact dedupe: WA via phone, TG via telegram_user_id
+// channel-aware contact dedupe: WA via phone, TG via telegram_user_id,
+// email via email address (first match wins; no unique constraint so
+// legacy duplicate emails can never break ingestion)
 type NormalizedInboundInput = NormalizedInbound & {
   contentType?: string;
   contentText?: string | null;
@@ -105,6 +107,46 @@ type NormalizedInboundInput = NormalizedInbound & {
 
 async function findOrCreateContactUnified(n: NormalizedInboundInput) {
   const { accountId, configOwnerUserId, channel } = n;
+  // Email path — match by address within the account, else create.
+  if (channel === 'email') {
+    const senderEmail = n.senderEmail?.trim().toLowerCase();
+    if (!senderEmail) return null;
+    const { data: existing } = await supabaseAdmin()
+      .from('contacts')
+      .select('*')
+      .eq('account_id', accountId)
+      .ilike('email', senderEmail)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      const updates: Record<string, unknown> = {};
+      if (n.senderName && n.senderName !== existing.name) updates.name = n.senderName;
+      if (!existing.email) updates.email = senderEmail;
+      if (Object.keys(updates).length) {
+        updates.updated_at = new Date().toISOString();
+        await supabaseAdmin().from('contacts').update(updates).eq('id', existing.id);
+      }
+      return { contact: existing, wasCreated: false };
+    }
+    const { data: newContact, error } = await supabaseAdmin()
+      .from('contacts')
+      .insert({
+        account_id: accountId,
+        user_id: configOwnerUserId,
+        phone: null,
+        name: n.senderName || senderEmail,
+        email: senderEmail,
+      })
+      .select()
+      .single();
+    if (error) {
+      console.error('Error creating email contact:', error);
+      return null;
+    }
+    return { contact: newContact, wasCreated: true };
+  }
+
   // Telegram path
   if (channel === 'telegram') {
     const telegramUserId = n.telegramUserId;
@@ -374,6 +416,8 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
         sender_type: 'customer',
         content_type: contentType,
         content_text: contentText,
+        // Email subjects persist for inbox display; NULL for chat.
+        subject: input.emailSubject ?? null,
         media_url: mediaUrl,
         media_type: mediaType,
         message_id: providerMessageId,

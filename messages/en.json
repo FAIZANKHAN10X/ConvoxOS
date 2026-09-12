@@ -1129,7 +1129,10 @@
       "close": "Close",
       "whatsappConnectedHint": "WhatsApp is wired for this workspace.",
       "telegramNotConnectedHint": "Connect a Telegram bot to receive and reply to Telegram messages.",
-      "telegramConnectedHint": "Telegram integration is being finalized."
+      "telegramConnectedHint": "Telegram integration is being finalized.",
+      "emailTitle": "Email",
+      "emailDesc": "Resend — email channel module",
+      "emailNotConnectedHint": "Connect Resend to send and receive email from the CRM."
     },
     "telegram": {
       "title": "Telegram",
@@ -1367,6 +1370,28 @@
       "reindex": "Reindex",
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "loading": "Loading…"
+    },
+    "email": {
+      "title": "Email",
+      "description": "Connect Resend. Outbound email sends from your address; replies land in the unified Inbox.",
+      "loading": "Loading…",
+      "connectedHint": "Email is connected for this workspace.",
+      "notConnectedHint": "Email is not connected.",
+      "fieldsRequired": "API key and sender address are required",
+      "apiKeyLabel": "Resend API key",
+      "apiKeyHint": "Stored encrypted and never shown again.",
+      "fromLabel": "Sender address",
+      "fromNameLabel": "Sender name",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "saveFailed": "Could not connect email",
+      "connectedSuccess": "Email connected.",
+      "webhookTitle": "Resend webhook (paste into the Resend dashboard once)",
+      "webhookHint": "The secret is shown once. Events and inbound mail arrive here.",
+      "copied": "Copied",
+      "disconnect": "Disconnect",
+      "disconnectFailed": "Could not disconnect email",
+      "disconnectedSuccess": "Email disconnected."
     }
   },
   "Tasks": {

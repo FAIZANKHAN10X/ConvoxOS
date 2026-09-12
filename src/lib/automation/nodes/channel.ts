@@ -29,7 +29,7 @@ export async function resolveConversationChannel(
   }
 
   let channel: SocketChannel = 'whatsapp';
-  if (channelConfig === 'telegram' || channelConfig === 'whatsapp') {
+  if (channelConfig === 'telegram' || channelConfig === 'whatsapp' || channelConfig === 'email') {
     channel = channelConfig;
   } else {
     const { data: lastMsg } = await db
@@ -40,7 +40,7 @@ export async function resolveConversationChannel(
       .limit(1)
       .maybeSingle();
     const last = (lastMsg as { channel?: string } | null)?.channel;
-    if (last === 'telegram' || last === 'whatsapp') channel = last;
+    if (last === 'telegram' || last === 'whatsapp' || last === 'email') channel = last;
   }
 
   return { conversationId: (conv as { id: string }).id, channel };
