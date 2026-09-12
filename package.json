@@ -25,7 +25,7 @@
     "self-hosted"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "packageManager": "npm@10.9.9",
   "scripts": {
@@ -76,14 +76,16 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "^1.0.0",
-    "eslint": "^9",
+    "eslint": "^10.10.0",
     "eslint-config-next": "^16.3.4",
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "shadcn": "^4.19.1",
     "tailwindcss": "^4",
     "typescript": "^6",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^4.1.11"
   },
   "overrides": {
