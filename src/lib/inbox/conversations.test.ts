@@ -278,3 +278,25 @@ describe("toChannelSummaryMap", () => {
     });
   });
 });
+
+describe("mergeConversationDelta + maxUpdatedAt (T1.6)", () => {
+  it("replaces existing rows, prepends new ones, never duplicates", async () => {
+    const { mergeConversationDelta, maxUpdatedAt } = await import("./conversations");
+    const prev = [
+      { id: "a", updated_at: "2026-09-01T00:00:00Z" },
+      { id: "b", updated_at: "2026-09-01T00:00:00Z" },
+    ] as never[];
+    const delta = [
+      { id: "b", updated_at: "2026-09-02T00:00:00Z" },
+      { id: "c", updated_at: "2026-09-02T00:00:00Z" },
+    ] as never[];
+    const merged = mergeConversationDelta(prev as never, delta as never) as { id: string; updated_at: string }[];
+    expect(merged.map((c) => c.id)).toEqual(["c", "a", "b"]);
+    expect(merged.find((c) => c.id === "b")?.updated_at).toBe("2026-09-02T00:00:00Z");
+    // Empty delta returns the same reference (no re-render churn)
+    expect(mergeConversationDelta(prev as never, [])).toBe(prev);
+    expect(maxUpdatedAt(merged)).toBe("2026-09-02T00:00:00Z");
+    expect(maxUpdatedAt([])).toBeNull();
+    expect(maxUpdatedAt([{ id: "x" }] as never)).toBeNull();
+  });
+});

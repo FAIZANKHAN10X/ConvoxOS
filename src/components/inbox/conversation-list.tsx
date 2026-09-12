@@ -9,6 +9,8 @@ import {
   type ConversationChannelSummary,
   type InboxChannelFilter,
   matchesContactFilters,
+  maxUpdatedAt,
+  mergeConversationDelta,
   normalizeConversations,
   toChannelSummaryMap,
 } from "@/lib/inbox/conversations";
@@ -38,7 +40,13 @@ interface ConversationListProps {
    * list catches up on any events sent while the WS was disconnected
    * or the tab was throttled. Optional so existing callers keep working.
    */
+  /**
+   * Increment to force a FULL refetch (mount, manual refresh). Unlike
+   * resyncToken (delta path below), this re-reads the whole list —
+   * the only path that also heals deletions.
+   */
   resyncToken?: number;
+  fullResyncToken?: number;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -55,6 +63,7 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   resyncToken = 0,
+  fullResyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   
@@ -83,6 +92,20 @@ export function ConversationList({
   // tenancy server-side; the account id is a filter, not a boundary.
   const { accountId } = useAuth();
 
+  // T1.6 delta-resync bookkeeping. lastLoadAtRef is the updated_at
+  // watermark (max seen); lastFullTokenRef records which full token
+  // the watermark belongs to. conversationsRef mirrors the prop so
+  // the async delta can merge against the latest list. localBump
+  // re-fires this effect for the delta→full fallback without
+  // involving the parent.
+  const lastLoadAtRef = useRef<string | null>(null);
+  const lastFullTokenRef = useRef(fullResyncToken);
+  const conversationsRef = useRef(conversations);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  const [localBump, setResyncBump] = useState(0);
+
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
   // depended on `onConversationsLoaded`, which depends on the parent's
@@ -105,16 +128,39 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
+      // T1.6 delta path: on auto-resync (reconnect/visibility) fetch
+      // only conversations changed since the last successful load and
+      // merge into the current list, instead of re-reading everything.
+      // First mount, manual refresh (fullResyncToken), and any delta
+      // failure fall back to the full read. 60s overlap absorbs
+      // client/server clock skew; duplicates merge by id.
+      // Channel summaries stay a full RPC re-read — already bounded
+      // by conversation count (T1.1), so no delta needed there.
+      const isDelta =
+        lastLoadAtRef.current !== null && fullResyncToken === lastFullTokenRef.current;
+      const since = lastLoadAtRef.current
+        ? new Date(new Date(lastLoadAtRef.current).getTime() - 60_000).toISOString()
+        : null;
+
+      const conversationsQuery =
+        isDelta && since
+          ? supabase
+              .from("conversations")
+              .select(CONVERSATION_SELECT)
+              .gte("updated_at", since)
+              .order("last_message_at", { ascending: false })
+          : supabase
+              .from("conversations")
+              .select(CONVERSATION_SELECT)
+              .order("last_message_at", { ascending: false });
+
       // Channel badges come from a single aggregated RPC — one row per
       // conversation that has messages, so rows are bounded by the
       // conversation count and correct at any message volume. The old
       // full-table messages scan is gone (it was O(total messages) and
       // silently truncated past PostgREST's row cap).
       const [conversationsResult, summariesResult] = await Promise.all([
-        supabase
-          .from("conversations")
-          .select(CONVERSATION_SELECT)
-          .order("last_message_at", { ascending: false }),
+        conversationsQuery,
         accountId
           ? supabase.rpc("conversation_channel_summaries", {
               p_account_id: accountId,
@@ -128,6 +174,13 @@ export function ConversationList({
       if (cancelled) return;
 
       if (conversationsResult.error) {
+        // Delta failure must not blank the list: fall back to a full
+        // read on the next tick rather than committing an error state.
+        if (isDelta) {
+          lastLoadAtRef.current = null;
+          setResyncBump((n) => n + 1);
+          return;
+        }
         // Supabase errors have non-enumerable properties — log fields explicitly
         console.error("Failed to fetch conversations:", {
           message: conversationsResult.error.message,
@@ -153,9 +206,22 @@ export function ConversationList({
       );
 
       setChannelSummaries(nextSummaries);
-      onConversationsLoadedRef.current(
-        normalizeConversations(conversationsResult.data ?? []),
+      const loaded = normalizeConversations(conversationsResult.data ?? []);
+      if (isDelta) {
+        onConversationsLoadedRef.current(
+          mergeConversationDelta(conversationsRef.current, loaded),
+        );
+      } else {
+        onConversationsLoadedRef.current(loaded);
+        lastFullTokenRef.current = fullResyncToken;
+      }
+      // Watermark: max updated_at seen minus the 60s overlap is
+      // recomputed below from the committed rows; empty results keep
+      // the previous watermark so the next delta still overlaps.
+      const watermark = maxUpdatedAt(
+        isDelta ? conversationsRef.current : loaded,
       );
+      if (watermark) lastLoadAtRef.current = watermark;
       setLoading(false);
     })();
 
@@ -167,7 +233,10 @@ export function ConversationList({
     // up on any events sent while the WS was disconnected or throttled.
     // `accountId` is included so the channel-summaries RPC runs once
     // auth resolves (before that it resolves to an empty map).
-  }, [resyncToken, accountId]);
+    // `fullResyncToken` forces the full read (manual refresh).
+    // `localBump` re-fires after a delta failure so the fallback
+    // full read runs without parent involvement.
+  }, [resyncToken, fullResyncToken, accountId, localBump]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.

@@ -394,10 +394,14 @@ function InboxPageInner() {
    * Manual refresh trigger for the thread-header refresh button.
    * Bumps the same resyncToken the reconnect / visibility paths use,
    * so it goes through the existing dedupe & refetch plumbing — no
-   * separate code path to keep in sync.
+   * separate code path to keep in sync. ALSO bumps fullResyncToken:
+   * manual refresh is the one path that re-reads the whole list
+   * (heals deletions); auto-resync stays on the cheap delta path.
    */
+  const [fullResyncToken, setFullResyncToken] = useState(0);
   const handleManualRefresh = useCallback(() => {
     setResyncToken((n) => n + 1);
+    setFullResyncToken((n) => n + 1);
   }, []);
 
   const handleConversationsLoaded = useCallback(
@@ -590,6 +594,7 @@ function InboxPageInner() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+            fullResyncToken={fullResyncToken}
           />
         </div>
 

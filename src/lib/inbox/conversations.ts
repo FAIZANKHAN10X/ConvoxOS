@@ -81,7 +81,40 @@ export function matchesChannelFilter(
 };
 
 /**
- * Row shape returned by the `conversation_channel_summaries` RPC
+ * Merge a delta fetch into the current list (T1.6 resync path).
+ * Existing rows are replaced wholesale (delta rows carry the full
+ * contact join, unlike realtime patches); genuinely new rows are
+ * prepended, mirroring the realtime INSERT handler. Order otherwise
+ * preserved — the list arrives last_message_at DESC and realtime
+ * already patches in place, so delta merge behaves identically.
+ */
+export function mergeConversationDelta(
+  prev: Conversation[],
+  delta: Conversation[],
+): Conversation[] {
+  if (delta.length === 0) return prev;
+  const byId = new Map(delta.map((c) => [c.id, c]));
+  const merged = prev.map((c) => byId.get(c.id) ?? c);
+  const prevIds = new Set(prev.map((c) => c.id));
+  const fresh = delta.filter((c) => !prevIds.has(c.id));
+  return [...fresh, ...merged];
+}
+
+/**
+ * Max updated_at across rows — the T1.6 delta watermark. Null when
+ * there is nothing to watermark (empty list or missing stamps).
+ */
+export function maxUpdatedAt(rows: { updated_at?: string | null }[]): string | null {
+  let max: string | null = null;
+  for (const row of rows) {
+    if (row.updated_at && (max === null || row.updated_at > max)) {
+      max = row.updated_at;
+    }
+  }
+  return max;
+}
+
+/** Row shape returned by the `conversation_channel_summaries` RPC
  * (migration 064): one row per conversation that has messages.
  */
 export interface ChannelSummaryRow {
