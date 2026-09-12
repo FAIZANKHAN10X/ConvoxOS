@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { emitAppointmentStatusChanged } from '@/lib/automation/crm-events';
 import {
   AppointmentWriteError,
   setAppointmentStatus,
@@ -42,6 +43,23 @@ export async function PATCH(
         appointmentId,
         status: body.status as AppointmentStatus,
       });
+      // T6.4: status moves enter automation on actual change.
+      if (result.changed) {
+        await emitAppointmentStatusChanged({
+          db: ctx.supabase,
+          accountId: ctx.accountId,
+          contactId: result.appointment.contact_id,
+          appointmentId: result.appointment.id,
+          payload: {
+            appointment_id: result.appointment.id,
+            from_status: result.fromStatus,
+            to_status: result.appointment.status,
+            source: 'manual',
+          },
+          idempotencyKey: `appointment_status_changed:${result.appointment.id}:${result.fromStatus}:${result.appointment.status}`,
+          source: 'crm',
+        });
+      }
       return NextResponse.json({
         appointment: result.appointment,
         changed: result.changed,

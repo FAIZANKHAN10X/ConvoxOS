@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { emitAppointmentStatusChanged } from '@/lib/automation/crm-events';
 import {
   AppointmentWriteError,
   createAppointment,
@@ -58,6 +59,21 @@ export async function POST(request: Request) {
       startsAt: body.starts_at as string,
       endsAt: (body.ends_at as string | null | undefined) ?? null,
       notes: (body.notes as string | null | undefined) ?? null,
+    });
+    // T6.4: booking enters automation like every status move.
+    await emitAppointmentStatusChanged({
+      db: ctx.supabase,
+      accountId: ctx.accountId,
+      contactId: appointment.contact_id,
+      appointmentId: appointment.id,
+      payload: {
+        appointment_id: appointment.id,
+        from_status: null,
+        to_status: appointment.status,
+        source: 'manual',
+      },
+      idempotencyKey: `appointment_status_changed:${appointment.id}:booked`,
+      source: 'crm',
     });
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (error) {

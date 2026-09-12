@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   setStatus: vi.fn(),
+  emitAppt: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/account', () => ({
@@ -28,6 +29,10 @@ vi.mock('@/lib/appointments/write', () => ({
   createAppointment: mocks.create,
   updateAppointment: mocks.update,
   setAppointmentStatus: mocks.setStatus,
+}));
+
+vi.mock('@/lib/automation/crm-events', () => ({
+  emitAppointmentStatusChanged: mocks.emitAppt,
 }));
 
 import { GET, POST } from './route';
@@ -67,12 +72,18 @@ beforeEach(() => {
   mocks.create.mockReset();
   mocks.update.mockReset();
   mocks.setStatus.mockReset();
+  mocks.emitAppt.mockReset();
   mocks.requireRole.mockResolvedValue(context);
+  mocks.emitAppt.mockResolvedValue(undefined);
 });
 
 describe('POST /api/appointments', () => {
-  it('books an appointment (201)', async () => {
-    mocks.create.mockResolvedValue({ id: 'appt-1', status: 'booked' });
+  it('books an appointment and emits booked (201)', async () => {
+    mocks.create.mockResolvedValue({
+      id: 'appt-1',
+      status: 'booked',
+      contact_id: 'contact-1',
+    });
     const response = await POST(
       request({
         title: 'Intro',
@@ -88,6 +99,10 @@ describe('POST /api/appointments', () => {
         userId: 'user-1',
         contactId: 'contact-1',
       })
+    );
+    expect(mocks.emitAppt).toHaveBeenCalledTimes(1);
+    expect(mocks.emitAppt).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'appt-1', contactId: 'contact-1' })
     );
   });
 
@@ -107,10 +122,10 @@ describe('POST /api/appointments', () => {
 });
 
 describe('PATCH /api/appointments/[id]', () => {
-  it('moves status through the writer', async () => {
+  it('moves status and emits on change', async () => {
     mocks.setStatus.mockResolvedValue({
       changed: true,
-      appointment: { id: 'appt-1', status: 'confirmed' },
+      appointment: { id: 'appt-1', status: 'confirmed', contact_id: 'contact-1' },
       fromStatus: 'booked',
     });
     const response = await PATCH(
@@ -127,6 +142,25 @@ describe('PATCH /api/appointments/[id]', () => {
       appointmentId: 'appt-1',
       status: 'confirmed',
     });
+    expect(mocks.emitAppt).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits nothing on no-op status writes', async () => {
+    mocks.setStatus.mockResolvedValue({
+      changed: false,
+      appointment: { id: 'appt-1', status: 'booked', contact_id: 'contact-1' },
+      fromStatus: 'booked',
+    });
+    const response = await PATCH(
+      new Request('http://localhost/api/appointments/appt-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'booked' }),
+      }),
+      params
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.emitAppt).not.toHaveBeenCalled();
   });
 
   it('rejects bad statuses before writing', async () => {

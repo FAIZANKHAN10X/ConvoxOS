@@ -16,6 +16,8 @@ export const DOMAIN_EVENT = {
   NOTE_ADDED: 'note_added',
   /** T6.2: a lead form was submitted (contact always resolved). */
   FORM_SUBMITTED: 'form_submitted',
+  /** T6.4: booked on create, then on every status transition. */
+  APPOINTMENT_STATUS_CHANGED: 'appointment_status_changed',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
   DEAL_STATUS_CHANGED: 'deal_status_changed',
   DEAL_CREATED: 'deal_created',

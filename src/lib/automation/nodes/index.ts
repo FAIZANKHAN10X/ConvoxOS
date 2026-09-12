@@ -2,6 +2,12 @@ import { registerNode } from '../registry';
 import type { NodeDefinition } from '../types';
 
 import { addTagAction } from './add-tag';
+import {
+  appointmentBookedTrigger,
+  appointmentCancelledTrigger,
+  appointmentCompletedTrigger,
+  appointmentConfirmedTrigger,
+} from './appointments';
 import { assignOwnerAction } from './assign-owner';
 import { conditionNode } from './condition';
 import { dealCreatedTrigger } from './deal-created';
@@ -43,6 +49,12 @@ export { httpRequestAction } from './http-request';
 export { sendTextAction } from './send-text';
 export { updateContactAction } from './update-contact';
 export { addTagAction } from './add-tag';
+export {
+  appointmentBookedTrigger,
+  appointmentCancelledTrigger,
+  appointmentCompletedTrigger,
+  appointmentConfirmedTrigger,
+} from './appointments';
 export { removeTagAction } from './remove-tag';
 export { waitNode } from './wait';
 export { waitExternalNode } from './wait-external';
@@ -62,6 +74,10 @@ export { n8nWorkflowAction } from './n8n-workflow';
 export const builtinNodes: NodeDefinition[] = [
   messageReceivedTrigger,
   keywordTrigger,
+  appointmentBookedTrigger,
+  appointmentConfirmedTrigger,
+  appointmentCancelledTrigger,
+  appointmentCompletedTrigger,
   tagAddedTrigger,
   tagRemovedTrigger,
   contactCreatedTrigger,

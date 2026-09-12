@@ -67,6 +67,16 @@ export async function emitFormSubmitted(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.FORM_SUBMITTED, args);
 }
 
+export interface EmitAppointmentArgs extends EmitArgs {
+  appointmentId: string;
+}
+
+export async function emitAppointmentStatusChanged(
+  args: EmitAppointmentArgs
+): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.APPOINTMENT_STATUS_CHANGED, args);
+}
+
 export interface EmitDealArgs extends EmitArgs {
   dealId: string;
 }
