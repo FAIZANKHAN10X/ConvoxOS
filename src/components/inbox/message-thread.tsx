@@ -536,7 +536,7 @@ export function MessageThread({
       }
 
       const isTelegramWithKeyboard = selectedChannel === 'telegram' && !!telegramKeyboard;
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${crypto.randomUUID()}`;
 
       // Optimistic update — shows the message immediately with "sending" status
       const optimisticMsg: Message = {
@@ -615,7 +615,7 @@ export function MessageThread({
           : payload.caption;
 
       const hasTelegramKb = selectedChannel === 'telegram' && !!telegramKeyboard;
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${crypto.randomUUID()}`;
       const optimisticMsg: Message = {
         id: tempId,
         conversation_id: conversation.id,
@@ -702,7 +702,7 @@ export function MessageThread({
     async (payload: InteractiveMessagePayload, replyToId?: string) => {
       if (!conversation) return;
 
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${crypto.randomUUID()}`;
       // Optimistic bubble — renders the buttons/list immediately via the
       // interactive_payload, same as the persisted row will.
       const optimisticMsg: Message = {
@@ -782,7 +782,7 @@ export function MessageThread({
       if (!conversation) return;
 
       const renderedBody = renderTemplateBody(template.body_text, values.body);
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${crypto.randomUUID()}`;
 
       const optimisticMsg: Message = {
         id: tempId,
@@ -921,7 +921,7 @@ export function MessageThread({
         return [
           ...prev,
           {
-            id: `temp-${Date.now()}`,
+            id: `temp-${crypto.randomUUID()}`,
             message_id: messageId,
             conversation_id: convId,
             actor_type: "agent",
