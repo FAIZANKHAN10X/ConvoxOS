@@ -30,182 +30,90 @@ export interface ActivityFeedOptions {
   filter?: ActivityType | 'all'
 }
 
+// Opaque keyset cursor: base64url(created_at|key). Self-contained
+// (not shared with the v1 pagination helper) so the feed contract
+// stays independent of the public API module. Malformed cursors
+// restart from the first page — never run an attacker-shaped value.
+function encodeFeedCursor(createdAt: string, key: string): string {
+  return Buffer.from(`${createdAt}|${key}`, 'utf8').toString('base64url')
+}
+
+function decodeFeedCursor(
+  value: string | null | undefined
+): { createdAt: string; key: string } | null {
+  if (!value) return null
+  try {
+    const decoded = Buffer.from(value, 'base64url').toString('utf8')
+    const sep = decoded.indexOf('|')
+    if (sep === -1) return null
+    const createdAt = decoded.slice(0, sep)
+    const key = decoded.slice(sep + 1)
+    if (!createdAt || !key) return null
+    if (Number.isNaN(Date.parse(createdAt))) return null
+    return { createdAt, key }
+  } catch {
+    return null
+  }
+}
+
+interface FeedRow {
+  item_id: string
+  item_type: string
+  created_at: string
+  title: string
+  description: string | null
+  metadata: Record<string, unknown> | null
+  key: string
+}
+
 export async function getContactActivityFeed(
   supabase: SupabaseClient,
   opts: ActivityFeedOptions
 ): Promise<{ items: ActivityItem[]; nextCursor: string | null }> {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100)
-  const activities: ActivityItem[] = []
+  const cursor = decodeFeedCursor(opts.cursor ?? null)
 
   // NOTE: automation_logs / flow_runs reads were retired with the old
   // automation engine (Phase 9). The feed covers CRM activity only.
-  // Use Promise.all to fetch in parallel.
-  const [
-    messagesRes,
-    tagsRes,
-    tasksRes,
-    dealsRes,
-    notesRes,
-    enrollmentsRes,
-  ] = await Promise.all([
-    // Messages via conversations for this contact
-    supabase
-      .from('conversations')
-      .select('id')
-      .eq('account_id', opts.accountId)
-      .eq('contact_id', opts.contactId)
-      .limit(1)
-      .maybeSingle()
-      .then(async (convRes) => {
-        const convId = (convRes.data as { id: string } | null)?.id
-        if (!convId) return { data: [] }
-        return supabase
-          .from('messages')
-          .select('id, sender_type, content_type, content_text, channel, status, created_at')
-          .eq('conversation_id', convId)
-          .order('created_at', { ascending: false })
-          .limit(limit)
-      }),
-    supabase
-      .from('contact_tags')
-      .select('tag_id, created_at, tags!inner(name)')
-      .eq('contact_id', opts.contactId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('tasks')
-      .select('id, title, status, due_at, created_at')
-      .eq('contact_id', opts.contactId)
-      .eq('account_id', opts.accountId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('deals')
-      .select('id, title, stage_id, status, created_at, updated_at, pipeline_stages!inner(name)')
-      .eq('contact_id', opts.contactId)
-      .eq('account_id', opts.accountId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('contact_notes')
-      .select('id, note_text, created_at')
-      .eq('contact_id', opts.contactId)
-      .eq('account_id', opts.accountId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('sequence_enrollments')
-      .select('id, sequence_id, status, created_at, completed_at, cancelled_at, sequences!inner(name)')
-      .eq('contact_id', opts.contactId)
-      .eq('account_id', opts.accountId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-  ])
+  // Single RPC (migration 066): UNION ALL across sources with
+  // (created_at, key) keyset pagination. Over-fetches one row to
+  // detect the next page — no JS merge, sort, or slice.
+  const { data, error } = await supabase.rpc('get_contact_activity', {
+    p_account_id: opts.accountId,
+    p_contact_id: opts.contactId,
+    p_limit: limit,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_key: cursor?.key ?? null,
+    p_filter: opts.filter && opts.filter !== 'all' ? opts.filter : 'all',
+  })
+  if (error) throw new Error(`activity feed: ${error.message}`)
 
-  // Messages
-  const messages = ((messagesRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const m of messages) {
-    const isOutbound = m.sender_type === 'agent' || m.sender_type === 'bot'
-    activities.push({
-      id: `msg-${String(m.id)}`,
-      type: isOutbound ? 'message_outbound' : 'message_inbound',
-      title: isOutbound ? 'Message sent' : 'Message received',
-      description: String(m.content_text ?? '').slice(0, 120) || `[${String(m.content_type)}]`,
-      timestamp: String(m.created_at),
-      metadata: { channel: m.channel, status: m.status, content_type: m.content_type },
-    })
-  }
+  const rows = ((data ?? []) as FeedRow[]).slice(0, limit + 1)
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
 
-  // Tags
-  const tags = ((tagsRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const t of tags) {
-    activities.push({
-      id: `tag-${String(t.tag_id)}-${String(t.created_at)}`,
-      type: 'tag_added',
-      title: 'Tag added',
-      description: String((t as unknown as { tags?: { name?: string } }).tags?.name ?? String(t.tag_id)),
-      timestamp: String(t.created_at),
-    })
-  }
+  const items: ActivityItem[] = page.map((r) => ({
+    id: r.item_id,
+    type: r.item_type as ActivityType,
+    title: r.title,
+    description: r.description ?? undefined,
+    timestamp:
+      typeof r.created_at === 'string'
+        ? r.created_at
+        : new Date(r.created_at).toISOString(),
+    metadata: r.metadata ?? undefined,
+  }))
 
-  // Tasks
-  const tasks = ((tasksRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const tk of tasks) {
-    activities.push({
-      id: `task-${String(tk.id)}`,
-      type: 'task_created',
-      title: 'Task created',
-      description: String(tk.title),
-      timestamp: String(tk.created_at),
-      metadata: { status: tk.status, due_at: tk.due_at },
-    })
-  }
+  const last = page[page.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeFeedCursor(
+          typeof last.created_at === 'string'
+            ? last.created_at
+            : new Date(last.created_at).toISOString(),
+          last.key
+        )
+      : null
 
-  // Deals
-  const deals = ((dealsRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const d of deals) {
-    activities.push({
-      id: `deal-${String(d.id)}`,
-      type: 'deal_created',
-      title: 'Opportunity created',
-      description: `${String(d.title)} — ${String((d as unknown as { pipeline_stages?: { name?: string } }).pipeline_stages?.name ?? String(d.stage_id))}`,
-      timestamp: String(d.created_at),
-      metadata: { stage_id: d.stage_id, status: d.status },
-    })
-  }
-
-  // Notes
-  const notes = ((notesRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const n of notes) {
-    activities.push({
-      id: `note-${String(n.id)}`,
-      type: 'note_added',
-      title: 'Note added',
-      description: String(n.note_text).slice(0, 120),
-      timestamp: String(n.created_at),
-    })
-  }
-
-  // Sequence enrollments
-  const enrolls = ((enrollmentsRes as { data?: unknown[] })?.data ?? []) as Array<Record<string, unknown>>
-  for (const e of enrolls) {
-    const status = String(e.status)
-    let type: ActivityType = 'sequence_enrolled'
-    let title = 'Sequence enrolled'
-    if (status === 'completed') {
-      type = 'sequence_completed'
-      title = 'Sequence completed'
-    } else if (status === 'cancelled') {
-      type = 'sequence_cancelled'
-      title = 'Sequence cancelled'
-    }
-    activities.push({
-      id: `seq-${String(e.id)}`,
-      type,
-      title,
-      description: String((e as unknown as { sequences?: { name?: string } }).sequences?.name ?? String(e.sequence_id)),
-      timestamp: String(e.completed_at ?? e.cancelled_at ?? e.created_at),
-      metadata: { status },
-    })
-  }
-
-  // Filter
-  let filtered = activities
-  if (opts.filter && opts.filter !== 'all') {
-    filtered = activities.filter((a) => a.type === opts.filter)
-  }
-
-  // Sort newest first
-  filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-  // Pagination: simple cursor is timestamp of last item
-  let paginated = filtered
-  if (opts.cursor) {
-    const cursorTime = new Date(opts.cursor).getTime()
-    paginated = filtered.filter((a) => new Date(a.timestamp).getTime() < cursorTime)
-  }
-  const sliced = paginated.slice(0, limit)
-  const nextCursor = sliced.length === limit && sliced.length > 0 ? sliced[sliced.length - 1].timestamp : null
-
-  return { items: sliced, nextCursor }
+  return { items, nextCursor }
 }
