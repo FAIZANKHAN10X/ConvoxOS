@@ -8,6 +8,7 @@ import type { NodeRegistry } from './registry';
 import { ActiveRunConflict, type AutomationStore } from './store';
 import type {
   AutomationRun,
+  AutomationVersion,
   DomainEvent,
   ExecutionContext,
   NodeResult,
@@ -28,10 +29,38 @@ function backoffMs(attempt: number): number {
 export async function createRunFromMatch(
   deps: EngineDeps,
   event: DomainEvent,
-  match: { automationId: string; versionId: string }
+  match: {
+    automationId: string;
+    versionId: string;
+    version?: AutomationVersion;
+  }
 ): Promise<AutomationRun | null> {
   const { store } = deps;
   if (!event.contactId) return null;
+
+  // T1.4: prefer the version carried with the trigger (read in the
+  // same list query this tick) over re-reading automation + version.
+  // The list only selects published rows, so the status guarantee is
+  // the list query's, not a second read's. Callers without a carried
+  // version fall back to the re-read path (tests, older callers).
+  if (match.version && match.version.id === match.versionId) {
+    const starts = triggerNodes(match.version.graph);
+    const entry = starts[0]?.id ?? null;
+    try {
+      return await store.insertRun({
+        accountId: event.accountId,
+        automationId: match.automationId,
+        versionId: match.version.id,
+        contactId: event.contactId,
+        triggerEventId: event.id,
+        currentNodeId: entry,
+        context: { eventId: event.id, outputs: {} },
+      });
+    } catch (error) {
+      if (error instanceof ActiveRunConflict) return error.existing;
+      throw error;
+    }
+  }
 
   const automation = await store.getAutomation(match.automationId);
   if (!automation || automation.status !== 'published') return null;

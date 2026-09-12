@@ -103,6 +103,7 @@ export async function processClaimedEvent(
       const run = await createRunFromMatch(deps, event, {
         automationId: match.trigger.automationId,
         versionId: match.trigger.versionId,
+        version: match.trigger.version,
       });
       if (!run) continue;
       result.runsCreated += 1;

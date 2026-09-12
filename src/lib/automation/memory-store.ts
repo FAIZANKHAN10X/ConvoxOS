@@ -187,6 +187,7 @@ export function createMemoryStore(
           accountId: auto.accountId,
           versionId: version.id,
           trigger: clone(version.trigger),
+          version: clone(version),
         });
       }
       return out;

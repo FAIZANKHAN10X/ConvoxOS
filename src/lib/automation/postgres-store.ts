@@ -285,42 +285,32 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
     },
 
     async listPublishedTriggers(accountId): Promise<PublishedTrigger[]> {
+      // Single join query (T1.4): the old two-trip version (published
+      // automations, then versions by IN) ran once per domain event.
+      // The FK automations_published_version_id_fkey backs the embed.
       const { data: autos, error } = await db
         .from('automations')
-        .select('id, account_id, published_version_id')
+        .select(
+          'id, account_id, published_version_id, version:automation_versions!automations_published_version_id_fkey(id, account_id, automation_id, version_number, graph, trigger, published_at, published_by)'
+        )
         .eq('account_id', accountId)
         .eq('status', 'published')
         .not('published_version_id', 'is', null);
       throwIfError(error, 'list published automations');
 
-      const versionIds = (autos ?? [])
-        .map((row) => row.published_version_id as string | null)
-        .filter((id): id is string => Boolean(id));
-      if (versionIds.length === 0) return [];
-
-      const { data: versions, error: versionError } = await db
-        .from('automation_versions')
-        .select('id, trigger')
-        .in('id', versionIds);
-      throwIfError(versionError, 'list published versions');
-
-      const triggerByVersion = new Map<string, TriggerSpec>();
-      for (const row of (versions ?? []) as Array<Record<string, unknown>>) {
-        const trigger = asTrigger(row.trigger);
-        if (trigger) triggerByVersion.set(row.id as string, trigger);
-      }
-
       const out: PublishedTrigger[] = [];
-      for (const row of autos ?? []) {
+      for (const row of (autos ?? []) as Array<Record<string, unknown>>) {
+        const versionRow = row.version as Record<string, unknown> | null;
+        const trigger = versionRow ? asTrigger(versionRow.trigger) : null;
+        if (!versionRow || !trigger) continue;
         const versionId = row.published_version_id as string | null;
         if (!versionId) continue;
-        const trigger = triggerByVersion.get(versionId);
-        if (!trigger) continue;
         out.push({
           automationId: row.id as string,
           accountId: row.account_id as string,
           versionId,
           trigger,
+          version: mapVersion({ ...versionRow, id: versionId }),
         });
       }
       return out;

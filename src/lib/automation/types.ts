@@ -283,6 +283,14 @@ export interface PublishedTrigger {
   accountId: string;
   versionId: string;
   trigger: TriggerSpec;
+  /**
+   * Full published version carried with the trigger so run creation
+   * does not re-read automation + version per match (T1.4: the old
+   * path cost 2 extra reads per matched trigger on top of the 2
+   * list queries per event). Freshness equals the list query itself
+   * — same worker tick, and the list only selects published rows.
+   */
+  version: AutomationVersion;
 }
 
 export type NodeResult =
