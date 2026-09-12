@@ -156,7 +156,8 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 | T6.2 Form → Automation | ✅ COMPLETE | `9a0f77d` | 1137 | Yes (suite+tsc+lint+build) |
 | T6.3 Appointments | ✅ COMPLETE | `e3e3f82` | 1151 | Yes (suite spot+tsc+lint+build) |
 | T6.4 Appointment → Automation | ✅ COMPLETE | `2d3f03d` | 1154 | Yes (suite+tsc+lint+build) |
-| T7.1–T7.5 | ⬜ NOT STARTED | — | — | — |
+| T7.1 Email Foundation | ✅ COMPLETE | `6059c87` | 1180 | Yes (suite+tsc+lint+build; 1 pre-existing date failure) |
+| T7.2–T7.5 | ⬜ NOT STARTED | — | — | — |
 | T8.1–T8.6 | ⬜ NOT STARTED | — | — | — |
 | T9.1–T9.4 | ⬜ NOT STARTED | — | — | — |
 | T10 | ⬜ DEFERRED | — | — | — |
