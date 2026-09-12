@@ -38,6 +38,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:types": "supabase gen types typescript --linked > src/types/database.ts",
     "graphify:update": "node scripts/update-graphify-smooth.mjs",
     "graphify:patch": "node scripts/patch-graphify-smooth.mjs"
   },

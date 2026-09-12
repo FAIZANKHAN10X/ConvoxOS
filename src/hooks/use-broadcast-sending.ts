@@ -232,9 +232,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     if (csvRows.length === 0) return [];
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('You are not signed in.');
     }
@@ -249,11 +248,13 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     }
     const phones = [...uniqueByPhone.keys()];
 
-    // Single round-trip lookup of existing contacts by phone.
+    // Single round-trip lookup of existing contacts by phone, scoped
+    // to the account (post-017 model: teammates share contacts; the
+    // old user_id filter missed teammates' rows).
     const { data: existing, error: lookupErr } = await supabase
       .from('contacts')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('account_id', accountId)
       .in('phone', phones);
     if (lookupErr) {
       throw new Error(`Failed to look up CSV contacts: ${lookupErr.message}`);
@@ -342,9 +343,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       // silently failing with 23502 / 42501 — the wizard would
       // no-op with no feedback.
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('You are not signed in.');
       }
