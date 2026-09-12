@@ -8,6 +8,7 @@ import {
   type ChannelSummaryRow,
   type ConversationChannelSummary,
   type InboxChannelFilter,
+  formatRpcError,
   matchesContactFilters,
   maxUpdatedAt,
   mergeConversationDelta,
@@ -193,12 +194,15 @@ export function ConversationList({
       }
 
       if (summariesResult.error) {
-        console.error("Failed to fetch conversation channels:", {
-          message: summariesResult.error.message,
-          details: (summariesResult.error as { details?: unknown }).details,
-          hint: (summariesResult.error as { hint?: unknown }).hint,
-          code: (summariesResult.error as { code?: unknown }).code,
-        });
+        // PostgREST errors carry non-enumerable props (a bare log
+        // renders as `{}`), so extract fields explicitly. A
+        // missing-RPC 404 here means migration 064 isn't applied to
+        // the database — the badges degrade to empty, the list
+        // itself still renders.
+        console.error(
+          "Failed to fetch conversation channels:",
+          formatRpcError(summariesResult.error),
+        );
       }
 
       const nextSummaries = toChannelSummaryMap(

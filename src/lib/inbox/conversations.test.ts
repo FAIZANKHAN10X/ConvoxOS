@@ -300,3 +300,28 @@ describe("mergeConversationDelta + maxUpdatedAt (T1.6)", () => {
     expect(maxUpdatedAt([{ id: "x" }] as never)).toBeNull();
   });
 });
+
+describe("formatRpcError", () => {
+  it("extracts fields from non-enumerable PostgREST-style errors", async () => {
+    const { formatRpcError } = await import("./conversations");
+    // PostgREST 404 for a missing RPC (migration not applied):
+    // logging it bare renders `{}`.
+    const missing = { message: "Object not found", details: null, hint: null, code: "404" };
+    Object.defineProperties(missing, {
+      message: { enumerable: false },
+      code: { enumerable: false },
+    });
+    expect(formatRpcError(missing)).toEqual({
+      message: "Object not found",
+      details: null,
+      hint: null,
+      code: "404",
+    });
+    expect(formatRpcError(null)).toEqual({
+      message: undefined,
+      details: undefined,
+      hint: undefined,
+      code: undefined,
+    });
+  });
+});

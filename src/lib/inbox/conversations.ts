@@ -114,6 +114,31 @@ export function maxUpdatedAt(rows: { updated_at?: string | null }[]): string | n
   return max;
 }
 
+/**
+ * Extract loggable fields from a PostgREST error. The error object's
+ * props are non-enumerable, so logging it bare renders `{}` —
+ * this keeps channel-summary (and similar RPC) failures diagnosable.
+ */
+export function formatRpcError(error: unknown): {
+  message: unknown;
+  details: unknown;
+  hint: unknown;
+  code: unknown;
+} {
+  const e = (error ?? {}) as {
+    message?: unknown;
+    details?: unknown;
+    hint?: unknown;
+    code?: unknown;
+  };
+  return {
+    message: e.message,
+    details: e.details,
+    hint: e.hint,
+    code: e.code,
+  };
+}
+
 /** Row shape returned by the `conversation_channel_summaries` RPC
  * (migration 064): one row per conversation that has messages.
  */
