@@ -2582,6 +2582,20 @@ export type Database = {
           latest_channel: string | null
         }[]
       }
+      // Hand-added for migration 074 (same regen note as above).
+      get_sequence_analytics: {
+        Args: { p_account_id: string; p_sequence_id: string }
+        Returns: {
+          enrolled: number
+          active: number
+          paused: number
+          completed: number
+          stopped: number
+          failed: number
+          sent: number
+          replied: number
+        }[]
+      }
       transfer_account_ownership: {
         Args: { p_new_owner_user_id: string }
         Returns: undefined

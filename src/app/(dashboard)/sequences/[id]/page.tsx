@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card } from '@/components/ui/card'
 import { validateSequenceForActivation } from '@/lib/sequences/validate'
+import { loadSequenceAnalytics, type SequenceAnalytics } from '@/lib/sequences/analytics'
 
 type Step = { id?: string; position: number; step_type: string; step_config: Record<string, unknown> }
 type Enrollment = {
@@ -37,11 +38,12 @@ export default function SequenceEditPage() {
   const [validation, setValidation] = useState<Array<{ path: string; message: string }>>([])
   const [isActive, setIsActive] = useState(false)
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [analytics, setAnalytics] = useState<SequenceAnalytics | null>(null)
   const [actingOn, setActingOn] = useState<string | null>(null)
 
   async function load() {
     const supabase = createClient()
-    const { data: seq } = await supabase.from('sequences').select('name, is_active').eq('id', id).maybeSingle()
+    const { data: seq } = await supabase.from('sequences').select('name, is_active, account_id').eq('id', id).maybeSingle()
     if (seq) {
       setName((seq as { name: string }).name)
       setIsActive(!!(seq as { is_active: boolean }).is_active)
@@ -55,6 +57,16 @@ export default function SequenceEditPage() {
       .order('created_at', { ascending: false })
       .limit(100)
     setEnrollments(((enr as unknown as Enrollment[]) ?? []))
+    // Analytics summary (T4.4): single RPC, fails soft — the list
+    // above is the source of truth, this row is a convenience.
+    try {
+      const accountId = (seq as { account_id?: string } | null)?.account_id
+      if (accountId) {
+        setAnalytics(await loadSequenceAnalytics(supabase, accountId, id))
+      }
+    } catch {
+      setAnalytics(null)
+    }
     setLoading(false)
   }
 
@@ -161,6 +173,27 @@ export default function SequenceEditPage() {
             {validation.map((v, i) => <li key={i}>{v.path}: {v.message}</li>)}
           </ul>
         </Card>
+      )}
+
+      {analytics && (
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Sequence analytics">
+          {(
+            [
+              ['Enrolled', analytics.enrolled],
+              ['Active', analytics.active],
+              ['Completed', analytics.completed],
+              ['Stopped', analytics.stopped],
+              ['Failed', analytics.failed],
+              ['Sent', analytics.sent],
+              ['Replied', analytics.replied],
+            ] as Array<[string, number]>
+          ).map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border/70 bg-card px-2 py-2 text-center shadow-xs">
+              <div className="text-lg font-semibold tabular-nums text-foreground">{value}</div>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="space-y-3">
