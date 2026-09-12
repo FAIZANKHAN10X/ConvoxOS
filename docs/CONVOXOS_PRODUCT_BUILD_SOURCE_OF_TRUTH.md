@@ -152,7 +152,8 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 | T5.3 Task/Note Automation | ✅ COMPLETE | `27b2351` | 1100 | Yes (suite+tsc+lint+build) |
 | T5.4 Enrollment Controls | ✅ COMPLETE | `77a552e` | 1109 | Yes (suite+tsc+lint+build) |
 | T5.5 Multi-trigger/Coverage | ✅ COMPLETE | `fa3c032` | 1116 | Yes (suite+tsc+lint+build) |
-| T6.1–T6.4 | ⬜ NOT STARTED | — | — | — |
+| T6.1 Lead Forms | ✅ COMPLETE | `678e10c` | 1135 | Yes (suite+tsc+lint+build) |
+| T6.2–T6.4 | ⬜ NOT STARTED | — | — | — |
 | T7.1–T7.5 | ⬜ NOT STARTED | — | — | — |
 | T8.1–T8.6 | ⬜ NOT STARTED | — | — | — |
 | T9.1–T9.4 | ⬜ NOT STARTED | — | — | — |
