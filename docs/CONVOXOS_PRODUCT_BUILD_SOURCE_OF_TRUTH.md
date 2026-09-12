@@ -72,10 +72,10 @@ Inbound reply cancels active enrollments (`stopEnrollmentsOnReply`, `cancelled_r
 #### T4.3 — Sequence Management UI ⬜ NOT STARTED
 List/create/edit sequences, enrollment visibility + details, status, step configuration, pause/resume. Depends: T4.1 (states exist), sequence RLS. Stack: existing RSC/shell patterns, Suspense. Excludes: analytics (T4.4), branching/advanced steps.
 
-#### T4.4 — Sequence Analytics v1 ⬜ NOT STARTED
+#### T4.4 — Sequence Analytics v1 ✅ COMPLETE (`2cf8dcc`)
 Only: enrolled, active, completed, stopped, failed, sent, replied. Depends: T4.1–T4.3 (states + `cancelled_reason`). Stack: existing RPC aggregation pattern (068-style). Excludes: funnels, per-step timing heatmaps.
 
-#### T4.5 — Tasks UI + Deal Lifecycle Completion ⬜ NOT STARTED
+#### T4.5 — Tasks UI + Deal Lifecycle Completion ✅ COMPLETE (`7a6813a`)
 Task list/details/assignment/due/completion + contact/deal association (backend `tasks/write.ts` exists); deal won/lost behavior + reason + domain events. Depends: tasks backend (exists), deals domain. Excludes: recurring tasks, reminders engine.
 
 **Tier 4 exit:** sequence created → enrolled → scheduled → executed → stopped-by-reply → completed → inspected from UI; no major CRM primitive backend-only without documented reason.
@@ -144,9 +144,9 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 |---|---|---|---|---|
 | T4.1 Live Sequences | ✅ COMPLETE | `4ac3f17` | 1008 | Yes (suite+tsc+lint+build) |
 | T4.2 Stop on Reply | ✅ COMPLETE | `c96663d` | 1018 | Yes (suite+tsc+lint+build) |
-| T4.3 Sequence Mgmt UI | ✅ COMPLETE | `41052de` | 1028 | Yes (suite+tsc+lint+build) |
-| T4.4 Sequence Analytics | ⬜ NOT STARTED | — | — | — |
-| T4.5 Tasks UI + Deals | ⬜ NOT STARTED | — | — | — |
+| T4.3 Sequence Mgmt UI | ✅ COMPLETE | `9cfdf1c` | 1028 | Yes (suite+tsc+lint+build) |
+| T4.4 Sequence Analytics | ✅ COMPLETE | `2cf8dcc` | 1033 | Yes (suite+tsc+lint+build) |
+| T4.5 Tasks UI + Deals | ✅ COMPLETE | `7a6813a` | 1046 | Yes (suite+tsc+lint+build) |
 | T5.1–T5.5 | ⬜ NOT STARTED | — | — | — |
 | T6.1–T6.4 | ⬜ NOT STARTED | — | — | — |
 | T7.1–T7.5 | ⬜ NOT STARTED | — | — | — |

@@ -19,7 +19,6 @@ export interface DealRow {
   title: string;
   status: string;
 }
-
 async function getDeal(
   db: SupabaseClient,
   accountId: string,
@@ -101,4 +100,49 @@ export async function moveDealStage(
     deal: updated as DealRow,
     fromStageId: deal.stage_id,
   };
+}
+
+export type DealStatus = 'open' | 'won' | 'lost';
+
+export interface SetDealStatusResult {
+  changed: boolean;
+  deal: DealRow;
+  fromStatus: string;
+}
+
+/**
+ * T4.5: set a deal's open/won/lost status with an optional lost
+ * reason. Pure DB write — the caller emits `deal_status_changed`
+ * (UI route does; automation paths will in T5). Returns
+ * `changed: false` when the status is unchanged (no event).
+ * Reopening clears a stale lost_reason.
+ */
+export async function setDealStatus(
+  db: SupabaseClient,
+  input: { accountId: string; dealId: string; status: DealStatus; lostReason?: string | null }
+): Promise<SetDealStatusResult> {
+  const deal = await getDeal(db, input.accountId, input.dealId);
+  if (!deal) throw new DealWriteError('Deal not found', 404);
+  if (deal.status === input.status) {
+    return { changed: false, deal, fromStatus: deal.status };
+  }
+  const patch: Record<string, unknown> = { status: input.status };
+  if (input.status === 'lost') {
+    patch.lost_reason = input.lostReason?.trim() ? input.lostReason.trim() : null;
+  } else {
+    patch.lost_reason = null;
+  }
+  const { data: updated, error } = await db
+    .from('deals')
+    .update(patch)
+    .eq('id', input.dealId)
+    .eq('account_id', input.accountId)
+    .select('id, account_id, pipeline_id, stage_id, contact_id, title, status')
+    .single();
+  if (error || !updated) {
+    throw new DealWriteError(
+      `Failed to update deal status: ${error?.message ?? 'no row'}`
+    );
+  }
+  return { changed: true, deal: updated as DealRow, fromStatus: deal.status };
 }

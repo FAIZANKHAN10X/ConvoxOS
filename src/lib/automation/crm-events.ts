@@ -60,3 +60,18 @@ export async function emitDealStageChanged(
 ): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.DEAL_STAGE_CHANGED, args);
 }
+
+export interface EmitDealStatusChangedArgs extends EmitArgs {
+  dealId: string;
+}
+
+/**
+ * T4.5: fired when a deal moves between open/won/lost (UI status
+ * buttons or future automation paths). Trigger consumption
+ * belongs to T5 — this only records the domain fact.
+ */
+export async function emitDealStatusChanged(
+  args: EmitDealStatusChangedArgs
+): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.DEAL_STATUS_CHANGED, args);
+}

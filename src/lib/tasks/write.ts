@@ -19,6 +19,7 @@ export interface CreateTaskInput {
   accountId: string;
   userId: string;
   contactId?: string | null;
+  dealId?: string | null;
   assignedTo?: string | null;
   title: string;
   description?: string | null;
@@ -47,6 +48,7 @@ export async function createTask(
       account_id: input.accountId,
       user_id: input.userId,
       contact_id: input.contactId ?? null,
+      deal_id: input.dealId ?? null,
       assigned_to: input.assignedTo ?? null,
       title,
       description: input.description ?? null,

@@ -37,7 +37,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "tasks": "Tasks"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -54,7 +55,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "tasks": "Tasks"
   },
   "ModeToggle": {
     "switchMode": "Switch to {mode} mode"
@@ -562,6 +564,7 @@
       "status": "Status",
       "markAsWon": "Mark as Won",
       "markAsLost": "Mark as Lost",
+      "lostReasonPlaceholder": "Reason for losing (optional)",
       "reopenDeal": "Reopen deal",
       "cancel": "Cancel",
       "saving": "Saving...",
@@ -1360,6 +1363,35 @@
       "reindex": "Reindex",
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "loading": "Loading…"
+    }
+  },
+  "Tasks": {
+    "page": {
+      "title": "Tasks",
+      "subtitle": "Follow-ups across contacts and deals.",
+      "newTask": "New task",
+      "filter_open": "Open",
+      "filter_completed": "Completed",
+      "filter_all": "All",
+      "empty": "No tasks here",
+      "emptyHint": "Create follow-ups so nothing slips.",
+      "completeAria": "Mark complete",
+      "overdue": "Overdue",
+      "titlePlaceholder": "Task title",
+      "descPlaceholder": "Details (optional)",
+      "noContact": "No contact",
+      "noDeal": "No deal",
+      "unassigned": "Unassigned",
+      "create": "Create task",
+      "save": "Save",
+      "details": "Task details",
+      "contact": "Contact",
+      "deal": "Deal",
+      "markComplete": "Mark complete",
+      "completedNote": "Completed — reopening is not supported yet.",
+      "delete": "Delete task",
+      "confirmDelete": "Confirm delete",
+      "cancel": "Cancel"
     }
   }
 }

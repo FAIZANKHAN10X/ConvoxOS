@@ -1305,6 +1305,7 @@ export type Database = {
           currency: string | null
           expected_close_date: string | null
           id: string
+          lost_reason: string | null
           notes: string | null
           pipeline_id: string
           stage_id: string
@@ -1323,6 +1324,7 @@ export type Database = {
           currency?: string | null
           expected_close_date?: string | null
           id?: string
+          lost_reason?: string | null
           notes?: string | null
           pipeline_id: string
           stage_id: string
@@ -1341,6 +1343,7 @@ export type Database = {
           currency?: string | null
           expected_close_date?: string | null
           id?: string
+          lost_reason?: string | null
           notes?: string | null
           pipeline_id?: string
           stage_id?: string
@@ -2162,6 +2165,7 @@ export type Database = {
           assigned_to: string | null
           contact_id: string | null
           created_at: string
+          deal_id: string | null
           description: string | null
           due_at: string | null
           id: string
@@ -2176,6 +2180,7 @@ export type Database = {
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string
+          deal_id?: string | null
           description?: string | null
           due_at?: string | null
           id?: string
@@ -2190,6 +2195,7 @@ export type Database = {
           assigned_to?: string | null
           contact_id?: string | null
           created_at?: string
+          deal_id?: string | null
           description?: string | null
           due_at?: string | null
           id?: string

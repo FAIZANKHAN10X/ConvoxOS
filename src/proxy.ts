@@ -76,6 +76,7 @@ export async function proxy(request: NextRequest) {
     '/notifications',
     '/contacts',
     '/pipelines',
+    '/tasks',
     '/broadcasts',
     '/automations',
     '/sequences',

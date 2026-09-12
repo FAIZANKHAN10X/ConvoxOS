@@ -37,7 +37,8 @@
     "defaultAvatar": "아바타",
     "menuProfile": "프로필",
     "menuSettings": "설정",
-    "menuSignOut": "로그아웃"
+    "menuSignOut": "로그아웃",
+    "tasks": "작업"
   },
   "Header": {
     "dashboard": "대시보드",
@@ -54,7 +55,8 @@
     "defaultAvatar": "아바타",
     "menuProfile": "프로필",
     "menuSettings": "설정",
-    "menuSignOut": "로그아웃"
+    "menuSignOut": "로그아웃",
+    "tasks": "작업"
   },
   "ModeToggle": {
     "switchMode": "{mode} 모드로 전환"
@@ -562,6 +564,7 @@
       "status": "상태",
       "markAsWon": "성사로 표시",
       "markAsLost": "실패로 표시",
+      "lostReasonPlaceholder": "실패 사유 (선택사항)",
       "reopenDeal": "딜 재개",
       "cancel": "취소",
       "saving": "저장 중...",
@@ -1360,6 +1363,35 @@
       "webhookDesc": "Telegram delivers updates to this URL. It is registered automatically when you connect.",
       "webhookUrlLabel": "Webhook URL",
       "webhookCopied": "Webhook URL copied"
+    }
+  },
+  "Tasks": {
+    "page": {
+      "title": "작업",
+      "subtitle": "연락처 및 딜 후속 조치.",
+      "newTask": "새 작업",
+      "filter_open": "진행 중",
+      "filter_completed": "완료됨",
+      "filter_all": "전체",
+      "empty": "작업이 없습니다",
+      "emptyHint": "후속 조치를 만들어 놓치지 마세요.",
+      "completeAria": "완료 표시",
+      "overdue": "기한 초과",
+      "titlePlaceholder": "작업 제목",
+      "descPlaceholder": "상세 내용 (선택사항)",
+      "noContact": "연락처 없음",
+      "noDeal": "딜 없음",
+      "unassigned": "미지정",
+      "create": "작업 만들기",
+      "save": "저장",
+      "details": "작업 상세",
+      "contact": "연락처",
+      "deal": "딜",
+      "markComplete": "완료 표시",
+      "completedNote": "완료됨 — 다시 열기는 아직 지원되지 않습니다.",
+      "delete": "작업 삭제",
+      "confirmDelete": "삭제 확인",
+      "cancel": "취소"
     }
   }
 }

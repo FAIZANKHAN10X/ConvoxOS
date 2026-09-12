@@ -12,6 +12,7 @@ export const DOMAIN_EVENT = {
   TASK_CREATED: 'task_created',
   TASK_COMPLETED: 'task_completed',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
+  DEAL_STATUS_CHANGED: 'deal_status_changed',
   /** Fired by automation_inbound_hooks (n8n, scripts, middleware). */
   EXTERNAL_RECEIVED: 'external.received',
 } as const;

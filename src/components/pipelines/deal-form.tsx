@@ -75,6 +75,7 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [lostReasonInput, setLostReasonInput] = useState("");
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -232,18 +233,25 @@ export function DealForm({
     onSaved();
   }
 
-  async function handleStatusChange(status: DealStatus) {
+  async function handleStatusChange(status: DealStatus, lostReason?: string) {
     if (!deal) return;
     setStatusAction(status);
-    const { error } = await supabase
-      .from("deals")
-      .update({ status })
-      .eq("id", deal.id);
-    setStatusAction(null);
-    if (error) {
+    // Status transitions go through the domain route (not a direct
+    // write) so won/lost emits `deal_status_changed` for automations
+    // and a lost reason is captured.
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, lost_reason: lostReason ?? null }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch {
       toast.error(t("toastFailedStatus"));
+      setStatusAction(null);
       return;
     }
+    setStatusAction(null);
     toast.success(
       status === "won" ? t("toastMarkedWon") : status === "lost" ? t("toastMarkedLost") : t("toastReopened"),
     );
@@ -420,7 +428,7 @@ export function DealForm({
                   </Button>
                   <Button
                     type="button"
-                    onClick={() => handleStatusChange("lost")}
+                    onClick={() => handleStatusChange("lost", lostReasonInput)}
                     disabled={!!statusAction || deal.status === "lost"}
                     className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                   >
@@ -434,6 +442,12 @@ export function DealForm({
                     )}
                   </Button>
                 </div>
+                <Input
+                  value={lostReasonInput}
+                  onChange={(e) => setLostReasonInput(e.target.value)}
+                  placeholder={t("lostReasonPlaceholder")}
+                  className="border-border bg-muted text-foreground"
+                />
                 {deal.status && deal.status !== "open" && (
                   <Button
                     type="button"
