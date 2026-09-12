@@ -305,3 +305,110 @@ describe('T4.1 sequence scheduler', () => {
     expect(res.enrollmentId).toBeTruthy();
   });
 });
+
+describe('T4.2 stop on reply', () => {
+  it('1. inbound reply cancels the active enrollment with reason reply', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({});
+    const stopped = await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' });
+    expect(stopped).toBe(1);
+    expect(state.enrollments[0].status).toBe('cancelled');
+    expect(state.enrollments[0].cancelled_reason).toBe('reply');
+  });
+
+  it('2. cancelled enrollment executes no future steps', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({});
+    await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' });
+    expect(await resumeDueSequenceEnrollments()).toBe(0);
+    expect(mockedDispatch).not.toHaveBeenCalled();
+  });
+
+  it('3. outbound sends never cancel: completed run has no reason', async () => {
+    seed({});
+    await resumeDueSequenceEnrollments();
+    const enr = state.enrollments[0];
+    expect(enr.status).toBe('completed');
+    expect(enr.cancelled_reason ?? null).toBeNull();
+  });
+
+  it('4. completed enrollment is unaffected by reply', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({});
+    await resumeDueSequenceEnrollments();
+    const before = { ...state.enrollments[0] };
+    expect(await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' })).toBe(0);
+    expect(state.enrollments[0]).toEqual(before);
+  });
+
+  it('5. already-cancelled enrollment is unaffected by reply', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({});
+    await cancelSequenceEnrollment('enr-1', 'acct-1');
+    const cancelledAt = state.enrollments[0].cancelled_at;
+    expect(await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' })).toBe(0);
+    expect(state.enrollments[0].status).toBe('cancelled');
+    expect(state.enrollments[0].cancelled_at).toBe(cancelledAt);
+    expect(state.enrollments[0].cancelled_reason).toBe('manual');
+  });
+
+  it('6. duplicate reply is harmless', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({});
+    expect(await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' })).toBe(1);
+    expect(await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' })).toBe(0);
+    expect(state.enrollments[0].status).toBe('cancelled');
+  });
+
+  it('7. account A reply cannot cancel account B enrollment', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({ enrollmentId: 'enr-b', accountId: 'acct-b', conversationId: 'conv-b', withSteps: false });
+    // Same contact id, other account: enroll one there too
+    state.enrollments.push({
+      id: 'enr-a', sequence_id: 'seq-1', account_id: 'acct-a', contact_id: 'contact-1',
+      status: 'active', current_position: 0,
+      next_run_at: new Date(Date.now() - 60_000).toISOString(),
+    });
+    expect(await stopEnrollmentsOnReply({ accountId: 'acct-a', contactId: 'contact-1' })).toBe(1);
+    expect(state.enrollments.find((e) => e.id === 'enr-b')?.status).toBe('active');
+    expect(state.enrollments.find((e) => e.id === 'enr-a')?.status).toBe('cancelled');
+  });
+
+  it('8. claim/reply race: reply between claim and run prevents execution', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({ enrollmentId: 'enr-race2' });
+    // Simulate a sweep claim landing first: lease bumped, still active.
+    state.enrollments[0].next_run_at = new Date(Date.now() + 300_000).toISOString();
+    // Reply lands before the executor's entry re-check.
+    await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' });
+    await runSequenceEnrollment('enr-race2');
+    expect(mockedDispatch).not.toHaveBeenCalled();
+    expect(state.enrollments[0].status).toBe('cancelled');
+    expect(state.enrollments[0].cancelled_reason).toBe('reply');
+  });
+
+  it('9. waiting enrollment is cancelled and never resumes', async () => {
+    const { stopEnrollmentsOnReply } = await import('./engine');
+    seed({
+      steps: [
+        { step_type: 'wait', step_config: { amount: 1, unit: 'hours' } },
+        { step_type: 'send_message', step_config: { text: 'later', channel_target: 'whatsapp' } },
+      ],
+    });
+    await resumeDueSequenceEnrollments();
+    expect(state.enrollments[0].status).toBe('active');
+    expect(state.enrollments[0].current_position).toBe(1);
+    await stopEnrollmentsOnReply({ accountId: 'acct-1', contactId: 'contact-1' });
+    expect(state.enrollments[0].status).toBe('cancelled');
+    // Even forced due, the cancelled enrollment stays silent.
+    state.enrollments[0].next_run_at = new Date(Date.now() - 1000).toISOString();
+    expect(await resumeDueSequenceEnrollments()).toBe(0);
+    expect(mockedDispatch).not.toHaveBeenCalled();
+  });
+
+  it('manual cancel defaults to reason manual', async () => {
+    seed({});
+    await cancelSequenceEnrollment('enr-1', 'acct-1');
+    expect(state.enrollments[0].cancelled_reason).toBe('manual');
+  });
+});

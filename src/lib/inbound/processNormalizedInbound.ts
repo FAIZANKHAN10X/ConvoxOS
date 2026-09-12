@@ -6,6 +6,7 @@ import {
   emitContactCreated,
   emitMessageReceived,
 } from '@/lib/automation/crm-events';
+import { stopEnrollmentsOnReply } from '@/lib/sequences/engine';
 import type { Channel, NormalizedInbound } from '@/lib/channels/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -450,6 +451,17 @@ export async function processNormalizedInbound(input: NormalizedInboundInput) {
     });
   } catch (err) {
     console.error('[inbound] message_received event failed:', err);
+  }
+
+  // 14b) T4.2 stop-on-reply — cancel active sequence enrollments for
+  // this contact. This function only ever runs for persisted inbound
+  // customer messages (outbound sends use sender_type agent/bot and
+  // never flow through here), so no sender check is needed. Runs
+  // before AI dispatch; a no-op when nothing is enrolled.
+  try {
+    await stopEnrollmentsOnReply({ accountId, contactId: contactRecord.id });
+  } catch (err) {
+    console.error('[inbound] stop-on-reply failed:', err);
   }
 
   // 15) AI — now without flow gate (Flows retired)

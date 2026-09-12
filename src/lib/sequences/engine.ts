@@ -59,12 +59,66 @@ export async function enrollContactInSequence(params: {
   return { enrollmentId, alreadyActive: false }
 }
 
-export async function cancelSequenceEnrollment(enrollmentId: string, accountId: string): Promise<void> {
+export async function cancelSequenceEnrollment(
+  enrollmentId: string,
+  accountId: string,
+  reason: 'manual' | 'reply' | 'failed' = 'manual'
+): Promise<void> {
   const db = supabaseAdmin()
-  await db.from('sequence_enrollments').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', enrollmentId).eq('account_id', accountId)
+  await db
+    .from('sequence_enrollments')
+    .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_reason: reason })
+    .eq('id', enrollmentId)
+    .eq('account_id', accountId)
+    .eq('status', 'active')
   // NOTE: old automation_pending_executions wait rows were retired with the
   // automation engine (Phase 9). Sequence waits are driven solely by
   // sequence_enrollments.next_run_at + resumeDueSequenceEnrollments().
+}
+
+/**
+ * T4.2 stop-on-reply: cancel every active enrollment for
+ * (account, contact) when the contact replies. Guarded to
+ * status='active' so duplicate replies are no-ops and terminal
+ * enrollments (completed/cancelled) are never touched.
+ * Called synchronously from the inbound path after the customer
+ * message is persisted — outbound sends never flow through there,
+ * so no sender check is needed.
+ */
+export async function stopEnrollmentsOnReply(params: {
+  accountId: string
+  contactId: string
+}): Promise<number> {
+  const db = supabaseAdmin()
+  const { data, error } = await db
+    .from('sequence_enrollments')
+    .update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_reason: 'reply',
+    })
+    .eq('account_id', params.accountId)
+    .eq('contact_id', params.contactId)
+    .eq('status', 'active')
+    .select('id')
+  if (error) {
+    console.error('[sequences] stop-on-reply failed:', error.message)
+    return 0
+  }
+  return (data as unknown[] | null)?.length ?? 0
+}
+
+/** Re-read liveness: true while the enrollment is still active. */
+async function isEnrollmentActive(
+  db: ReturnType<typeof supabaseAdmin>,
+  enrollmentId: string
+): Promise<boolean> {
+  const { data } = await db
+    .from('sequence_enrollments')
+    .select('status')
+    .eq('id', enrollmentId)
+    .maybeSingle()
+  return (data as { status?: string } | null)?.status === 'active'
 }
 
 export async function runSequenceEnrollment(enrollmentId: string): Promise<void> {
@@ -80,14 +134,14 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
     .eq('sequence_id', en.sequence_id)
     .order('position', { ascending: true })
   if (!steps || steps.length === 0) {
-    await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', enrollmentId)
+    await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', enrollmentId).eq('status', 'active')
     return
   }
 
   // Find current step
   const pos = en.current_position ?? 0
   if (pos >= (steps as unknown[]).length) {
-    await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', enrollmentId)
+    await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', enrollmentId).eq('status', 'active')
     return
   }
 
@@ -109,7 +163,7 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
       runAt = new Date(Date.now() + amount * ms).toISOString()
     }
     // Use next_run_at for polling resume via resumeDueSequenceEnrollments().
-    await db.from('sequence_enrollments').update({ next_run_at: runAt, current_position: pos + 1 }).eq('id', enrollmentId)
+    await db.from('sequence_enrollments').update({ next_run_at: runAt, current_position: pos + 1 }).eq('id', enrollmentId).eq('status', 'active')
     return
   }
 
@@ -163,14 +217,18 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
       }
     }
 
-    // Advance to next position
+    // Advance to next position — but only if still active: a reply
+    // (or manual cancel) may have landed mid-send. The provider
+    // delivery itself is never recalled; we just refuse to advance
+    // or complete a dead enrollment.
+    if (!(await isEnrollmentActive(db, enrollmentId))) return
     const nextPos = pos + 1
     if (nextPos >= (steps as unknown[]).length) {
-      await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString(), current_position: nextPos }).eq('id', enrollmentId)
+      await db.from('sequence_enrollments').update({ status: 'completed', completed_at: new Date().toISOString(), current_position: nextPos }).eq('id', enrollmentId).eq('status', 'active')
     } else {
       // Check if next step is a wait — if so, schedule it via next_run_at logic on next invocation, but for now just advance and let next run handle it
       // For immediate next send, we update position and then recursively run next step immediately (if not wait)
-      await db.from('sequence_enrollments').update({ current_position: nextPos, next_run_at: new Date().toISOString() }).eq('id', enrollmentId)
+      await db.from('sequence_enrollments').update({ current_position: nextPos, next_run_at: new Date().toISOString() }).eq('id', enrollmentId).eq('status', 'active')
       // If next step is not a wait, continue immediately
       const nextStep = (steps as Array<{ step_type: string }>)[nextPos]
       if (nextStep && nextStep.step_type !== 'wait') {
@@ -183,8 +241,10 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
     }
   } catch (e) {
     console.error('[sequences] step failed:', e)
-    // Mark enrollment as cancelled on failure? For now, keep active but log
-    await db.from('sequence_enrollments').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', enrollmentId)
+    // Explicit terminal cancel (reason failed) — never a silent
+    // advance. Guarded to active so a concurrent reply-cancel wins
+    // and its reason is preserved.
+    await db.from('sequence_enrollments').update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_reason: 'failed' }).eq('id', enrollmentId).eq('status', 'active')
   }
 }
 
