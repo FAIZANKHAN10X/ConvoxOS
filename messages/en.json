@@ -225,7 +225,11 @@
       "send": "Send",
       "quickReplyNamePrompt": "Name this quick reply:",
       "quickReplySaved": "Saved as a quick reply.",
-      "quickReplySaveError": "Couldn't save the quick reply."
+      "quickReplySaveError": "Couldn't save the quick reply.",
+      "email": "Email",
+      "emailNotConnected": "Email is not connected.",
+      "openEmailSettings": "Open email settings",
+      "subjectPlaceholder": "Subject (optional — replies reuse the thread subject)"
     },
     "bubble": {
       "photo": "Photo",

@@ -118,6 +118,7 @@ interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
   onSend: (text: string, replyToId?: string) => void;
+  onSendEmail?: (subject: string | undefined, text: string, replyToId?: string) => void;
   onSendMedia: (payload: SendMediaPayload) => void;
   onSendInteractive: (payload: InteractiveMessagePayload, replyToId?: string) => void;
   onOpenTemplates: () => void;
@@ -127,6 +128,7 @@ interface MessageComposerProps {
   availableChannels?: Channel[];
   onChannelChange?: (c: Channel) => void;
   telegramConnected?: boolean | null;
+  emailConnected?: boolean | null;
   telegramKeyboard?: TelegramInlineMarkup | null;
   onTelegramKeyboardChange?: (kb: TelegramInlineMarkup | null) => void;
 }
@@ -146,6 +148,7 @@ export function MessageComposer({
   conversationId,
   sessionExpired,
   onSend,
+  onSendEmail,
   onSendMedia,
   onSendInteractive,
   onOpenTemplates,
@@ -155,14 +158,17 @@ export function MessageComposer({
   availableChannels = ['whatsapp'],
   onChannelChange,
   telegramConnected = null,
+  emailConnected = null,
   telegramKeyboard = null,
   onTelegramKeyboardChange,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
   const isTelegram = selectedChannel === 'telegram';
   const isWhatsApp = selectedChannel === 'whatsapp';
+  const isEmail = selectedChannel === 'email';
 
   const [text, setText] = useState("");
+  const [subject, setSubject] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -213,7 +219,8 @@ export function MessageComposer({
   // WhatsApp 24h window only blocks WhatsApp free-form; Telegram text is never blocked.
   const whatsappBlocked = isWhatsApp && sessionExpired;
   const telegramBlocked = isTelegram && telegramConnected === false;
-  const inputsDisabled = readOnly || whatsappBlocked || telegramBlocked;
+  const emailBlocked = isEmail && (emailConnected === false || !onSendEmail);
+  const inputsDisabled = readOnly || whatsappBlocked || telegramBlocked || emailBlocked;
   const whatsappOnlyDisabled = isTelegram; // interactive/template remain WhatsApp-only; media: image+document+video+audio now allowed for Telegram, voice-recording still WhatsApp-only
 
   const clearTimer = useCallback(() => {
@@ -248,10 +255,16 @@ export function MessageComposer({
     const trimmed = text.trim();
     if (!trimmed || sending || whatsappBlocked) return;
     if (isTelegram && telegramBlocked) return;
+    if (isEmail && emailBlocked) return;
 
     setSending(true);
     try {
-      onSend(trimmed, replyTo?.id);
+      if (isEmail) {
+        onSendEmail?.(subject.trim() || undefined, trimmed, replyTo?.id);
+        setSubject("");
+      } else {
+        onSend(trimmed, replyTo?.id);
+      }
       setText("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -259,7 +272,7 @@ export function MessageComposer({
     } finally {
       setSending(false);
     }
-  }, [text, sending, whatsappBlocked, telegramBlocked, isTelegram, onSend, replyTo?.id]);
+  }, [text, subject, sending, whatsappBlocked, telegramBlocked, emailBlocked, isTelegram, isEmail, onSend, onSendEmail, replyTo?.id]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -577,6 +590,18 @@ export function MessageComposer({
           />
         </div>
       )}
+      {isEmail && (
+        <div className="mb-2">
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder={t("subjectPlaceholder")}
+            aria-label={t("subjectPlaceholder")}
+            disabled={inputsDisabled}
+            className="h-8 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/50"
+          />
+        </div>
+      )}
       {/* Channel context is visible even when there is only one reply route. */}
       {availableChannels.length > 0 && (
         <div className="mb-2 flex items-center gap-2">
@@ -600,6 +625,9 @@ export function MessageComposer({
             {availableChannels.includes("telegram") && (
               <option value="telegram">{t("telegram")}</option>
             )}
+            {availableChannels.includes("email") && (
+              <option value="email">{t("email")}</option>
+            )}
           </select>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground">
@@ -608,7 +636,7 @@ export function MessageComposer({
               ) : (
                 <Send className="h-3 w-3" aria-hidden="true" />
               )}
-              {isWhatsApp ? t("whatsapp") : t("telegram")}
+              {isWhatsApp ? t("whatsapp") : isEmail ? t("email") : t("telegram")}
             </span>
           )}
         </div>
@@ -624,6 +652,16 @@ export function MessageComposer({
             {t("telegramNotConnected")} {" "}
             <a className="underline underline-offset-2" href="/settings?tab=channels">
               {t("openTelegramSettings")}
+            </a>
+          </p>
+        </div>
+      )}
+      {isEmail && emailConnected === false && (
+        <div className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2">
+          <p className="text-xs text-amber-400">
+            {t("emailNotConnected")} {" "}
+            <a className="underline underline-offset-2" href="/settings?tab=channels">
+              {t("openEmailSettings")}
             </a>
           </p>
         </div>
@@ -831,11 +869,13 @@ export function MessageComposer({
                   ? t("sessionExpiredPlaceholder")
                   : isTelegram && telegramConnected === false
                     ? t("telegramNotConnected")
-                    : availableChannels.length === 0
-                      ? t("noOutboundChannel")
-                      : t("typeMessagePlaceholder")
+                    : isEmail && emailConnected === false
+                      ? t("emailNotConnected")
+                      : availableChannels.length === 0
+                        ? t("noOutboundChannel")
+                        : t("typeMessagePlaceholder")
             }
-            disabled={readOnly || (isWhatsApp && sessionExpired) || telegramBlocked || availableChannels.length === 0}
+            disabled={readOnly || (isWhatsApp && sessionExpired) || telegramBlocked || emailBlocked || availableChannels.length === 0}
             rows={1}
             // Textarea keeps its own inline title — the GatedButton
             // wrapping pattern doesn't apply to non-button inputs.

@@ -241,6 +241,17 @@ describe("getAvailableContactChannels", () => {
     expect(getAvailableContactChannels(contact())).toEqual([]);
     expect(getAvailableContactChannels(null)).toEqual([]);
   });
+
+  it("offers email when the contact has an address", () => {
+    expect(
+      getAvailableContactChannels(contact({ email: "ann@example.com" })),
+    ).toEqual(["email"]);
+    expect(
+      getAvailableContactChannels(
+        contact({ phone: "+1", email: "ann@example.com" }),
+      ),
+    ).toEqual(["whatsapp", "email"]);
+  });
 });
 
 describe("toChannelSummaryMap", () => {

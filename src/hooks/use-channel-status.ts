@@ -8,15 +8,15 @@ export function useChannelStatus() {
   const { accountId } = useAuth();
   const [telegramConnected, setTelegramConnected] = useState<boolean | null>(null);
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(null);
+  const [emailConnected, setEmailConnected] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!accountId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTelegramConnected(false);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWhatsappConnected(false);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEmailConnected(false);
       setLoading(false);
       return;
     }
@@ -25,10 +25,14 @@ export function useChannelStatus() {
     Promise.all([
       supabase.from('telegram_config').select('status').eq('account_id', accountId).maybeSingle(),
       supabase.from('whatsapp_config').select('status').eq('account_id', accountId).maybeSingle(),
-    ]).then(([tg, wa]) => {
+      supabase.from('email_config').select('status').eq('account_id', accountId).maybeSingle(),
+    ]).then(([tg, wa, em]) => {
       if (cancelled) return;
       setTelegramConnected(tg.data?.status === 'connected');
       setWhatsappConnected(wa.data?.status === 'connected');
+      setEmailConnected(
+        (em.data as { status?: string } | null)?.status === 'connected'
+      );
       setLoading(false);
     });
     return () => {
@@ -36,5 +40,5 @@ export function useChannelStatus() {
     };
   }, [accountId]);
 
-  return { telegramConnected, whatsappConnected, loading };
+  return { telegramConnected, whatsappConnected, emailConnected, loading };
 }

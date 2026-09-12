@@ -259,6 +259,8 @@ export interface Message {
   media_type?: string | null;
   template_name?: string;
   message_id?: string;
+  /** Email subject line (migration 080); undefined for chat channels. */
+  subject?: string | null;
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;

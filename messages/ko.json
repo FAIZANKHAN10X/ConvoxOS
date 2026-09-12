@@ -225,7 +225,11 @@
       "send": "보내기",
       "quickReplyNamePrompt": "이 빠른 답장의 이름을 지정하세요:",
       "quickReplySaved": "빠른 답장으로 저장되었습니다.",
-      "quickReplySaveError": "빠른 답장을 저장하지 못했습니다."
+      "quickReplySaveError": "빠른 답장을 저장하지 못했습니다.",
+      "email": "이메일",
+      "emailNotConnected": "이메일이 연결되어 있지 않습니다.",
+      "openEmailSettings": "이메일 설정 열기",
+      "subjectPlaceholder": "제목 (선택 — 답장은 스레드 제목을 재사용)"
     },
     "bubble": {
       "photo": "사진",

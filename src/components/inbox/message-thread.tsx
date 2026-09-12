@@ -213,6 +213,7 @@ export function MessageThread({
   // Explicit outbound channel — local/thread state only, not persisted.
   const [selectedChannel, setSelectedChannel] = useState<Channel>('whatsapp');
   const { telegramConnected } = useChannelStatus();
+  const { emailConnected } = useChannelStatus();
   // Telegram inline keyboard — per-thread builder state, cleared after send.
   const [telegramKeyboard, setTelegramKeyboard] = useState<import('@/lib/channels/telegram/keyboard').TelegramInlineMarkup | null>(null);
   // Which attachment the media viewer is showing. Lives here rather than in
@@ -257,6 +258,7 @@ export function MessageThread({
     [contact],
   );
   const hasTelegram = availableChannels.includes("telegram");
+  const hasEmail = availableChannels.includes("email");
   const channelSummary = useMemo(
     () => summarizeConversationChannels(messages),
     [messages],
@@ -534,6 +536,14 @@ export function MessageThread({
         toast.error('Telegram not connected — connect in Settings → Channels');
         return;
       }
+      if (selectedChannel === 'email' && !hasEmail) {
+        toast.error('No email address for this contact');
+        return;
+      }
+      if (selectedChannel === 'email' && emailConnected === false) {
+        toast.error('Email not connected — connect in Settings → Channels');
+        return;
+      }
 
       const isTelegramWithKeyboard = selectedChannel === 'telegram' && !!telegramKeyboard;
       const tempId = `temp-${crypto.randomUUID()}`;
@@ -599,7 +609,64 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, contact, selectedChannel, hasWhatsApp, hasTelegram, telegramConnected, telegramKeyboard, onNewMessage, onUpdateMessage]
+    [conversation, contact, selectedChannel, hasWhatsApp, hasTelegram, hasEmail, telegramConnected, emailConnected, telegramKeyboard, onNewMessage, onUpdateMessage]
+  );
+
+  const handleSendEmail = useCallback(
+    async (subject: string | undefined, text: string, replyToId?: string) => {
+      if (!conversation || !contact) return;
+      if (!hasEmail) {
+        toast.error('No email address for this contact');
+        return;
+      }
+      if (emailConnected === false) {
+        toast.error('Email not connected — connect in Settings → Channels');
+        return;
+      }
+      const tempId = `temp-${crypto.randomUUID()}`;
+      const optimisticMsg: Message = {
+        id: tempId,
+        conversation_id: conversation.id,
+        sender_type: "agent",
+        content_type: "text",
+        content_text: text,
+        subject: subject ?? null,
+        channel: 'email',
+        status: "sending",
+        created_at: new Date().toISOString(),
+        reply_to_message_id: replyToId,
+      } as Message;
+      onNewMessage(optimisticMsg);
+      setReplyTo(null);
+
+      try {
+        const res = await fetch("/api/email/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation_id: conversation.id,
+            subject,
+            content_text: text,
+            reply_to_message_id: replyToId,
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const reason = payload?.error || `HTTP ${res.status}`;
+          console.error("Failed to send email:", reason);
+          toast.error(`Failed to send: ${reason}`);
+          onUpdateMessage(tempId, { status: "failed" });
+          return;
+        }
+        onUpdateMessage(tempId, { status: "sent" });
+      } catch (err) {
+        console.error("Failed to send email:", err);
+        const reason = err instanceof Error ? err.message : "network error";
+        toast.error(`Failed to send: ${reason}`);
+        onUpdateMessage(tempId, { status: "failed" });
+      }
+    },
+    [conversation, contact, hasEmail, emailConnected, onNewMessage, onUpdateMessage]
   );
 
   const handleSendMedia = useCallback(
@@ -1344,6 +1411,7 @@ export function MessageThread({
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
         onSend={handleSend}
+        onSendEmail={handleSendEmail}
         onSendMedia={handleSendMedia}
         onSendInteractive={handleSendInteractive}
         onOpenTemplates={handleOpenTemplates}
@@ -1353,6 +1421,7 @@ export function MessageThread({
         availableChannels={availableChannels}
         onChannelChange={setSelectedChannel}
         telegramConnected={telegramConnected}
+        emailConnected={emailConnected}
         telegramKeyboard={telegramKeyboard}
         onTelegramKeyboardChange={setTelegramKeyboard}
       />

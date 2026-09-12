@@ -24,14 +24,17 @@ export async function POST(request: Request) {
       typeof body?.conversation_id === 'string' ? body.conversation_id : null;
     const contactId =
       typeof body?.contact_id === 'string' ? body.contact_id : null;
-    const subject = typeof body?.subject === 'string' ? body.subject : null;
+    const subject =
+      typeof body?.subject === 'string' && body.subject.trim()
+        ? body.subject.trim()
+        : null;
     const contentText =
       typeof body?.content_text === 'string' ? body.content_text : null;
     const replyToMessageId =
       typeof body?.reply_to_message_id === 'string' ? body.reply_to_message_id : null;
-    if ((!conversationId && !contactId) || !subject || !contentText) {
+    if ((!conversationId && !contactId) || !contentText?.trim()) {
       return NextResponse.json(
-        { error: "'conversation_id' (or 'contact_id'), 'subject', and 'content_text' are required" },
+        { error: "'conversation_id' (or 'contact_id') and 'content_text' are required" },
         { status: 400 }
       );
     }
@@ -63,9 +66,30 @@ export async function POST(request: Request) {
       }
     }
 
+    // Empty subjects fall back to the thread (Re: last subject) so
+    // quick replies stay one-field.
+    let resolvedSubject = subject;
+    if (!resolvedSubject && resolvedConversationId) {
+      const { data: last } = await supabase
+        .from('messages')
+        .select('subject')
+        .eq('conversation_id', resolvedConversationId)
+        .eq('channel', 'email')
+        .not('subject', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const prior = (last as { subject?: string } | null)?.subject?.trim();
+      resolvedSubject = prior
+        ? /^re:/i.test(prior)
+          ? prior
+          : `Re: ${prior}`
+        : 'Follow-up';
+    }
+
     const sent = await sendEmailToConversation(supabase, accountId, {
       conversationId: resolvedConversationId as string,
-      subject,
+      subject: resolvedSubject,
       contentText,
       replyToMessageId,
     });

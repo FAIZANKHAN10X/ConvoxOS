@@ -76,9 +76,16 @@ function MessageContent({
   switch (message.content_type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
-        </p>
+        <div>
+          {message.channel === "email" && message.subject && (
+            <p className="mb-1 break-words text-sm font-semibold">
+              {message.subject}
+            </p>
+          )}
+          <p className="whitespace-pre-wrap break-words text-sm">
+            {message.content_text}
+          </p>
+        </div>
       );
 
     case "image":
