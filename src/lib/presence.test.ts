@@ -85,3 +85,19 @@ describe("summarize", () => {
     expect(summarize([])).toEqual({ online: 0, away: 0, offline: 0 });
   });
 });
+
+describe('null clock (prerender)', () => {
+  it('derivePresence trusts stored status when now is null', async () => {
+    const { derivePresence } = await import('./presence');
+    expect(derivePresence('online', new Date().toISOString(), null)).toBe('online');
+    expect(derivePresence('away', new Date().toISOString(), null)).toBe('away');
+    expect(derivePresence(undefined, null, null)).toBe('offline');
+  });
+
+  it('formatLastSeen renders a deterministic date when now is null', async () => {
+    const { formatLastSeen } = await import('./presence');
+    expect(formatLastSeen('2026-01-15T12:00:00.000Z', null)).toBe(
+      new Date('2026-01-15T12:00:00.000Z').toLocaleDateString()
+    );
+  });
+});

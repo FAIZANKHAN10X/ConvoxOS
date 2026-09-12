@@ -28,3 +28,17 @@ describe('cache-scope time hygiene', () => {
     expect(hook).toContain('useState<number | null>(null)')
   })
 })
+
+describe('shell-path time hygiene (pre-benchmark)', () => {
+  it('dashboard page reads no wall-clock time (lives in DashboardSections)', () => {
+    const src = readFileSync(join(root, 'src/app/(dashboard)/dashboard/page.tsx'), 'utf8');
+    expect(src).not.toMatch(/Date\.now\(\)/);
+    expect(src).not.toMatch(/new Date\(\)/);
+  });
+
+  it('use-presence initializes its clock to null (populated on mount)', () => {
+    const src = readFileSync(join(root, 'src/hooks/use-presence.ts'), 'utf8');
+    expect(src).toContain('useState<number | null>(null)');
+    expect(src).not.toMatch(/useState\(\(\) => Date\.now\(\)\)/);
+  });
+});

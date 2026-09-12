@@ -30,8 +30,11 @@ interface UsePresenceResult {
    * The clock value the hook is currently deriving against. Pass this
    * to `presenceLabel` / `formatLastSeen` so labels stay in lockstep
    * with the dots (both advance on the same ~15s re-derive tick).
+   * Null during prerender / before mount — `Date.now()` in the
+   * initializer would trip blocking-prerender validation on every
+   * route that mounts presence.
    */
-  now: number;
+  now: number | null;
 }
 
 /**
@@ -51,12 +54,19 @@ export function usePresence(enabled = true): UsePresenceResult {
   const [rows, setRows] = useState<PresenceMap>(() => new Map());
 
   // `now` ticks so derivePresence re-evaluates staleness over time.
-  const [now, setNow] = useState(() => Date.now());
+  // Initialized null (not Date.now()) so server prerender output
+  // stays deterministic; populated on mount and by the tick below.
+  const [now, setNow] = useState<number | null>(null);
 
   const active = enabled && !!accountId;
 
   useEffect(() => {
     if (!active || !accountId) return;
+
+    // Populate the clock on mount (initializer stays null for
+    // deterministic prerender); the interval below keeps it ticking.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
 
     const supabase = createClient();
     let cancelled = false;

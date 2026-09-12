@@ -41,13 +41,19 @@ export interface PresenceRow {
  * Derive the user-facing presence for a member. A missing row, or a
  * heartbeat staler than OFFLINE_AFTER_MS, reads as offline; otherwise
  * the member's last reported status (online / away) stands.
+ *
+ * `now` may be null before the client clock mounts (prerender) — in
+ * that case staleness can't be evaluated, so the stored status
+ * stands (missing row still reads offline). Post-mount behavior is
+ * unchanged.
  */
 export function derivePresence(
   stored: StoredPresence | undefined,
   lastSeenAt: string | null | undefined,
-  now: number,
+  now: number | null,
 ): PresenceStatus {
   if (!stored || !lastSeenAt) return "offline";
+  if (now === null) return stored;
   const last = new Date(lastSeenAt).getTime();
   if (Number.isNaN(last)) return "offline";
   if (now - last > OFFLINE_AFTER_MS) return "offline";
@@ -65,9 +71,11 @@ export function derivePresence(
  */
 export function formatLastSeen(
   lastSeenAt: string | null | undefined,
-  now: number,
+  now: number | null,
 ): string {
   if (!lastSeenAt) return "a while ago";
+  // Deterministic shell output before the client clock mounts.
+  if (now === null) return new Date(lastSeenAt).toLocaleDateString();
   const last = new Date(lastSeenAt).getTime();
   if (Number.isNaN(last)) return "a while ago";
 
@@ -95,7 +103,7 @@ export function formatLastSeen(
 export function presenceLabel(
   status: PresenceStatus,
   lastSeenAt: string | null | undefined,
-  now: number,
+  now: number | null,
 ): string {
   switch (status) {
     case "online":

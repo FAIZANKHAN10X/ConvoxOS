@@ -115,8 +115,10 @@ function fmtDate(iso: string): string {
   });
 }
 
-function fmtExpiresIn(iso: string, t: (key: string, values?: Record<string, string | number>) => string): string {
-  const ms = new Date(iso).getTime() - Date.now();
+function fmtExpiresIn(iso: string, now: number | null, t: (key: string, values?: Record<string, string | number>) => string): string {
+  // Deterministic shell output before the client clock mounts.
+  if (now === null) return new Date(iso).toLocaleDateString();
+  const ms = new Date(iso).getTime() - now;
   if (ms <= 0) return t('expired');
   const days = Math.floor(ms / (24 * 60 * 60 * 1000));
   if (days >= 1) return t('expiresInDays', { days });
@@ -533,7 +535,7 @@ export function MembersTab() {
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {t('created', { date: fmtDate(inv.created_at) })} · {fmtExpiresIn(inv.expires_at, t)}
+                          {t('created', { date: fmtDate(inv.created_at) })} · {fmtExpiresIn(inv.expires_at, now, t)}
                         </p>
                       </div>
 
