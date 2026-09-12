@@ -9,6 +9,23 @@ import { Card } from '@/components/ui/card'
 import { validateSequenceForActivation } from '@/lib/sequences/validate'
 
 type Step = { id?: string; position: number; step_type: string; step_config: Record<string, unknown> }
+type Enrollment = {
+  id: string;
+  contact_id: string;
+  status: string;
+  current_position: number;
+  next_run_at: string | null;
+  cancelled_reason: string | null;
+  created_at: string;
+  contact?: { name: string | null; phone: string | null } | null;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
 
 export default function SequenceEditPage() {
   const params = useParams() as { id: string }
@@ -18,13 +35,26 @@ export default function SequenceEditPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [validation, setValidation] = useState<Array<{ path: string; message: string }>>([])
+  const [isActive, setIsActive] = useState(false)
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([])
+  const [actingOn, setActingOn] = useState<string | null>(null)
 
   async function load() {
     const supabase = createClient()
-    const { data: seq } = await supabase.from('sequences').select('name').eq('id', id).maybeSingle()
-    if (seq) setName((seq as { name: string }).name)
+    const { data: seq } = await supabase.from('sequences').select('name, is_active').eq('id', id).maybeSingle()
+    if (seq) {
+      setName((seq as { name: string }).name)
+      setIsActive(!!(seq as { is_active: boolean }).is_active)
+    }
     const { data: st } = await supabase.from('sequence_steps').select('*').eq('sequence_id', id).order('position')
     setSteps(((st as unknown as Step[]) ?? []).map((s, i) => ({ ...s, position: i })))
+    const { data: enr } = await supabase
+      .from('sequence_enrollments')
+      .select('id, contact_id, status, current_position, next_run_at, cancelled_reason, created_at, contact:contacts(name, phone)')
+      .eq('sequence_id', id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    setEnrollments(((enr as unknown as Enrollment[]) ?? []))
     setLoading(false)
   }
 
@@ -54,6 +84,36 @@ export default function SequenceEditPage() {
     })
   }
 
+  async function toggleActive() {
+    const supabase = createClient()
+    const { error } = await supabase.from('sequences').update({ is_active: !isActive }).eq('id', id)
+    if (!error) setIsActive(!isActive)
+  }
+
+  async function enrollmentAction(enrollmentId: string, action: 'pause' | 'resume' | 'cancel') {
+    setActingOn(enrollmentId)
+    try {
+      const res = await fetch(`/api/sequences/enrollments/${enrollmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+    } catch {
+      // Toast handled by caller convention; reload shows truth regardless
+    } finally {
+      setActingOn(null)
+      void load()
+    }
+  }
+
+  function enrollmentLabel(e: Enrollment): string {
+    const contact = e.contact?.name || e.contact?.phone || e.contact_id.slice(0, 8)
+    const step = `${e.current_position + 1}/${steps.length || '?'}`
+    const reason = e.status === 'cancelled' && e.cancelled_reason ? ` (${e.cancelled_reason})` : ''
+    return `${contact} · step ${step}${reason}`
+  }
+
   async function save() {
     setSaving(true)
     const supabase = createClient()
@@ -78,7 +138,17 @@ export default function SequenceEditPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold">Edit Sequence</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Edit Sequence</h1>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleActive}
+          title={isActive ? 'Deactivate: sweeps skip enrollments of inactive sequences' : 'Activate: allow new enrollments and sweeps'}
+        >
+          {isActive ? 'Active' : 'Draft'}
+        </Button>
+      </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Name</label>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -144,6 +214,35 @@ export default function SequenceEditPage() {
       </div>
 
       <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+
+      <div className="space-y-3 pt-2">
+        <h2 className="font-medium">Enrollments ({enrollments.length})</h2>
+        {enrollments.length === 0 && (
+          <p className="text-sm text-muted-foreground">No enrollments yet. Enroll contacts via automations.</p>
+        )}
+        {enrollments.map((e) => (
+          <Card key={e.id} className="p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{enrollmentLabel(e)}</div>
+              <div className="text-xs text-muted-foreground">
+                {STATUS_LABEL[e.status] ?? e.status}
+                {e.next_run_at && e.status === 'active' ? ` · next ${new Date(e.next_run_at).toLocaleString()}` : ''}
+              </div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              {e.status === 'active' && (
+                <Button size="sm" variant="outline" disabled={actingOn === e.id} onClick={() => enrollmentAction(e.id, 'pause')}>Pause</Button>
+              )}
+              {e.status === 'paused' && (
+                <Button size="sm" variant="outline" disabled={actingOn === e.id} onClick={() => enrollmentAction(e.id, 'resume')}>Resume</Button>
+              )}
+              {(e.status === 'active' || e.status === 'paused') && (
+                <Button size="sm" variant="ghost" disabled={actingOn === e.id} onClick={() => enrollmentAction(e.id, 'cancel')}>Cancel</Button>
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

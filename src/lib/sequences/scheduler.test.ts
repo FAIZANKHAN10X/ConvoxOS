@@ -412,3 +412,51 @@ describe('T4.2 stop on reply', () => {
     expect(state.enrollments[0].cancelled_reason).toBe('manual');
   });
 });
+
+describe('T4.3 pause/resume', () => {
+  it('pauses an active enrollment; sweep skips it', async () => {
+    const { pauseSequenceEnrollment } = await import('./engine');
+    seed({});
+    expect(await pauseSequenceEnrollment('enr-1', 'acct-1')).toBe(true);
+    expect(state.enrollments[0].status).toBe('paused');
+    expect(await resumeDueSequenceEnrollments()).toBe(0);
+    expect(mockedDispatch).not.toHaveBeenCalled();
+  });
+
+  it('pause is a no-op unless active', async () => {
+    const { pauseSequenceEnrollment } = await import('./engine');
+    seed({});
+    // force a terminal state for this case
+    state.enrollments[0].status = 'completed';
+    expect(await pauseSequenceEnrollment('enr-1', 'acct-1')).toBe(false);
+    expect(await pauseSequenceEnrollment('missing', 'acct-1')).toBe(false);
+  });
+
+  it('resumes a paused enrollment; past-due runs on next sweep', async () => {
+    const { pauseSequenceEnrollment, resumeSequenceEnrollment } = await import('./engine');
+    seed({});
+    await pauseSequenceEnrollment('enr-1', 'acct-1');
+    expect(await resumeSequenceEnrollment('enr-1', 'acct-1')).toBe(true);
+    expect(state.enrollments[0].status).toBe('active');
+    // next_run_at from seed is past → sweep executes
+    expect(await resumeDueSequenceEnrollments()).toBe(1);
+    expect(mockedDispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('resume is a no-op unless paused', async () => {
+    const { resumeSequenceEnrollment } = await import('./engine');
+    seed({});
+    expect(await resumeSequenceEnrollment('enr-1', 'acct-1')).toBe(false);
+    expect(state.enrollments[0].status).toBe('active');
+  });
+
+  it('cancel from paused preserves position and reason', async () => {
+    const { pauseSequenceEnrollment } = await import('./engine');
+    seed({});
+    await pauseSequenceEnrollment('enr-1', 'acct-1');
+    await cancelSequenceEnrollment('enr-1', 'acct-1');
+    expect(state.enrollments[0].status).toBe('cancelled');
+    expect(state.enrollments[0].cancelled_reason).toBe('manual');
+    expect(state.enrollments[0].current_position).toBe(0);
+  });
+});

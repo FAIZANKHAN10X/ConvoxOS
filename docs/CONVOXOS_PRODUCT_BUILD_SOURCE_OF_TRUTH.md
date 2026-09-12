@@ -144,7 +144,7 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 |---|---|---|---|---|
 | T4.1 Live Sequences | ✅ COMPLETE | `4ac3f17` | 1008 | Yes (suite+tsc+lint+build) |
 | T4.2 Stop on Reply | ✅ COMPLETE | `c96663d` | 1018 | Yes (suite+tsc+lint+build) |
-| T4.3 Sequence Mgmt UI | ⬜ NOT STARTED | — | — | — |
+| T4.3 Sequence Mgmt UI | ✅ COMPLETE | `41052de` | 1028 | Yes (suite+tsc+lint+build) |
 | T4.4 Sequence Analytics | ⬜ NOT STARTED | — | — | — |
 | T4.5 Tasks UI + Deals | ⬜ NOT STARTED | — | — | — |
 | T5.1–T5.5 | ⬜ NOT STARTED | — | — | — |

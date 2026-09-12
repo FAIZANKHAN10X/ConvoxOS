@@ -59,21 +59,54 @@ export async function enrollContactInSequence(params: {
   return { enrollmentId, alreadyActive: false }
 }
 
+/**
+ * T4.3 pause/resume: pausing parks an enrollment without losing
+ * position (unlike cancel, which is terminal). The claim RPC only
+ * picks `active` rows and the executor returns early otherwise, so
+ * no executor changes are needed — paused rows are simply never
+ * selected. Resuming restores `active`; a past-due next_run_at
+ * then executes on the next sweep (documented, not special-cased).
+ */
+export async function pauseSequenceEnrollment(enrollmentId: string, accountId: string): Promise<boolean> {
+  const db = supabaseAdmin()
+  const { data } = await db
+    .from('sequence_enrollments')
+    .update({ status: 'paused' })
+    .eq('id', enrollmentId)
+    .eq('account_id', accountId)
+    .eq('status', 'active')
+    .select('id')
+  return ((data as unknown[] | null)?.length ?? 0) > 0
+}
+
+export async function resumeSequenceEnrollment(enrollmentId: string, accountId: string): Promise<boolean> {
+  const db = supabaseAdmin()
+  const { data } = await db
+    .from('sequence_enrollments')
+    .update({ status: 'active' })
+    .eq('id', enrollmentId)
+    .eq('account_id', accountId)
+    .eq('status', 'paused')
+    .select('id')
+  return ((data as unknown[] | null)?.length ?? 0) > 0
+}
+
 export async function cancelSequenceEnrollment(
   enrollmentId: string,
   accountId: string,
   reason: 'manual' | 'reply' | 'failed' = 'manual'
-): Promise<void> {
+): Promise<boolean> {
   const db = supabaseAdmin()
-  await db
+  // Terminal states (completed/cancelled) are never touched; both
+  // live states (active/paused) may be cancelled.
+  const { data } = await db
     .from('sequence_enrollments')
     .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_reason: reason })
     .eq('id', enrollmentId)
     .eq('account_id', accountId)
-    .eq('status', 'active')
-  // NOTE: old automation_pending_executions wait rows were retired with the
-  // automation engine (Phase 9). Sequence waits are driven solely by
-  // sequence_enrollments.next_run_at + resumeDueSequenceEnrollments().
+    .in('status', ['active', 'paused'])
+    .select('id')
+  return ((data as unknown[] | null)?.length ?? 0) > 0
 }
 
 /**

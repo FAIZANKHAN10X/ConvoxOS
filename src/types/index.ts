@@ -510,13 +510,14 @@ export interface SequenceEnrollment {
   sequence_id: string;
   account_id: string;
   contact_id: string;
-  status: 'active' | 'completed' | 'cancelled';
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
   current_position: number;
   next_run_at: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
   cancelled_at: string | null;
+  cancelled_reason?: 'manual' | 'reply' | 'failed' | null;
 }
 
 // ============================================================
