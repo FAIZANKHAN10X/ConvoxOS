@@ -1396,6 +1396,18 @@
       "disconnect": "연결 해제",
       "disconnectFailed": "이메일 연결을 해제할 수 없습니다",
       "disconnectedSuccess": "이메일 연결이 해제되었습니다."
+    },
+    "emailTemplates": {
+      "title": "이메일 템플릿",
+      "description": "이메일 자동화 단계용 제목+본문. {{contact.name}} 형식 변수를 사용하세요.",
+      "edit": "편집",
+      "delete": "삭제",
+      "nameLabel": "이름",
+      "subjectLabel": "제목",
+      "bodyLabel": "본문",
+      "create": "만들기",
+      "save": "저장",
+      "cancel": "취소"
     }
   },
   "Tasks": {

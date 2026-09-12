@@ -28,6 +28,7 @@ import { keywordTrigger } from './keyword';
 import { messageReceivedTrigger } from './message-received';
 import { messageNode } from './message';
 import { removeTagAction } from './remove-tag';
+import { sendEmailAction } from './send-email';
 import { sendTextAction } from './send-text';
 import { updateContactAction } from './update-contact';
 import { tagAddedTrigger } from './tag-added';
@@ -56,6 +57,7 @@ export {
   appointmentConfirmedTrigger,
 } from './appointments';
 export { removeTagAction } from './remove-tag';
+export { sendEmailAction } from './send-email';
 export { waitNode } from './wait';
 export { waitExternalNode } from './wait-external';
 export { assignOwnerAction } from './assign-owner';
@@ -97,6 +99,7 @@ export const builtinNodes: NodeDefinition[] = [
   httpRequestAction,
   n8nWorkflowAction,
   sendTextAction,
+  sendEmailAction,
   updateContactAction,
   messageNode,
   addTagAction,

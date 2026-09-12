@@ -21,6 +21,7 @@ describe('automation catalog', () => {
         'action.move_deal',
         'action.n8n_workflow',
         'action.remove_tag',
+        'action.send_email',
         'action.send_text',
         'action.set_deal_status',
         'action.update_contact',

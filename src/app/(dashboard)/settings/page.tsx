@@ -13,6 +13,7 @@ import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { ChannelsPanel } from '@/components/settings/channels-panel';
 import { TemplateManager } from '@/components/settings/template-manager';
+import { EmailTemplatesManager } from '@/components/settings/email-templates-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
@@ -94,7 +95,12 @@ function SettingsPageInner() {
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
     channels: <ChannelsPanel />,
-    templates: <TemplateManager />,
+    templates: (
+      <>
+        <TemplateManager />
+        <EmailTemplatesManager />
+      </>
+    ),
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,

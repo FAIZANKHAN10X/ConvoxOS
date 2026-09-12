@@ -1396,6 +1396,18 @@
       "disconnect": "Disconnect",
       "disconnectFailed": "Could not disconnect email",
       "disconnectedSuccess": "Email disconnected."
+    },
+    "emailTemplates": {
+      "title": "Email templates",
+      "description": "Reusable subjects + bodies for the Send email automation step. Use {{contact.name}} style variables.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "nameLabel": "Name",
+      "subjectLabel": "Subject",
+      "bodyLabel": "Body",
+      "create": "Create",
+      "save": "Save",
+      "cancel": "Cancel"
     }
   },
   "Tasks": {
