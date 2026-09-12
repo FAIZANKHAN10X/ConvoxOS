@@ -2,8 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import BroadcastsClient from './broadcasts-client'
 import type { Broadcast } from '@/types'
 
-export const dynamic = 'force-dynamic'
-
 // Server-first hybrid: initial list loads via RSC so the table
 // renders on first paint. Polling-while-sending, navigation, and
 // refresh stay in the client island.

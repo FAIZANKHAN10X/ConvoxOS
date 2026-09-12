@@ -2,8 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import PipelinesClient from './pipelines-client'
 import type { Pipeline } from '@/types'
 
-export const dynamic = 'force-dynamic'
-
 // Server-first hybrid (contacts-page pattern): the pipelines list
 // loads via RSC so the shell renders with data on first paint.
 // Selection, stages/deals, dialogs, and drag/drop stay in the

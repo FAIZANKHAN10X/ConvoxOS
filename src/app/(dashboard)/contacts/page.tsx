@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { ContactsClient } from './contacts-client'
 
-export const dynamic = 'force-dynamic'
-
 // Server-first hybrid: initial page (25 contacts + tags) loads via RSC
 // in a single server hop, eliminating the browser waterfall
 // tags → contacts → contact_tags. Subsequent pagination/search/tag
