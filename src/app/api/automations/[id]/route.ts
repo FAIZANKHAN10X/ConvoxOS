@@ -52,6 +52,8 @@ export async function PATCH(
     const body = (await request.json().catch(() => null)) as {
       name?: unknown;
       graph?: unknown;
+      reentryPolicy?: unknown;
+      stopOnReply?: unknown;
     } | null;
 
     let automation = existing;
@@ -62,6 +64,17 @@ export async function PATCH(
     }
     if (isGraph(body?.graph)) {
       automation = await saveDraft(store, id, body.graph);
+    }
+    // T5.4 enrollment controls: validated before persistence.
+    if (body?.reentryPolicy === 'once' || body?.reentryPolicy === 'repeat') {
+      automation = await store.updateAutomation(id, {
+        reentryPolicy: body.reentryPolicy,
+      });
+    }
+    if (typeof body?.stopOnReply === 'boolean') {
+      automation = await store.updateAutomation(id, {
+        stopOnReply: body.stopOnReply,
+      });
     }
     return NextResponse.json({ automation });
   } catch (error) {

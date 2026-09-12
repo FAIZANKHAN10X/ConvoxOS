@@ -7,6 +7,7 @@ import type {
   AutomationWait,
   DomainEvent,
   DomainEventStatus,
+  EnrollmentSkipReason,
   NewDomainEvent,
   PublishedTrigger,
   RunStatus,
@@ -101,6 +102,8 @@ export interface AutomationStore {
         | 'draftGraph'
         | 'draftTrigger'
         | 'publishedVersionId'
+        | 'reentryPolicy'
+        | 'stopOnReply'
       >
     >
   ): Promise<Automation>;
@@ -121,6 +124,24 @@ export interface AutomationStore {
     automationId: string,
     contactId: string
   ): Promise<AutomationRun | null>;
+  /**
+   * T5.4: true when any run (active or terminal) exists for this
+   * contact + automation. Backs the `once` re-entry policy.
+   */
+  hasAnyRun(automationId: string, contactId: string): Promise<boolean>;
+  /**
+   * T5.4: record a skipped enrollment (conflict or re-entry block)
+   * so the decision trail is deterministic and debuggable.
+   * Enrollments are already recorded as runs — only skips go here.
+   */
+  recordEnrollmentSkip(input: {
+    accountId: string;
+    automationId: string;
+    contactId: string;
+    eventId?: string | null;
+    reason: EnrollmentSkipReason;
+    existingRunId?: string | null;
+  }): Promise<void>;
   insertRun(input: InsertRunInput): Promise<AutomationRun>;
   getRun(id: string): Promise<AutomationRun | null>;
   updateRun(id: string, patch: RunPatch): Promise<AutomationRun>;

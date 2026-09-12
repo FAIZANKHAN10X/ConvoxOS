@@ -48,17 +48,34 @@ function isStaleClaim(
  * production. Claim methods mutate status the same way the SKIP LOCKED
  * RPCs do.
  */
+export interface MemorySkipRecord {
+  accountId: string;
+  automationId: string;
+  contactId: string;
+  eventId: string | null;
+  reason: string;
+  existingRunId: string | null;
+}
+
+export interface TestMemoryStore extends AutomationStore {
+  /** T5.4: test-visible enrollment skip log. */
+  skips: MemorySkipRecord[];
+}
+
 export function createMemoryStore(
   clock: () => Date = () => new Date()
-): AutomationStore {
+): TestMemoryStore {
   const events = new Map<string, DomainEvent>();
   const automations = new Map<string, Automation>();
   const versions = new Map<string, AutomationVersion>();
   const runs = new Map<string, AutomationRun>();
   const steps = new Map<string, RunStep>();
   const waits = new Map<string, AutomationWait>();
+  /** T5.4: enrollment skip log (test-visible for assertions). */
+  const skips: MemorySkipRecord[] = [];
 
-  const store: AutomationStore = {
+  const store: TestMemoryStore = {
+    skips,
     async insertEvent(input: NewDomainEvent): Promise<DomainEvent> {
       for (const existing of events.values()) {
         if (
@@ -151,6 +168,8 @@ export function createMemoryStore(
         draftGraph: input.draftGraph ?? emptyGraph(),
         draftTrigger: input.draftTrigger ?? null,
         publishedVersionId: null,
+        reentryPolicy: 'repeat',
+        stopOnReply: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -187,6 +206,8 @@ export function createMemoryStore(
           accountId: auto.accountId,
           versionId: version.id,
           trigger: clone(version.trigger),
+          reentryPolicy: auto.reentryPolicy ?? 'repeat',
+          stopOnReply: auto.stopOnReply ?? false,
           version: clone(version),
         });
       }
@@ -234,6 +255,26 @@ export function createMemoryStore(
         }
       }
       return null;
+    },
+
+    async hasAnyRun(automationId, contactId) {
+      for (const run of runs.values()) {
+        if (run.automationId === automationId && run.contactId === contactId) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    async recordEnrollmentSkip(input) {
+      skips.push({
+        accountId: input.accountId,
+        automationId: input.automationId,
+        contactId: input.contactId,
+        eventId: input.eventId ?? null,
+        reason: input.reason,
+        existingRunId: input.existingRunId ?? null,
+      });
     },
 
     async insertRun(input: InsertRunInput): Promise<AutomationRun> {

@@ -66,6 +66,12 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
   const [publishing, setPublishing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [enrollmentOpen, setEnrollmentOpen] = useState(false);
+  const [reentryPolicy, setReentryPolicy] = useState<'once' | 'repeat'>(
+    initial.reentryPolicy ?? 'repeat'
+  );
+  const [stopOnReply, setStopOnReply] = useState(initial.stopOnReply ?? false);
+  const [savingEnrollment, setSavingEnrollment] = useState(false);
   const [view, setView] = useState<'builder' | 'history' | 'preview'>(
     'builder'
   );
@@ -197,6 +203,26 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
     const body = await response.json();
     if (response.ok) setAutomation(body.automation);
     else setPublishError(body.error ?? 'Could not update status');
+  }
+
+  async function saveEnrollment() {
+    setSavingEnrollment(true);
+    const response = await fetch(`/api/automations/${automation.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reentryPolicy, stopOnReply }),
+    });
+    setSavingEnrollment(false);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setPublishError(
+        (body as { error?: string }).error ?? 'Could not save enrollment settings'
+      );
+      return;
+    }
+    const body = await response.json();
+    setAutomation(body.automation);
+    setEnrollmentOpen(false);
   }
 
   async function remove() {
@@ -354,6 +380,15 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
                 className="bg-popover border-border/70 text-popover-foreground"
               >
                 <DropdownMenuItem
+                  onClick={() => {
+                    setReentryPolicy(automation.reentryPolicy ?? 'repeat');
+                    setStopOnReply(automation.stopOnReply ?? false);
+                    setEnrollmentOpen(true);
+                  }}
+                >
+                  Enrollment settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => setDeleteOpen(true)}
                   className="text-red-600"
                 >
@@ -402,6 +437,84 @@ export function BuilderShell({ initial, catalog }: BuilderShellProps) {
           </div>
         </>
       )}
+      <Dialog open={enrollmentOpen} onOpenChange={setEnrollmentOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enrollment settings</DialogTitle>
+            <DialogDescription>
+              Control how contacts enter this automation and when
+              running contacts stop.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="reentry-policy"
+                className="text-sm font-medium text-foreground"
+              >
+                Re-entry
+              </label>
+              <select
+                id="reentry-policy"
+                value={reentryPolicy}
+                onChange={(event) =>
+                  setReentryPolicy(
+                    event.target.value === 'once' ? 'once' : 'repeat'
+                  )
+                }
+                disabled={!canEdit || savingEnrollment}
+                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+              >
+                <option value="repeat">
+                  Every time (while not already running)
+                </option>
+                <option value="once">Only once per contact</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {reentryPolicy === 'once'
+                  ? 'A contact enrolls at most once ever — later triggers are skipped.'
+                  : 'A contact re-enrolls on every matching trigger once no run is active.'}
+              </p>
+            </div>
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={stopOnReply}
+                onChange={(event) => setStopOnReply(event.target.checked)}
+                disabled={!canEdit || savingEnrollment}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>
+                <span className="block text-sm font-medium text-foreground">
+                  Stop on reply
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  An inbound message cancels this contact&apos;s running
+                  executions before anything new enrolls.
+                </span>
+              </span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEnrollmentOpen(false)}
+              disabled={savingEnrollment}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void saveEnrollment()}
+              disabled={!canEdit || savingEnrollment}
+            >
+              {savingEnrollment && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              Save settings
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

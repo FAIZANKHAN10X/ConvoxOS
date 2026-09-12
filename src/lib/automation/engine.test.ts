@@ -345,7 +345,16 @@ describe('execution', () => {
       await enqueueTag(store, TAG, { idempotencyKey: 'e2' }),
       { automationId: auto.id, versionId: auto.publishedVersionId! }
     );
-    expect(second?.id).toBe(first?.id);
+    // T5.4: conflicts no longer join the existing run — the skip is
+    // recorded and the winner keeps executing (claimDueRuns owns it).
+    expect(second).toBeNull();
+    expect(store.skips).toHaveLength(1);
+    expect(store.skips[0]).toMatchObject({
+      automationId: auto.id,
+      contactId: 'contact-1',
+      reason: 'active_run',
+      existingRunId: first?.id,
+    });
   });
 
   it('does not start new runs when the automation is disabled', async () => {

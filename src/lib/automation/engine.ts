@@ -3,6 +3,7 @@ import {
   MAX_NODE_EXECUTIONS_PER_INVOCATION,
   MAX_NODE_EXECUTIONS_PER_RUN,
 } from './constants';
+import { evaluateEnrollment } from './enroll';
 import { getNode, nextNodeId, nodeConfig, triggerNodes } from './graph';
 import type { NodeRegistry } from './registry';
 import { ActiveRunConflict, type AutomationStore } from './store';
@@ -12,6 +13,7 @@ import type {
   DomainEvent,
   ExecutionContext,
   NodeResult,
+  ReentryPolicy,
 } from './types';
 import { NodeExecutionError } from './types';
 
@@ -33,10 +35,19 @@ export async function createRunFromMatch(
     automationId: string;
     versionId: string;
     version?: AutomationVersion;
+    reentryPolicy?: ReentryPolicy;
   }
 ): Promise<AutomationRun | null> {
   const { store } = deps;
   if (!event.contactId) return null;
+
+  // Resolve the version first (no side effects), then run the single
+  // T5.4 enrollment gate with the freshest policy: the re-read
+  // automation row when available, else the carried trigger policy
+  // (same freshness guarantee as the carried version — T1.4).
+  let automationId = match.automationId;
+  let version: AutomationVersion | null = null;
+  let reentryPolicy: ReentryPolicy = match.reentryPolicy ?? 'repeat';
 
   // T1.4: prefer the version carried with the trigger (read in the
   // same list query this tick) over re-reading automation + version.
@@ -44,35 +55,42 @@ export async function createRunFromMatch(
   // the list query's, not a second read's. Callers without a carried
   // version fall back to the re-read path (tests, older callers).
   if (match.version && match.version.id === match.versionId) {
-    const starts = triggerNodes(match.version.graph);
-    const entry = starts[0]?.id ?? null;
-    try {
-      return await store.insertRun({
-        accountId: event.accountId,
-        automationId: match.automationId,
-        versionId: match.version.id,
-        contactId: event.contactId,
-        triggerEventId: event.id,
-        currentNodeId: entry,
-        context: { eventId: event.id, outputs: {} },
-      });
-    } catch (error) {
-      if (error instanceof ActiveRunConflict) return error.existing;
-      throw error;
+    version = match.version;
+  } else {
+    const automation = await store.getAutomation(match.automationId);
+    if (!automation || automation.status !== 'published') return null;
+    if (automation.publishedVersionId !== match.versionId) {
+      // New runs always use the currently published version. The match
+      // payload already carries that id; this guards a race with disable.
+      if (!automation.publishedVersionId) return null;
     }
+    reentryPolicy = automation.reentryPolicy;
+    automationId = automation.id;
+    const versionId = automation.publishedVersionId ?? match.versionId;
+    version = await store.getVersion(versionId);
+    if (!version) return null;
   }
 
-  const automation = await store.getAutomation(match.automationId);
-  if (!automation || automation.status !== 'published') return null;
-  if (automation.publishedVersionId !== match.versionId) {
-    // New runs always use the currently published version. The match
-    // payload already carries that id; this guards a race with disable.
-    if (!automation.publishedVersionId) return null;
+  // T5.4 enrollment gate: deterministic skip (recorded) instead of
+  // blind insert. The unique index remains the race backstop below.
+  const contactId = event.contactId;
+  const activeRun = await store.findActiveRun(automationId, contactId);
+  const priorRun =
+    !activeRun && reentryPolicy === 'once'
+      ? await store.hasAnyRun(automationId, contactId)
+      : false;
+  const verdict = evaluateEnrollment({ reentryPolicy, activeRun, priorRun });
+  if (verdict.decision === 'skip') {
+    await store.recordEnrollmentSkip({
+      accountId: event.accountId,
+      automationId,
+      contactId,
+      eventId: event.id,
+      reason: verdict.reason,
+      existingRunId: verdict.existingRunId,
+    });
+    return null;
   }
-
-  const versionId = automation.publishedVersionId ?? match.versionId;
-  const version = await store.getVersion(versionId);
-  if (!version) return null;
 
   const starts = triggerNodes(version.graph);
   const entry = starts[0]?.id ?? null;
@@ -80,15 +98,33 @@ export async function createRunFromMatch(
   try {
     return await store.insertRun({
       accountId: event.accountId,
-      automationId: automation.id,
+      automationId,
       versionId: version.id,
-      contactId: event.contactId,
+      contactId,
       triggerEventId: event.id,
       currentNodeId: entry,
-      context: { eventId: event.id, outputs: {} },
+      context: {
+        eventId: event.id,
+        outputs: {},
+        enrollment: { reentryPolicy, decision: 'enrolled' },
+      },
     });
   } catch (error) {
-    if (error instanceof ActiveRunConflict) return error.existing;
+    if (error instanceof ActiveRunConflict) {
+      // Lost the insert race after the gate read: record the same
+      // deterministic outcome as a gate skip. The winner owns the
+      // run (claimDueRuns executes it) — return null so this tick
+      // neither double-counts nor double-executes.
+      await store.recordEnrollmentSkip({
+        accountId: event.accountId,
+        automationId,
+        contactId,
+        eventId: event.id,
+        reason: 'active_run',
+        existingRunId: error.existing.id,
+      });
+      return null;
+    }
     throw error;
   }
 }

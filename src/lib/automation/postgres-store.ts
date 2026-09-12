@@ -54,6 +54,7 @@ function asTrigger(value: unknown): TriggerSpec | null {
 }
 
 export function mapAutomation(row: Record<string, unknown>): Automation {
+  const policy = row.reentry_policy as string | null | undefined;
   return {
     id: row.id as string,
     accountId: row.account_id as string,
@@ -64,6 +65,8 @@ export function mapAutomation(row: Record<string, unknown>): Automation {
     draftGraph: asGraph(row.draft_graph),
     draftTrigger: asTrigger(row.draft_trigger),
     publishedVersionId: (row.published_version_id as string | null) ?? null,
+    reentryPolicy: policy === 'once' ? 'once' : 'repeat',
+    stopOnReply: (row.stop_on_reply as boolean | null) ?? false,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -274,6 +277,12 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       if (patch.publishedVersionId !== undefined) {
         row.published_version_id = patch.publishedVersionId;
       }
+      if (patch.reentryPolicy !== undefined) {
+        row.reentry_policy = patch.reentryPolicy;
+      }
+      if (patch.stopOnReply !== undefined) {
+        row.stop_on_reply = patch.stopOnReply;
+      }
       const { data, error } = await db
         .from('automations')
         .update(row)
@@ -291,7 +300,7 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
       const { data: autos, error } = await db
         .from('automations')
         .select(
-          'id, account_id, published_version_id, version:automation_versions!automations_published_version_id_fkey(id, account_id, automation_id, version_number, graph, trigger, published_at, published_by)'
+          'id, account_id, published_version_id, reentry_policy, stop_on_reply, version:automation_versions!automations_published_version_id_fkey(id, account_id, automation_id, version_number, graph, trigger, published_at, published_by)'
         )
         .eq('account_id', accountId)
         .eq('status', 'published')
@@ -310,6 +319,8 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
           accountId: row.account_id as string,
           versionId,
           trigger,
+          reentryPolicy: row.reentry_policy === 'once' ? 'once' : 'repeat',
+          stopOnReply: (row.stop_on_reply as boolean | null) ?? false,
           version: mapVersion({ ...versionRow, id: versionId }),
         });
       }
@@ -365,6 +376,30 @@ export function createPostgresStore(db: SupabaseClient): AutomationStore {
         .maybeSingle();
       throwIfError(error, 'find active run');
       return data ? mapRun(data) : null;
+    },
+
+    async hasAnyRun(automationId, contactId) {
+      const { data, error } = await db
+        .from('automation_runs')
+        .select('id')
+        .eq('automation_id', automationId)
+        .eq('contact_id', contactId)
+        .limit(1)
+        .maybeSingle();
+      throwIfError(error, 'check prior runs');
+      return !!data;
+    },
+
+    async recordEnrollmentSkip(input) {
+      const { error } = await db.from('automation_enrollment_skips').insert({
+        account_id: input.accountId,
+        automation_id: input.automationId,
+        contact_id: input.contactId,
+        event_id: input.eventId ?? null,
+        reason: input.reason,
+        existing_run_id: input.existingRunId ?? null,
+      });
+      throwIfError(error, 'record enrollment skip');
     },
 
     async insertRun(input: InsertRunInput) {

@@ -204,6 +204,15 @@ export interface NewDomainEvent {
   availableAt?: string;
 }
 
+/**
+ * T5.4 enrollment controls. `repeat` enrolls whenever no active run
+ * exists (historical behavior). `once` enrolls a contact at most
+ * once ever — any prior run blocks re-enrollment.
+ */
+export type ReentryPolicy = 'once' | 'repeat';
+
+export type EnrollmentSkipReason = 'active_run' | 'already_enrolled';
+
 export interface Automation {
   id: string;
   accountId: string;
@@ -214,6 +223,8 @@ export interface Automation {
   draftGraph: AutomationGraph;
   draftTrigger: TriggerSpec | null;
   publishedVersionId: string | null;
+  reentryPolicy: ReentryPolicy;
+  stopOnReply: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -283,6 +294,11 @@ export interface PublishedTrigger {
   accountId: string;
   versionId: string;
   trigger: TriggerSpec;
+  /** T5.4: enrollment controls carried with the trigger so run
+   * creation evaluates policy without extra reads (same freshness
+   * guarantee as the version itself — the list query). */
+  reentryPolicy: ReentryPolicy;
+  stopOnReply: boolean;
   /**
    * Full published version carried with the trigger so run creation
    * does not re-read automation + version per match (T1.4: the old

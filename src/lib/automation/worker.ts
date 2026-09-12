@@ -3,7 +3,8 @@ import {
   MAX_CALLBACK_DEFERRALS,
   MAX_EVENT_CHAIN_DEPTH,
 } from './constants';
-import { createRunFromMatch, executeRun, type EngineDeps } from './engine';
+import { cancelRun, createRunFromMatch, executeRun, type EngineDeps } from './engine';
+import { DOMAIN_EVENT } from './event-types';
 import { resumeExternalWait } from './external-wait';
 import { matchTriggers } from './match';
 // NOTE: no `import './nodes'` here. Node registration lives in
@@ -99,11 +100,26 @@ export async function processClaimedEvent(
     }
 
     const matches = await matchTriggers(deps.store, deps.registry, event);
+    // T5.4 stop condition: an inbound reply cancels the contact's
+    // active runs for stop-flagged automations BEFORE new matches
+    // enroll, so the reply deterministically wins. New enrollment
+    // from this same event still proceeds (fresh consent).
+    if (event.eventType === DOMAIN_EVENT.MESSAGE_RECEIVED && event.contactId) {
+      for (const match of matches) {
+        if (!match.trigger.stopOnReply) continue;
+        const active = await deps.store.findActiveRun(
+          match.trigger.automationId,
+          event.contactId
+        );
+        if (active) await cancelRun(deps.store, active.id);
+      }
+    }
     for (const match of matches) {
       const run = await createRunFromMatch(deps, event, {
         automationId: match.trigger.automationId,
         versionId: match.trigger.versionId,
         version: match.trigger.version,
+        reentryPolicy: match.trigger.reentryPolicy,
       });
       if (!run) continue;
       result.runsCreated += 1;
