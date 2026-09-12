@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from 'react'
+import { Suspense, use, useCallback, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
 import { formatCurrency } from '@/lib/currency'
@@ -15,7 +15,7 @@ import type {
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
 import { MetricCard } from '@/components/dashboard/metric-card'
-import { SkeletonCard } from '@/components/dashboard/skeleton'
+import { Skeleton, SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
@@ -26,68 +26,29 @@ import { useTranslations } from 'next-intl'
 type RangeDays = 7 | 30 | 90
 
 interface DashboardClientProps {
-  initialMetrics: MetricsBundle | null
-  initialSeries30: ConversationsSeriesPoint[] | null
-  initialPipeline: PipelineDonutData | null
-  initialResponseTime: ResponseTimeSummary | null
-  initialActivity: ActivityItem[] | null
+  metricsPromise: Promise<MetricsBundle | null>
+  series30Promise: Promise<ConversationsSeriesPoint[] | null>
+  pipelinePromise: Promise<PipelineDonutData | null>
+  responseTimePromise: Promise<ResponseTimeSummary | null>
+  activityPromise: Promise<ActivityItem[] | null>
 }
 
-export function DashboardClient({
-  initialMetrics,
-  initialSeries30,
-  initialPipeline,
-  initialResponseTime,
-  initialActivity,
-}: DashboardClientProps) {
+// T2.2: each section below resolves its own server-started promise
+// via React 19 `use()`, so every Suspense boundary streams
+// independently — the KPI ribbon no longer waits for the slowest
+// loader. Fallbacks reuse the exact skeletons the sections
+// rendered for null data before, so loading UX is unchanged.
+
+function MetricsSection({ data }: { data: Promise<MetricsBundle | null> }) {
   const t = useTranslations('Dashboard.page')
   const { defaultCurrency } = useAuth()
-
-  const [metrics] = useState<MetricsBundle | null>(initialMetrics)
-  const [pipeline] = useState<PipelineDonutData | null>(initialPipeline)
-  const [responseTime] = useState<ResponseTimeSummary | null>(initialResponseTime)
-  const [activity] = useState<ActivityItem[] | null>(initialActivity)
-
-  const [range, setRange] = useState<RangeDays>(30)
-  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
-    7: null,
-    30: initialSeries30,
-    90: null,
-  })
-  const [seriesLoading, setSeriesLoading] = useState(false)
-
-  const handleRangeChange = useCallback(
-    (r: RangeDays) => {
-      setRange(r)
-      if (series[r] !== null) return
-      setSeriesLoading(true)
-      const db = createClient()
-      loadConversationsSeries(db, r)
-        .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
-        .catch((err) => console.error('[dashboard] series failed:', err))
-        .finally(() => setSeriesLoading(false))
-    },
-    [series],
-  )
-
+  const metrics = use(data)
   const activeConvCount = metrics?.activeConversations.current ?? 0
   const openDealsCount = metrics?.openDealsCount ?? 0
   const openDealsValue = metrics?.openDealsValue ?? 0
 
   return (
-    <div className="space-y-4">
-      {/* Header with compact title & live operational status */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('title')}</h1>
-          <p className="text-xs text-muted-foreground">{t('description')}</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-          <span className="tabular-nums">Live telemetry active</span>
-        </div>
-      </div>
-
+    <>
       {/* 1. Compact KPI Ribbon */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {!metrics ? (
@@ -184,6 +145,87 @@ export function DashboardClient({
           <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
         </div>
       </div>
+    </>
+  )
+}
+
+function SeriesSection({ initial }: { initial: Promise<ConversationsSeriesPoint[] | null> }) {
+  const initialSeries30 = use(initial)
+  const [range, setRange] = useState<RangeDays>(30)
+  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
+    7: null,
+    30: initialSeries30,
+    90: null,
+  })
+  const [seriesLoading, setSeriesLoading] = useState(false)
+
+  const handleRangeChange = useCallback(
+    (r: RangeDays) => {
+      setRange(r)
+      if (series[r] !== null) return
+      setSeriesLoading(true)
+      const db = createClient()
+      loadConversationsSeries(db, r)
+        .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
+        .catch((err) => console.error('[dashboard] series failed:', err))
+        .finally(() => setSeriesLoading(false))
+    },
+    [series],
+  )
+
+  return (
+    <ConversationsChart series={series} loading={seriesLoading} range={range} onRangeChange={handleRangeChange} />
+  )
+}
+
+function PipelineSection({ data }: { data: Promise<PipelineDonutData | null> }) {
+  const { defaultCurrency } = useAuth()
+  const pipeline = use(data)
+  return <PipelineDonut data={pipeline} loading={!pipeline} currency={defaultCurrency} />
+}
+
+function ResponseSection({ data }: { data: Promise<ResponseTimeSummary | null> }) {
+  const responseTime = use(data)
+  return <ResponseTimeChart data={responseTime} loading={!responseTime} />
+}
+
+function ActivitySection({ data }: { data: Promise<ActivityItem[] | null> }) {
+  const activity = use(data)
+  return <ActivityFeed items={activity} loading={!activity} />
+}
+
+export function DashboardClient({
+  metricsPromise,
+  series30Promise,
+  pipelinePromise,
+  responseTimePromise,
+  activityPromise,
+}: DashboardClientProps) {
+  const t = useTranslations('Dashboard.page')
+
+  return (
+    <div className="space-y-4">
+      {/* Header with compact title & live operational status */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="text-xs text-muted-foreground">{t('description')}</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="tabular-nums">Live telemetry active</span>
+        </div>
+      </div>
+
+      <Suspense
+        fallback={
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        }
+      >
+        <MetricsSection data={metricsPromise} />
+      </Suspense>
 
       {/* 3. Quick Actions */}
       <QuickActions />
@@ -191,20 +233,34 @@ export function DashboardClient({
       {/* 4. Main Operational Split (Conversations Chart + Live Event Feed) */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
         <div className="h-full lg:col-span-3">
-          <ConversationsChart series={series} loading={seriesLoading} range={range} onRangeChange={handleRangeChange} />
+          <Suspense fallback={<Skeleton className="h-[260px] w-full" />}>
+            <SeriesSection initial={series30Promise} />
+          </Suspense>
         </div>
         <div className="h-full lg:col-span-2">
-          <ActivityFeed items={activity} loading={!activity} />
+          <Suspense
+            fallback={
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
+            }
+          >
+            <ActivitySection data={activityPromise} />
+          </Suspense>
         </div>
       </div>
 
       {/* 5. Pipeline Analytics & Response Time Breakdown */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
         <div className="h-full lg:col-span-2">
-          <PipelineDonut data={pipeline} loading={!pipeline} currency={defaultCurrency} />
+          <Suspense fallback={<Skeleton className="h-56 w-full" />}>
+            <PipelineSection data={pipelinePromise} />
+          </Suspense>
         </div>
         <div className="h-full lg:col-span-3">
-          <ResponseTimeChart data={responseTime} loading={!responseTime} />
+          <Suspense fallback={<Skeleton className="h-[260px] w-full" />}>
+            <ResponseSection data={responseTimePromise} />
+          </Suspense>
         </div>
       </div>
     </div>
