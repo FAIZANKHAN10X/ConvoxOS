@@ -420,8 +420,12 @@ export function FlowCanvas({
     let position = { x: 320, y: 200 };
     let nextEdges = edgesRef.current;
 
-    if (picker.mode === 'free') {
-      position = picker.position;
+    // T5.5: triggers never take an incoming edge — a trigger picked
+    // outside free mode lands unconnected instead of invalid.
+    const freePlace = picker.mode === 'free' || def.kind === 'trigger';
+    if (freePlace) {
+      position =
+        picker.mode === 'free' ? picker.position : { x: 320, y: 200 };
     } else if (picker.mode === 'after') {
       const source = nodesRef.current.find(
         (node) => node.id === picker.sourceId
@@ -604,7 +608,10 @@ export function FlowCanvas({
             <div className="rounded-lg border border-border/70 bg-popover p-3 text-popover-foreground shadow-lg">
               <NodePicker
                 catalog={catalog}
-                allowTriggers={!hasTrigger}
+                // T5.5 multi-trigger: triggers are placeable from the
+                // free canvas button. Other modes would attach an
+                // incoming edge, which triggers forbid.
+                allowTriggers={picker.mode === 'free' || !hasTrigger}
                 onPick={placeNode}
               />
             </div>

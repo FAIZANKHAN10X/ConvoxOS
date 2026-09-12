@@ -17,9 +17,8 @@ export function validateDraftGraph(
 
   if (triggerCount === 0) {
     issues.push({ path: 'graph', message: 'Add a starting trigger' });
-  } else if (triggerCount > 1) {
-    issues.push({ path: 'graph', message: 'Only one trigger is allowed' });
   }
+  // T5.5: multiple triggers allowed (OR semantics).
 
   for (const node of graph.nodes) {
     const def = byType.get(node.type);

@@ -73,11 +73,11 @@ export function validateGraph(
   if (starts.length === 0) {
     issues.push({
       path: 'graph',
-      message: 'exactly one trigger node is required',
+      message: 'at least one trigger node is required',
     });
-  } else if (starts.length > 1) {
-    issues.push({ path: 'graph', message: 'only one trigger node is allowed' });
   }
+  // T5.5: multiple triggers allowed (OR semantics — any match
+  // enrolls, gated by the T5.4 enrollment controls).
 
   for (const edge of graph.edges) {
     if (!ids.has(edge.source)) {

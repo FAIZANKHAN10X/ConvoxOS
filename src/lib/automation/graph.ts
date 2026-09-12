@@ -39,9 +39,14 @@ export function triggerNodes(graph: AutomationGraph): GraphNode[] {
   return graph.nodes.filter((n) => n.type.startsWith('trigger.'));
 }
 
+/**
+ * T5.5: the first trigger node, for draft labels and the published
+ * version's denormalized trigger display. Matching evaluates ALL
+ * graph trigger nodes (see matchTriggers) — this is display only.
+ */
 export function extractTrigger(graph: AutomationGraph): TriggerSpec | null {
   const nodes = triggerNodes(graph);
-  if (nodes.length !== 1) return null;
+  if (nodes.length === 0) return null;
   const node = nodes[0];
   return { type: node.type, config: nodeConfig(node) };
 }

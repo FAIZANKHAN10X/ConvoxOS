@@ -7,6 +7,7 @@ import { conditionNode } from './condition';
 import { dealCreatedTrigger } from './deal-created';
 import { dealStageChangedTrigger } from './deal-stage-changed';
 import { dealLostTrigger, dealStatusChangedTrigger, dealWonTrigger } from './deal-status-changed';
+import { dealUpdatedTrigger } from './deal-updated';
 import { createNoteAction } from './create-note';
 import { createDealAction, setDealStatusAction, updateDealAction } from './deals';
 import { taskCompletedTrigger, taskCreatedTrigger, taskOverdueTrigger, noteAddedTrigger } from './task-triggers';
@@ -49,6 +50,7 @@ export { conditionNode } from './condition';
 export { dealStageChangedTrigger } from './deal-stage-changed';
 export { dealCreatedTrigger } from './deal-created';
 export { dealLostTrigger, dealStatusChangedTrigger, dealWonTrigger } from './deal-status-changed';
+export { dealUpdatedTrigger } from './deal-updated';
 export { createNoteAction } from './create-note';
 export { taskCompletedTrigger, taskCreatedTrigger, taskOverdueTrigger, noteAddedTrigger } from './task-triggers';
 export { createDealAction, setDealStatusAction, updateDealAction } from './deals';
@@ -67,6 +69,7 @@ export const builtinNodes: NodeDefinition[] = [
   dealStatusChangedTrigger,
   dealWonTrigger,
   dealLostTrigger,
+  dealUpdatedTrigger,
   taskCompletedTrigger,
   taskCreatedTrigger,
   taskOverdueTrigger,

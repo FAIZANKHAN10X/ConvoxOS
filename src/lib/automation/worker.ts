@@ -120,6 +120,7 @@ export async function processClaimedEvent(
         versionId: match.trigger.versionId,
         version: match.trigger.version,
         reentryPolicy: match.trigger.reentryPolicy,
+        entryNodeId: match.nodeId,
       });
       if (!run) continue;
       result.runsCreated += 1;

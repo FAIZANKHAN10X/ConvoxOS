@@ -36,6 +36,8 @@ export async function createRunFromMatch(
     versionId: string;
     version?: AutomationVersion;
     reentryPolicy?: ReentryPolicy;
+    /** T5.5: the matched trigger node — the run starts here. */
+    entryNodeId?: string;
   }
 ): Promise<AutomationRun | null> {
   const { store } = deps;
@@ -93,7 +95,13 @@ export async function createRunFromMatch(
   }
 
   const starts = triggerNodes(version.graph);
-  const entry = starts[0]?.id ?? null;
+  // T5.5: start at the matched trigger; fall back to the first
+  // trigger for callers that predate multi-trigger (tests, older
+  // paths that match on the denormalized version trigger).
+  const entry =
+    (match.entryNodeId && starts.some((n) => n.id === match.entryNodeId)
+      ? match.entryNodeId
+      : null) ?? starts[0]?.id ?? null;
 
   try {
     return await store.insertRun({
@@ -106,7 +114,11 @@ export async function createRunFromMatch(
       context: {
         eventId: event.id,
         outputs: {},
-        enrollment: { reentryPolicy, decision: 'enrolled' },
+        enrollment: {
+          reentryPolicy,
+          decision: 'enrolled',
+          triggerNodeId: entry,
+        },
       },
     });
   } catch (error) {
