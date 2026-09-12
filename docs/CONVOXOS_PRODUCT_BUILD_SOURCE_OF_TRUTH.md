@@ -84,7 +84,7 @@ Task list/details/assignment/due/completion + contact/deal association (backend 
 
 #### T5.1 — Contact Automation Primitives ✅ COMPLETE (`7665c16`)
 Triggers: contact created/updated, tag added/removed. Actions: update contact, add/remove tag, assign owner, create task. Depends: event emission for contact_updated (new emitter), update-contact node (new). Stack: existing trigger/action registry + `enqueueDomainEventWithClient` + kick.
-#### T5.2 — Opportunity Automation Primitives ⬜
+#### T5.2 — Opportunity Automation Primitives ✅ COMPLETE (`f64004d`)
 Triggers: created/stage/status/won/lost. Actions: create/update/move/assign/value-status. Depends: deal write paths emit new events; RLS preserved. Excludes: multi-opportunity execution.
 #### T5.3 — Task / Note Automation ⬜
 Triggers: task created/completed (+overdue if cheap), note added. Actions: create task/note. Only events with real value. Depends: T4.5 task UI (shared writer exists).
@@ -148,7 +148,8 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 | T4.4 Sequence Analytics | ✅ COMPLETE | `2cf8dcc` | 1033 | Yes (suite+tsc+lint+build) |
 | T4.5 Tasks UI + Deals | ✅ COMPLETE | `7a6813a` | 1046 | Yes (suite+tsc+lint+build) |
 | T5.1 Contact Primitives | ✅ COMPLETE | `7665c16` | 1066 | Yes (suite+tsc+lint) |
-| T5.2–T5.5 | ⬜ NOT STARTED | — | — | — |
+| T5.2 Opportunity Primitives | ✅ COMPLETE | `f64004d` | 1088 | Yes (suite+tsc+lint+build) |
+| T5.3–T5.5 | ⬜ NOT STARTED | — | — | — |
 | T6.1–T6.4 | ⬜ NOT STARTED | — | — | — |
 | T7.1–T7.5 | ⬜ NOT STARTED | — | — | — |
 | T8.1–T8.6 | ⬜ NOT STARTED | — | — | — |
