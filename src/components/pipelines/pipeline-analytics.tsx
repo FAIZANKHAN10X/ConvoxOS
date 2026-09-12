@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
+import { useNow } from "@/hooks/use-now";
 import { useTranslations } from "next-intl";
 
 interface PipelineAnalyticsProps {
@@ -49,6 +50,9 @@ function computeStageProbability(
 export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
   const t = useTranslations("Pipelines.analytics");
   const { defaultCurrency } = useAuth();
+  // Client-only clock for month buckets (null on prerender) —
+  // reading time inside the memo below would poison prerender.
+  const now = useNow();
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
     [stages],
@@ -70,9 +74,11 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
       return sum + Number(d.value || 0) * prob;
     }, 0);
 
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nowDate = now === null ? null : new Date(now);
+    const monthStart =
+      nowDate === null ? null : new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
     const thisMonth = (d: Deal) => {
+      if (monthStart === null) return false;
       const ts = d.updated_at ?? d.created_at;
       return ts ? new Date(ts) >= monthStart : false;
     };
@@ -91,7 +97,7 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
       wonThisMonth,
       lostThisMonth,
     };
-  }, [deals, sortedStages]);
+  }, [deals, sortedStages, now]);
 
   return (
     <TooltipProvider>

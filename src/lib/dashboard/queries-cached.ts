@@ -2,6 +2,12 @@
 // a dependency (T1.7 decision). This module is only ever imported
 // by dashboard/page.tsx (server); 'use cache' functions cannot run
 // on the client regardless, so a client import fails loudly.
+// - Time is NEVER read inside a cache scope: every boundary
+//   (today/yesterday starts, series start + day keys, response
+//   window + week starts) is computed by the caller at request
+//   time and passed in as plain data. Current time inside `use
+//   cache` would poison cache keys and trip Next.js prerender
+//   validation ("unstable value") on every cached route.
 import { cacheLife } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import type {
@@ -10,8 +16,7 @@ import type {
   PipelineDonutData,
   ResponseTimeSummary,
 } from './types'
-import { daysAgoStart, lastNDayKeys } from './date-utils'
-import { startOfLocalDay } from './date-utils'
+import { mondayIndex } from './date-utils'
 
 // T2.3 cached dashboard loaders. Rules followed throughout:
 //
@@ -31,13 +36,13 @@ import { startOfLocalDay } from './date-utils'
 //   The client range toggle keeps using queries.ts.
 
 export async function loadMetricsCached(
-  accountId: string
+  accountId: string,
+  todayStart: string,
+  yesterdayStart: string
 ): Promise<MetricsBundle> {
   'use cache'
   cacheLife('minutes')
   const db = supabaseAdmin()
-  const todayStart = startOfLocalDay().toISOString()
-  const yesterdayStart = daysAgoStart(1).toISOString()
   const { data, error } = await db.rpc('dashboard_metrics', {
     p_account_id: accountId,
     p_today_start: todayStart,
@@ -76,19 +81,19 @@ export async function loadMetricsCached(
 export async function loadSeriesCached(
   accountId: string,
   rangeDays: number,
-  tz: string
+  tz: string,
+  start: string,
+  keys: string[]
 ): Promise<ConversationsSeriesPoint[]> {
   'use cache'
   cacheLife('minutes')
   const db = supabaseAdmin()
-  const start = daysAgoStart(rangeDays - 1).toISOString()
   const { data, error } = await db.rpc('dashboard_series', {
     p_account_id: accountId,
     p_start: start,
     p_tz: tz,
   })
   if (error) throw error
-  const keys = lastNDayKeys(rangeDays)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
   for (const row of (data ?? []) as {
@@ -141,19 +146,20 @@ export async function loadPipelineCached(
 }
 
 export async function loadResponseTimeCached(
-  accountId: string
+  accountId: string,
+  start: string,
+  thisWeekStart: string,
+  lastWeekStart: string
 ): Promise<ResponseTimeSummary> {
   'use cache'
   cacheLife('minutes')
   const db = supabaseAdmin()
-  const fourteenDaysAgo = daysAgoStart(13).toISOString()
   const { data, error } = await db.rpc('dashboard_response_samples', {
     p_account_id: accountId,
-    p_start: fourteenDaysAgo,
+    p_start: start,
   })
   if (error) throw error
   // Bucketing/averaging identical to queries.ts loadResponseTime.
-  const { mondayIndex } = await import('./date-utils')
   const samples: { customerAt: Date; responseAt: Date }[] = (
     (data ?? []) as { customer_at: string; minutes: string | number }[]
   )
@@ -171,9 +177,8 @@ export async function loadResponseTimeCached(
         Number.isFinite(s.responseAt.getTime())
     )
 
-  const now = new Date()
-  const thisWeekStart = daysAgoStart(mondayIndex(now))
-  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7)
+  const thisWeekStartDate = new Date(thisWeekStart)
+  const lastWeekStartDate = new Date(lastWeekStart)
   const byDow = new Map<number, number[]>()
   for (let i = 0; i < 7; i++) byDow.set(i, [])
   const thisWeekMins: number[] = []
@@ -183,9 +188,9 @@ export async function loadResponseTimeCached(
     if (diffMin < 0) continue
     const dow = mondayIndex(s.customerAt)
     byDow.get(dow)!.push(diffMin)
-    if (s.customerAt >= thisWeekStart) {
+    if (s.customerAt >= thisWeekStartDate) {
       thisWeekMins.push(diffMin)
-    } else if (s.customerAt >= lastWeekStart && s.customerAt < thisWeekStart) {
+    } else if (s.customerAt >= lastWeekStartDate && s.customerAt < thisWeekStartDate) {
       lastWeekMins.push(diffMin)
     }
   }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useNow } from '@/hooks/use-now'
 import {
   MessageSquare,
   UserPlus,
@@ -40,6 +41,7 @@ import { useTranslations } from 'next-intl'
 
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   const t = useTranslations('Dashboard.activityFeed')
+  const now = useNow()
   // Start at 5 — a quick scan of the most recent events without
   // dominating vertical real estate. User expands explicitly via the
   // footer control when they want deeper history.
@@ -104,7 +106,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
                     {it.text}
                   </span>
                   <span className="flex-shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {relativeTime(it.at, t)}
+                    {relativeTime(it.at, now, t)}
                   </span>
                 </div>
               )
@@ -155,10 +157,13 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   )
 }
 
-function relativeTime(iso: string, t: ReturnType<typeof useTranslations>): string {
+function relativeTime(iso: string, now: number | null, t: ReturnType<typeof useTranslations>): string {
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return ''
-  const diffSec = Math.round((Date.now() - then) / 1000)
+  // Prerender renders the absolute date (deterministic); the live
+  // relative label fills in after mount via useNow.
+  if (now === null) return new Date(iso).toLocaleDateString()
+  const diffSec = Math.round((now - then) / 1000)
   if (diffSec < 60) return t('timeS', { sec: Math.max(1, diffSec) })
   if (diffSec < 3600) return t('timeM', { min: Math.floor(diffSec / 60) })
   if (diffSec < 86400) return t('timeH', { hr: Math.floor(diffSec / 3600) })

@@ -55,6 +55,9 @@ const contactFields = [
   { value: 'email', labelKey: 'email' },
 ];
 
+// Fixed deterministic stamp: sample data must not call new Date()
+// (non-deterministic prerender output). Only name/phone/company
+// are ever substituted into previews; timestamps are inert.
 const SAMPLE_CONTACT: Contact = {
   id: 'sample',
   user_id: '',
@@ -63,8 +66,8 @@ const SAMPLE_CONTACT: Contact = {
   phone: '+1234567890',
   email: 'john@example.com',
   company: 'Acme Corp',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
 };
 
 export function Step3Personalize({

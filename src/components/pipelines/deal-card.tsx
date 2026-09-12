@@ -3,6 +3,7 @@
 import type { Deal, PipelineStage } from "@/types";
 import { Calendar, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+import { useNow } from "@/hooks/use-now";
 import { useTranslations } from "next-intl";
 
 interface DealCardProps {
@@ -31,11 +32,15 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const assigneeLabel = deal.assignee?.full_name || null;
 
-  // Stale detection: deal is open and updated_at was > 7 days ago
+  // Stale detection: deal is open and updated_at was > 7 days ago.
+  // Wall-clock reads via useNow (null on prerender) so the badge
+  // never differs between server HTML and hydration.
+  const now = useNow();
   const isStale =
+    now !== null &&
     deal.status === "open" &&
     deal.updated_at &&
-    Date.now() - new Date(deal.updated_at).getTime() > 7 * 24 * 60 * 60 * 1000;
+    now - new Date(deal.updated_at).getTime() > 7 * 24 * 60 * 60 * 1000;
 
   return (
     <button
