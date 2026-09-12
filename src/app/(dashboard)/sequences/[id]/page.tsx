@@ -74,7 +74,7 @@ export default function SequenceEditPage() {
   useEffect(() => { void load() }, [id])
 
   function addStep(type: string) {
-    const base: Record<string, unknown> = type === 'send_message' ? { text: '', channel_target: 'whatsapp' } : type === 'wait' ? { amount: 1, unit: 'hours' } : { body: 'Choose', buttons: [{ id: 'a', title: 'A' }], channel_target: 'whatsapp' }
+    const base: Record<string, unknown> = type === 'send_message' ? { text: '', channel_target: 'whatsapp' } : type === 'send_email' ? { subject: '', text: '' } : type === 'wait' ? { amount: 1, unit: 'hours' } : { body: 'Choose', buttons: [{ id: 'a', title: 'A' }], channel_target: 'whatsapp' }
     setSteps((prev) => [...prev, { position: prev.length, step_type: type, step_config: base }])
   }
 
@@ -201,6 +201,7 @@ export default function SequenceEditPage() {
           <h2 className="font-medium">Steps (ordered)</h2>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => addStep('send_message')}>+ Message</Button>
+            <Button size="sm" variant="outline" onClick={() => addStep('send_email')}>+ Email</Button>
             <Button size="sm" variant="outline" onClick={() => addStep('wait')}>+ Wait</Button>
             <Button size="sm" variant="outline" onClick={() => addStep('send_buttons')}>+ Buttons</Button>
           </div>
@@ -223,6 +224,12 @@ export default function SequenceEditPage() {
                   <option value="telegram">Telegram</option>
                   <option value="current">Current</option>
                 </select>
+              </>
+            )}
+            {s.step_type === 'send_email' && (
+              <>
+                <Input value={(s.step_config.subject as string) ?? ''} onChange={(e) => updateStep(idx, { subject: e.target.value })} placeholder="Email subject" />
+                <Input value={(s.step_config.text as string) ?? ''} onChange={(e) => updateStep(idx, { text: e.target.value })} placeholder="Email body" />
               </>
             )}
             {s.step_type === 'wait' && (

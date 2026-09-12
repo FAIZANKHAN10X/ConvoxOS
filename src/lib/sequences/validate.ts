@@ -11,11 +11,14 @@ export function validateSequenceForActivation(name: string, steps: Array<{ step_
   if (!steps || steps.length === 0) issues.push({ path: 'steps', message: 'Sequence needs at least one step' })
   steps.forEach((s, i) => {
     const path = `steps[${i}]`
-    if (!['send_message','send_buttons','send_list','wait'].includes(s.step_type)) {
+    if (!['send_message','send_buttons','send_list','wait','send_email'].includes(s.step_type)) {
       issues.push({ path, message: `unknown step type: ${s.step_type}` })
     }
     const c = s.step_config ?? {}
-    if (s.step_type === 'send_message') {
+    if (s.step_type === 'send_email') {
+      if (!c.subject || typeof c.subject !== 'string' || !c.subject.trim()) issues.push({ path: `${path}.subject`, message: 'subject is required' })
+      if (!c.text || typeof c.text !== 'string' || !c.text.trim()) issues.push({ path: `${path}.text`, message: 'text is required' })
+    } else if (s.step_type === 'send_message') {
       if (!c.text || typeof c.text !== 'string' || !c.text.trim()) issues.push({ path: `${path}.text`, message: 'text is required' })
       const ch = (c as unknown as { channel_target?: string }).channel_target
       if (ch != null && ch !== '' && !['current','whatsapp','telegram'].includes(ch)) issues.push({ path: `${path}.channel_target`, message: 'channel must be current, whatsapp or telegram' })

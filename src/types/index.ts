@@ -496,7 +496,7 @@ export interface Sequence {
 }
 
 export type SequenceStepType =
-  'send_message' | 'send_buttons' | 'send_list' | 'wait';
+  'send_message' | 'send_buttons' | 'send_list' | 'wait' | 'send_email';
 
 export interface SequenceStep {
   id: string;

@@ -208,8 +208,10 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
     const conversationId = (conv as { id: string }).id
     const channelTarget = (cfg.channel_target as string | undefined) ?? 'current'
     // For sequences, channel_target current should resolve to last inbound channel? For now, default to whatsapp if current and no context
+    // T7.5: send_email steps are always email (subject required by validation).
     let channel: 'whatsapp' | 'telegram' | 'email' = 'whatsapp'
-    if (channelTarget === 'telegram') channel = 'telegram'
+    if (step.step_type === 'send_email') channel = 'email'
+    else if (channelTarget === 'telegram') channel = 'telegram'
     else if (channelTarget === 'whatsapp') channel = 'whatsapp'
     else if (channelTarget === 'email') channel = 'email'
     else {
@@ -219,14 +221,21 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
       if (lastChannel === 'telegram' || lastChannel === 'whatsapp' || lastChannel === 'email') channel = lastChannel as 'whatsapp' | 'telegram' | 'email'
     }
 
-    if (step.step_type === 'send_message') {
+    if (step.step_type === 'send_message' || step.step_type === 'send_email') {
       const text = (cfg.text as string) ?? (cfg.body as string) ?? ''
       if (!text.trim()) throw new Error('send_message text required')
+      // T7.5: email subjects come from step config (validated);
+      // chat steps send subject-less.
+      const subject =
+        step.step_type === 'send_email' ? ((cfg.subject as string) ?? '') : undefined
+      if (step.step_type === 'send_email' && !subject?.trim()) {
+        throw new Error('send_email subject required')
+      }
       // Stable per (enrollment, position): a concurrent or retried
       // tick reuses the persisted row instead of double-sending.
       // Position only advances forward, so the key never collides
       // with a genuinely new send.
-      await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text, idempotencyKey: `seq:${enrollmentId}:${pos}` })
+      await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text, subject, idempotencyKey: `seq:${enrollmentId}:${pos}` })
     } else if (step.step_type === 'send_buttons' || step.step_type === 'send_list') {
       // For sequences, send_buttons/send_list are stored as interactive payload same as automations
       // For telegram, dispatchChannelText will handle inline keyboard conversion via dispatchInteractive? For now, use dispatchText with inlineKeyboard if telegram
