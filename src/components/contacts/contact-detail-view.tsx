@@ -204,23 +204,31 @@ export function ContactDetailView({
     }
 
     setSavingDetails(true);
-    const { error } = await supabase
-      .from('contacts')
-      .update({
-        name: editName.trim() || null,
-        phone: editPhone.trim(),
-        email: editEmail.trim() || null,
-        company: editCompany.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', contactId);
-
-    if (error) {
+    // Writes go through the dashboard API (not direct Supabase) so
+    // updates emit contact_updated for automations.
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim() || null,
+          phone: editPhone.trim(),
+          email: editEmail.trim() || null,
+          company: editCompany.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(
+          (data as { error?: string } | null)?.error ?? t('toastUpdateFailed')
+        );
+      } else {
+        toast.success(t('toastUpdated'));
+        fetchContact();
+        onUpdated();
+      }
+    } catch {
       toast.error(t('toastUpdateFailed'));
-    } else {
-      toast.success(t('toastUpdated'));
-      fetchContact();
-      onUpdated();
     }
     setSavingDetails(false);
   }

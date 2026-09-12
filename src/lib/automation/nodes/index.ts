@@ -7,6 +7,7 @@ import { conditionNode } from './condition';
 import { dealStageChangedTrigger } from './deal-stage-changed';
 import { moveDealAction } from './move-deal';
 import { contactCreatedTrigger } from './contact-created';
+import { contactUpdatedTrigger } from './contact-updated';
 import { inboundWebhookTrigger } from './inbound-webhook';
 import { httpRequestAction } from './http-request';
 import { n8nWorkflowAction } from './n8n-workflow';
@@ -15,6 +16,7 @@ import { messageReceivedTrigger } from './message-received';
 import { messageNode } from './message';
 import { removeTagAction } from './remove-tag';
 import { sendTextAction } from './send-text';
+import { updateContactAction } from './update-contact';
 import { tagAddedTrigger } from './tag-added';
 import { completeTaskAction, createTaskAction } from './tasks';
 import { tagRemovedTrigger } from './tag-removed';
@@ -28,9 +30,11 @@ export { messageReceivedTrigger } from './message-received';
 export { messageNode } from './message';
 export { keywordTrigger } from './keyword';
 export { contactCreatedTrigger } from './contact-created';
+export { contactUpdatedTrigger } from './contact-updated';
 export { inboundWebhookTrigger } from './inbound-webhook';
 export { httpRequestAction } from './http-request';
 export { sendTextAction } from './send-text';
+export { updateContactAction } from './update-contact';
 export { addTagAction } from './add-tag';
 export { removeTagAction } from './remove-tag';
 export { waitNode } from './wait';
@@ -47,11 +51,13 @@ export const builtinNodes: NodeDefinition[] = [
   tagAddedTrigger,
   tagRemovedTrigger,
   contactCreatedTrigger,
+  contactUpdatedTrigger,
   dealStageChangedTrigger,
   inboundWebhookTrigger,
   httpRequestAction,
   n8nWorkflowAction,
   sendTextAction,
+  updateContactAction,
   messageNode,
   addTagAction,
   removeTagAction,

@@ -9,6 +9,12 @@
 // ============================================================
 
 import { requireApiKey } from '@/lib/auth/api-context';
+import { emitContactUpdated } from '@/lib/automation/crm-events';
+import {
+  ContactWriteError,
+  hashPatch,
+  updateContact,
+} from '@/lib/contacts/write';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
 import {
   getContactById,
@@ -56,7 +62,7 @@ export async function PATCH(
     // is updated only when its key is PRESENT (so omitted fields are
     // untouched); `null` clears it, a string sets it, and any other
     // type is a 400 rather than a silently-ignored no-op.
-    const updates: Record<string, unknown> = {};
+    const updates: { name?: string | null; email?: string | null; company?: string | null } = {};
     for (const field of ['name', 'email', 'company'] as const) {
       if (!(field in body)) continue;
       const value = body[field];
@@ -68,19 +74,33 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length > 0) {
-      updates.updated_at = new Date().toISOString();
-      const { error } = await ctx.supabase
-        .from('contacts')
-        .update(updates)
-        .eq('id', id)
-        .eq('account_id', ctx.accountId);
-      if (error) {
-        console.error('[api/v1/contacts] update error:', error);
-        return fail('internal', 'Failed to update contact', 500);
+      let result;
+      try {
+        result = await updateContact(ctx.supabase, {
+          accountId: ctx.accountId,
+          contactId: id,
+          patch: updates,
+        });
+      } catch (error) {
+        if (error instanceof ContactWriteError) {
+          return fail(
+            error.status === 404 ? 'not_found' : 'bad_request',
+            error.message,
+            error.status
+          );
+        }
+        throw error;
       }
-      // NOTE: contact_changed automation triggers were retired with the old
-      // automation engine (Phase 9). Domain events will reintroduce this
-      // hook when the v2 automation foundation lands. No dispatch here.
+      if (result.changedFields.length > 0) {
+        await emitContactUpdated({
+          db: ctx.supabase,
+          accountId: ctx.accountId,
+          contactId: id,
+          payload: { fields: result.changedFields, source: 'api' },
+          idempotencyKey: `contact_updated:${id}:api:${hashPatch(updates)}`,
+          source: 'crm',
+        });
+      }
     }
 
     if (Array.isArray(body.tags)) {

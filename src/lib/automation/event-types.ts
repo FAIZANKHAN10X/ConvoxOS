@@ -8,6 +8,7 @@ export const DOMAIN_EVENT = {
   TAG_ADDED: 'tag_added',
   TAG_REMOVED: 'tag_removed',
   CONTACT_CREATED: 'contact_created',
+  CONTACT_UPDATED: 'contact_updated',
   MESSAGE_RECEIVED: 'message_received',
   TASK_CREATED: 'task_created',
   TASK_COMPLETED: 'task_completed',

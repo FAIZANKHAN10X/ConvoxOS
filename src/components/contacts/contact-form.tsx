@@ -140,42 +140,57 @@ export function ContactForm({
     setSaving(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
       if (!accountId) throw new Error('Your profile is not linked to an account.');
 
       let contactId = contact?.id;
 
+      // Writes go through the dashboard API (not direct Supabase) so
+      // creates/updates emit contact_created/contact_updated for
+      // automations. 409 = phone belongs to another contact (same
+      // UX as the old unique-violation path below).
+      const payload = {
+        name: name.trim() || null,
+        phone: phone.trim(),
+        email: email.trim() || null,
+        company: company.trim() || null,
+      };
       if (isEdit && contactId) {
-        const { error } = await supabase
-          .from('contacts')
-          .update({
-            name: name.trim() || null,
-            phone: phone.trim(),
-            email: email.trim() || null,
-            company: company.trim() || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', contactId);
-        if (error) throw error;
+        const res = await fetch(`/api/contacts/${contactId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          if (res.status === 409) {
+            const err = new Error(t('toastConflict')) as Error & { conflict?: boolean };
+            err.conflict = true;
+            throw err;
+          }
+          const data = await res.json().catch(() => null);
+          throw new Error(
+            (data as { error?: string } | null)?.error ?? t('toastError')
+          );
+        }
       } else {
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert({
-            user_id: user.id,
-            account_id: accountId,
-            name: name.trim() || null,
-            phone: phone.trim(),
-            email: email.trim() || null,
-            company: company.trim() || null,
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        contactId = data.id;
+        const res = await fetch('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          if (res.status === 409) {
+            const err = new Error(t('toastConflict')) as Error & { conflict?: boolean };
+            err.conflict = true;
+            throw err;
+          }
+          const data = await res.json().catch(() => null);
+          throw new Error(
+            (data as { error?: string } | null)?.error ?? t('toastError')
+          );
+        }
+        const data = (await res.json()) as { contact?: { id?: string } | null };
+        if (!data?.contact?.id) throw new Error(t('toastError'));
+        contactId = data.contact.id;
       }
 
       // Sync tags
@@ -197,11 +212,15 @@ export function ContactForm({
       onOpenChange(false);
       onSaved();
     } catch (err: unknown) {
-      // The unique index (migration 022) rejects a duplicate phone that
-      // slipped past the on-blur check (race, or a format that
-      // normalizes equal). Surface it as the friendly duplicate notice
-      // and, for new contacts, point the user at the existing record.
-      if (isUniqueViolation(err)) {
+      // The API returns 409 when the phone belongs to another contact
+      // (unique index, migration 022) that slipped past the on-blur
+      // check. Surface the friendly duplicate notice and, for new
+      // contacts, point the user at the existing record. Legacy
+      // unique-violation errors are handled the same way.
+      if (
+        (err as { conflict?: boolean } | null)?.conflict === true ||
+        isUniqueViolation(err)
+      ) {
         toast.error(t('toastConflict'));
         if (!isEdit && accountId) {
           const existing = await findExistingContact(

@@ -39,6 +39,10 @@ export async function emitContactCreated(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.CONTACT_CREATED, args);
 }
 
+export async function emitContactUpdated(args: EmitArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.CONTACT_UPDATED, args);
+}
+
 export async function emitMessageReceived(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.MESSAGE_RECEIVED, args);
 }

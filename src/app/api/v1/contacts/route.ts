@@ -9,6 +9,7 @@
 // ============================================================
 
 import { requireApiKey } from '@/lib/auth/api-context';
+import { emitContactCreated } from '@/lib/automation/crm-events';
 import { ok, okList, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
 import {
   parseListParams,
@@ -123,6 +124,17 @@ export async function POST(request: Request) {
         company: typeof body.company === 'string' ? body.company : undefined,
       }
     );
+
+    if (created) {
+      await emitContactCreated({
+        db: ctx.supabase,
+        accountId: ctx.accountId,
+        contactId: id,
+        payload: { source: 'api' },
+        idempotencyKey: `contact_created:${id}`,
+        source: 'crm',
+      });
+    }
 
     if (Array.isArray(body.tags)) {
       await setContactTags(

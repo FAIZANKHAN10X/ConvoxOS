@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { ToolDefinition } from './types';
+import { emitContactUpdated } from '@/lib/automation/crm-events';
+import { hashPatch, updateContact } from '@/lib/contacts/write';
 
 // Reuse existing contact/tag logic where possible, but keep handlers
 // account-scoped and validated — never trust model-supplied IDs without check.
@@ -58,8 +60,25 @@ export const updateContactTool: ToolDefinition = {
       patch[f] = String(v).trim();
     }
     if (Object.keys(patch).length === 0) return { success: false, error: 'No fields to update or all already set (use force to overwrite)' };
-    const { error } = await ctx.supabase.from('contacts').update(patch).eq('id', contactId).eq('account_id', ctx.accountId);
-    if (error) return { success: false, error: 'Failed to update contact' };
+    try {
+      const result = await updateContact(ctx.supabase, {
+        accountId: ctx.accountId,
+        contactId,
+        patch,
+      });
+      if (result.changedFields.length > 0) {
+        await emitContactUpdated({
+          db: ctx.supabase,
+          accountId: ctx.accountId,
+          contactId,
+          payload: { fields: result.changedFields, source: 'api' },
+          idempotencyKey: `contact_updated:${contactId}:api:${hashPatch(patch)}`,
+          source: 'crm',
+        });
+      }
+    } catch {
+      return { success: false, error: 'Failed to update contact' };
+    }
     return { success: true, data: { updated: Object.keys(patch) } };
   },
 };
