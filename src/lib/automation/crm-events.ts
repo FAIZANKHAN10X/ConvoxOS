@@ -55,6 +55,14 @@ export async function emitTaskCompleted(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.TASK_COMPLETED, args);
 }
 
+export async function emitTaskOverdue(args: EmitArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.TASK_OVERDUE, args);
+}
+
+export async function emitNoteAdded(args: EmitArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.NOTE_ADDED, args);
+}
+
 export interface EmitDealArgs extends EmitArgs {
   dealId: string;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { createEngineDeps, runAutomationWorker } from '@/lib/automation';
 import { resumeDueSequenceEnrollments } from '@/lib/sequences/engine';
+import { sweepOverdueTasks } from '@/lib/tasks/overdue';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -51,7 +52,15 @@ async function handle(request: Request): Promise<NextResponse> {
   } catch (e) {
     console.error('[automation-worker] sequence sweep failed:', e);
   }
-  return NextResponse.json({ ok: true, ...result, sequencesResumed });
+  // T5.3: overdue-task sweep rides the same per-minute tick —
+  // best-effort like the sequence sweep above.
+  let overdueFired = 0;
+  try {
+    overdueFired = await sweepOverdueTasks();
+  } catch (e) {
+    console.error('[automation-worker] overdue sweep failed:', e);
+  }
+  return NextResponse.json({ ok: true, ...result, sequencesResumed, overdueFired });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {

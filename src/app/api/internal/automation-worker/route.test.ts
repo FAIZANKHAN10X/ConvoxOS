@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   run: vi.fn(),
+  sweepOverdue: vi.fn(),
 }));
 
 vi.mock('@/lib/automation', () => ({
@@ -9,17 +10,23 @@ vi.mock('@/lib/automation', () => ({
   runAutomationWorker: mocks.run,
 }));
 
+vi.mock('@/lib/tasks/overdue', () => ({
+  sweepOverdueTasks: mocks.sweepOverdue,
+}));
+
 import { GET, POST } from './route';
 
 describe('/api/internal/automation-worker', () => {
   beforeEach(() => {
     mocks.run.mockReset();
+    mocks.sweepOverdue.mockReset();
     mocks.run.mockResolvedValue({
       eventsProcessed: 1,
       runsCreated: 1,
       runsExecuted: 1,
       waitsResumed: 0,
     });
+    mocks.sweepOverdue.mockResolvedValue(0);
     process.env.AUTOMATION_WORKER_SECRET = 'test-secret';
   });
 
@@ -43,9 +50,11 @@ describe('/api/internal/automation-worker', () => {
     const response = await POST(request);
     expect(response.status).toBe(200);
     expect(mocks.run).toHaveBeenCalled();
+    expect(mocks.sweepOverdue).toHaveBeenCalled();
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       eventsProcessed: 1,
+      overdueFired: 0,
     });
   });
 

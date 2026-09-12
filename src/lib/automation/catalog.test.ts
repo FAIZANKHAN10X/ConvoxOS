@@ -15,6 +15,7 @@ describe('automation catalog', () => {
         'action.assign_owner',
         'action.complete_task',
         'action.create_deal',
+        'action.create_note',
         'action.create_task',
         'action.http_request',
         'action.move_deal',
@@ -38,8 +39,12 @@ describe('automation catalog', () => {
         'trigger.inbound_webhook',
         'trigger.keyword',
         'trigger.message_received',
+        'trigger.note_added',
         'trigger.tag_added',
         'trigger.tag_removed',
+        'trigger.task_completed',
+        'trigger.task_created',
+        'trigger.task_overdue',
       ].sort()
     );
     expect(catalog.every((node) => node.ports.outgoing.length >= 1)).toBe(true);

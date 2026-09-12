@@ -12,6 +12,8 @@ export const DOMAIN_EVENT = {
   MESSAGE_RECEIVED: 'message_received',
   TASK_CREATED: 'task_created',
   TASK_COMPLETED: 'task_completed',
+  TASK_OVERDUE: 'task_overdue',
+  NOTE_ADDED: 'note_added',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
   DEAL_STATUS_CHANGED: 'deal_status_changed',
   DEAL_CREATED: 'deal_created',

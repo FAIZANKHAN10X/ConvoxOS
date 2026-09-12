@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+
 import type { Contact, Deal, ContactNote, Tag } from "@/types";
 import {
   Phone,
@@ -28,7 +28,6 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
-  const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -91,32 +90,26 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   const handleAddNote = useCallback(async () => {
     if (!contact || !newNote.trim()) return;
-    if (!accountId) return;
     setAddingNote(true);
 
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-
-    const { data, error } = await supabase
-      .from("contact_notes")
-      .insert({
-        contact_id: contact.id,
-        account_id: accountId,
-        user_id: user?.id,
-        note_text: newNote.trim(),
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      setNotes((prev) => [data, ...prev]);
+    // Notes go through the dashboard API (not direct Supabase) so
+    // they emit note_added for automations.
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_text: newNote.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { note } = (await res.json()) as { note: ContactNote };
+      setNotes((prev) => [note, ...prev]);
       setNewNote("");
+    } catch {
+      // Silent failure preserves the old UX (no toast here); the
+      // note simply stays in the composer for retry.
     }
     setAddingNote(false);
-  }, [contact, newNote, accountId]);
+  }, [contact, newNote]);
 
   if (!contact) {
     return (
