@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import {
   LayoutDashboard,
   MessageSquare,
@@ -78,7 +79,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     (item: CommandItem) => {
       onOpenChange(false);
       setQuery('');
-      router.push(item.href as any);
+      router.push(item.href as Route);
     },
     [router, onOpenChange]
   );
