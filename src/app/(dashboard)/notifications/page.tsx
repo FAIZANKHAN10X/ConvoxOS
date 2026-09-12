@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +18,22 @@ const TYPE_ICON: Record<Notification["type"], typeof Bell> = {
 };
 
 export default function NotificationsPage() {
+  // Suspense shell for prerender/instant-navigation validation —
+  // fallback mirrors the loading spinner below.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-64 items-center justify-center" aria-hidden>
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <NotificationsPageInner />
+    </Suspense>
+  );
+}
+
+function NotificationsPageInner() {
   const router = useRouter();
   const { accountId } = useAuth();
   const [notifications, setNotifications] = useState<Notification[] | null>(

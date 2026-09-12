@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Bot, BookOpen, FlaskConical, Settings2, BarChart3, LayoutDashboard } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AiUsageCard } from '@/components/agents/ai-usage';
@@ -15,6 +15,22 @@ import { canEditSettings } from '@/lib/auth/roles';
 type Tab = 'overview' | 'configure' | 'knowledge' | 'test' | 'activity';
 
 export default function AgentsPage() {
+  // Suspense shell for prerender/instant-navigation validation —
+  // fallback mirrors the pre-decision pulse block below.
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-5xl" aria-hidden>
+          <div className="mt-6 h-64 animate-pulse rounded-lg border border-border/70 bg-card" />
+        </div>
+      }
+    >
+      <AgentsPageInner />
+    </Suspense>
+  );
+}
+
+function AgentsPageInner() {
   const { accountRole, accountId } = useAuth();
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
   const [tab, setTab] = useState<Tab>('overview');

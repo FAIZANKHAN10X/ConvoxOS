@@ -33,9 +33,28 @@ import {
 // the boundary; the inner component reads the query string.
 export default function SettingsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SettingsShell />}>
       <SettingsPageInner />
     </Suspense>
+  );
+}
+
+// Static shell for prerender/instant-navigation validation: rail +
+// content blocks mirroring the settings grid. No data, no hooks.
+function SettingsShell() {
+  return (
+    <div aria-hidden>
+      <div className="h-7 w-32 animate-pulse rounded bg-muted/60" />
+      <div className="mt-1 h-4 w-64 animate-pulse rounded bg-muted/40" />
+      <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
+        <div className="space-y-1">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-9 animate-pulse rounded-md bg-muted/40" />
+          ))}
+        </div>
+        <div className="h-64 animate-pulse rounded-lg bg-muted/40" />
+      </div>
+    </div>
   );
 }
 

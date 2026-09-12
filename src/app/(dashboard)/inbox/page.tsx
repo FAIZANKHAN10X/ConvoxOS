@@ -26,9 +26,33 @@ const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 // wrapper supplies it; the inner component holds all the inbox state.
 export default function InboxPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<InboxShell />}>
       <InboxPageInner />
     </Suspense>
+  );
+}
+
+// Static shell for prerender/instant-navigation validation: mirrors
+// the three-pane layout (list / thread / detail) with neutral
+// blocks. Identical in spirit to the loaded layout, no data.
+function InboxShell() {
+  return (
+    <div className="flex h-full min-h-0" aria-hidden>
+      <div className="w-72 shrink-0 space-y-2 border-r border-border/60 p-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg bg-muted/60" />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2 p-4">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted/60" />
+        <div className="h-64 animate-pulse rounded-lg bg-muted/40" />
+      </div>
+      <div className="hidden w-80 shrink-0 space-y-2 border-l border-border/60 p-3 lg:block">
+        <div className="mx-auto h-16 w-16 animate-pulse rounded-full bg-muted/60" />
+        <div className="h-4 animate-pulse rounded bg-muted/60" />
+        <div className="h-24 animate-pulse rounded-lg bg-muted/40" />
+      </div>
+    </div>
   );
 }
 
