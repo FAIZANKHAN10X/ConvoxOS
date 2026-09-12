@@ -76,6 +76,11 @@ const nextConfig: NextConfig = {
   // (see lib/dashboard/queries-cached.ts). Routes stay dynamic by
   // default; nothing is cached unless explicitly marked.
   cacheComponents: true,
+  // T3.6 pilot: Partial Prefetching — each visible Link prefetches
+  // its route's App Shell once (shared across links) instead of a
+  // full prefetch per link. Dynamic content streams at navigation
+  // via the Suspense boundaries added in T2.2.
+  partialPrefetching: true,
   images: {
     remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],
   },
