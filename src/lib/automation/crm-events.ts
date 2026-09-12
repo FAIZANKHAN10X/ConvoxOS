@@ -77,6 +77,22 @@ export async function emitAppointmentStatusChanged(
   await emit(args.db, DOMAIN_EVENT.APPOINTMENT_STATUS_CHANGED, args);
 }
 
+export interface EmitEmailArgs extends EmitArgs {
+  messageId: string;
+}
+
+export async function emitEmailDelivered(args: EmitEmailArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.EMAIL_DELIVERED, args);
+}
+
+export async function emitEmailBounced(args: EmitEmailArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.EMAIL_BOUNCED, args);
+}
+
+export async function emitEmailOpened(args: EmitEmailArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.EMAIL_OPENED, args);
+}
+
 export interface EmitDealArgs extends EmitArgs {
   dealId: string;
 }

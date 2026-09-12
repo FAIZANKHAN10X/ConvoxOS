@@ -75,9 +75,21 @@ export async function POST(
   const type = (body as { type?: unknown })?.type;
 
   // Delivery/lifecycle events (sent/delivered/bounced/…) are
-  // handled by T7.4 in this same route; only receipt flows below.
+  // handled by the T7.4 lifecycle handler in this same route.
   // Unknown types ack 200 so Resend does not retry them.
   if (type !== 'email.received') {
+    after(async () => {
+      try {
+        const { handleResendLifecycleEvent } = await import('@/lib/email/lifecycle');
+        await handleResendLifecycleEvent({
+          db: supabaseAdmin(),
+          accountId: config.account_id as string,
+          payload: body as { type: string; data?: Record<string, unknown> },
+        });
+      } catch (err) {
+        console.error('[email webhook] lifecycle handling failed:', err);
+      }
+    });
     return NextResponse.json({ status: 'received' }, { status: 200 });
   }
 

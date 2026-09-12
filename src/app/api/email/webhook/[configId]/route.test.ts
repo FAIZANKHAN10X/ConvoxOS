@@ -128,7 +128,9 @@ describe('POST /api/email/webhook/[configId]', () => {
     const ts = String(Math.floor(Date.now() / 1000));
     const response = await POST(request(body, signedBody(body, ts)), params);
     expect(response.status).toBe(200);
-    expect(mocks.afterCallbacks).toHaveLength(0);
+    // Lifecycle runs in after(); the receipt pipeline stays untouched.
+    expect(mocks.afterCallbacks).toHaveLength(1);
+    await mocks.afterCallbacks[0]();
     expect(mocks.processInbound).not.toHaveBeenCalled();
   });
 

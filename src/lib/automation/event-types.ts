@@ -18,6 +18,14 @@ export const DOMAIN_EVENT = {
   FORM_SUBMITTED: 'form_submitted',
   /** T6.4: booked on create, then on every status transition. */
   APPOINTMENT_STATUS_CHANGED: 'appointment_status_changed',
+  /**
+   * T7.4: Resend-reliable delivery signals only. Sent is implicit
+   * (we just sent it), clicks imply opens, complaints mark failed
+   * without a trigger, delayed is transient noise.
+   */
+  EMAIL_DELIVERED: 'email_delivered',
+  EMAIL_BOUNCED: 'email_bounced',
+  EMAIL_OPENED: 'email_opened',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
   DEAL_STATUS_CHANGED: 'deal_status_changed',
   DEAL_CREATED: 'deal_created',
