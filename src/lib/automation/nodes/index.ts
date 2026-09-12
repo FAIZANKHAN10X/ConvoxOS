@@ -4,7 +4,10 @@ import type { NodeDefinition } from '../types';
 import { addTagAction } from './add-tag';
 import { assignOwnerAction } from './assign-owner';
 import { conditionNode } from './condition';
+import { dealCreatedTrigger } from './deal-created';
 import { dealStageChangedTrigger } from './deal-stage-changed';
+import { dealLostTrigger, dealStatusChangedTrigger, dealWonTrigger } from './deal-status-changed';
+import { createDealAction, setDealStatusAction, updateDealAction } from './deals';
 import { moveDealAction } from './move-deal';
 import { contactCreatedTrigger } from './contact-created';
 import { contactUpdatedTrigger } from './contact-updated';
@@ -42,6 +45,9 @@ export { waitExternalNode } from './wait-external';
 export { assignOwnerAction } from './assign-owner';
 export { conditionNode } from './condition';
 export { dealStageChangedTrigger } from './deal-stage-changed';
+export { dealCreatedTrigger } from './deal-created';
+export { dealLostTrigger, dealStatusChangedTrigger, dealWonTrigger } from './deal-status-changed';
+export { createDealAction, setDealStatusAction, updateDealAction } from './deals';
 export { moveDealAction } from './move-deal';
 export { n8nWorkflowAction } from './n8n-workflow';
 
@@ -53,6 +59,10 @@ export const builtinNodes: NodeDefinition[] = [
   contactCreatedTrigger,
   contactUpdatedTrigger,
   dealStageChangedTrigger,
+  dealCreatedTrigger,
+  dealStatusChangedTrigger,
+  dealWonTrigger,
+  dealLostTrigger,
   inboundWebhookTrigger,
   httpRequestAction,
   n8nWorkflowAction,
@@ -62,6 +72,9 @@ export const builtinNodes: NodeDefinition[] = [
   addTagAction,
   removeTagAction,
   moveDealAction,
+  createDealAction,
+  updateDealAction,
+  setDealStatusAction,
   createTaskAction,
   completeTaskAction,
   assignOwnerAction,

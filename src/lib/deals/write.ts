@@ -18,7 +18,11 @@ export interface DealRow {
   contact_id: string | null;
   title: string;
   status: string;
+  value: number;
 }
+const DEAL_COLUMNS =
+  'id, account_id, pipeline_id, stage_id, contact_id, title, status, value';
+
 async function getDeal(
   db: SupabaseClient,
   accountId: string,
@@ -26,7 +30,7 @@ async function getDeal(
 ): Promise<DealRow | null> {
   const { data, error } = await db
     .from('deals')
-    .select('id, account_id, pipeline_id, stage_id, contact_id, title, status')
+    .select(DEAL_COLUMNS)
     .eq('id', dealId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -41,7 +45,7 @@ export async function getLatestOpenDeal(
 ): Promise<DealRow | null> {
   const { data, error } = await db
     .from('deals')
-    .select('id, account_id, pipeline_id, stage_id, contact_id, title, status')
+    .select(DEAL_COLUMNS)
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .eq('status', 'open')
@@ -88,7 +92,7 @@ export async function moveDealStage(
     .update({ stage_id: input.stageId })
     .eq('id', input.dealId)
     .eq('account_id', input.accountId)
-    .select('id, account_id, pipeline_id, stage_id, contact_id, title, status')
+    .select(DEAL_COLUMNS)
     .single();
   if (error || !updated) {
     throw new DealWriteError(
@@ -137,7 +141,7 @@ export async function setDealStatus(
     .update(patch)
     .eq('id', input.dealId)
     .eq('account_id', input.accountId)
-    .select('id, account_id, pipeline_id, stage_id, contact_id, title, status')
+    .select(DEAL_COLUMNS)
     .single();
   if (error || !updated) {
     throw new DealWriteError(
@@ -145,4 +149,158 @@ export async function setDealStatus(
     );
   }
   return { changed: true, deal: updated as DealRow, fromStatus: deal.status };
+}
+
+export interface CreateDealInput {
+  accountId: string;
+  userId: string;
+  pipelineId: string;
+  stageId: string;
+  contactId: string | null;
+  title: string;
+  value?: number;
+  currency?: string;
+  assignedTo?: string | null;
+  notes?: string | null;
+  expectedCloseDate?: string | null;
+}
+
+/**
+ * Create a deal after verifying the pipeline, stage, and contact
+ * all belong to the account (and the stage to the pipeline). Pure
+ * DB write — the caller emits `deal_created` with the right source.
+ */
+export async function createDeal(
+  db: SupabaseClient,
+  input: CreateDealInput
+): Promise<DealRow> {
+  const title = input.title.trim();
+  if (!title) throw new DealWriteError('Title is required', 400);
+
+  const { data: pipeline, error: pipelineError } = await db
+    .from('pipelines')
+    .select('id')
+    .eq('id', input.pipelineId)
+    .eq('account_id', input.accountId)
+    .maybeSingle();
+  if (pipelineError || !pipeline) {
+    throw new DealWriteError('Pipeline not found', 400);
+  }
+
+  const { data: stage, error: stageError } = await db
+    .from('pipeline_stages')
+    .select('id')
+    .eq('id', input.stageId)
+    .eq('pipeline_id', input.pipelineId)
+    .maybeSingle();
+  if (stageError || !stage) {
+    throw new DealWriteError('Stage not found for deal pipeline', 400);
+  }
+
+  if (input.contactId) {
+    const { data: contact, error: contactError } = await db
+      .from('contacts')
+      .select('id')
+      .eq('id', input.contactId)
+      .eq('account_id', input.accountId)
+      .maybeSingle();
+    if (contactError || !contact) {
+      throw new DealWriteError('Contact not found', 404);
+    }
+  }
+
+  const { data: created, error } = await db
+    .from('deals')
+    .insert({
+      user_id: input.userId,
+      account_id: input.accountId,
+      pipeline_id: input.pipelineId,
+      stage_id: input.stageId,
+      contact_id: input.contactId,
+      title,
+      value: input.value ?? 0,
+      currency: input.currency ?? 'USD',
+      assigned_to: input.assignedTo ?? null,
+      notes: input.notes?.trim() ? input.notes.trim() : null,
+      expected_close_date: input.expectedCloseDate ?? null,
+      status: 'open',
+    })
+    .select(DEAL_COLUMNS)
+    .single();
+  if (error || !created) {
+    throw new DealWriteError(
+      `Failed to create deal: ${error?.message ?? 'no row'}`
+    );
+  }
+  return created as DealRow;
+}
+
+export interface UpdateDealPatch {
+  title?: string | null;
+  value?: number | null;
+  currency?: string | null;
+  assignedTo?: string | null;
+  notes?: string | null;
+  expectedCloseDate?: string | null;
+}
+
+/**
+ * Validated partial deal update for generic fields (stage and
+ * status stay with moveDealStage/setDealStatus). Values equal to
+ * the stored row are skipped, so a no-op save performs no write
+ * and emits nothing. Pure DB write — the caller emits
+ * `deal_updated` when fields actually change.
+ */
+export async function updateDeal(
+  db: SupabaseClient,
+  input: { accountId: string; dealId: string; patch: UpdateDealPatch }
+): Promise<{ deal: DealRow; changedFields: string[] }> {
+  const existing = await getDeal(db, input.accountId, input.dealId);
+  if (!existing) throw new DealWriteError('Deal not found', 404);
+
+  const patch: Record<string, unknown> = {};
+  if (input.patch.title !== undefined) {
+    // deals.title is NOT NULL — an empty title is a 400, not a clear.
+    const next =
+      typeof input.patch.title === 'string' ? input.patch.title.trim() : '';
+    if (!next) throw new DealWriteError('Title is required', 400);
+    if (next !== existing.title) patch.title = next;
+  }
+  if (input.patch.value !== undefined) {
+    const next =
+      typeof input.patch.value === 'number' && Number.isFinite(input.patch.value)
+        ? input.patch.value
+        : 0;
+    if (Number(next) !== Number(existing.value)) patch.value = next;
+  }
+  for (const [key, column] of [
+    ['currency', 'currency'],
+    ['assignedTo', 'assigned_to'],
+    ['notes', 'notes'],
+    ['expectedCloseDate', 'expected_close_date'],
+  ] as const) {
+    const value = input.patch[key];
+    if (value === undefined) continue;
+    const next =
+      typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+    const current = (existing as unknown as Record<string, unknown>)[column];
+    if ((current ?? null) !== next) patch[column] = next;
+  }
+  if (Object.keys(patch).length === 0) {
+    return { deal: existing, changedFields: [] };
+  }
+
+  const { data: updated, error } = await db
+    .from('deals')
+    .update(patch)
+    .eq('id', input.dealId)
+    .eq('account_id', input.accountId)
+    .select(DEAL_COLUMNS)
+    .single();
+  if (error || !updated) {
+    throw new DealWriteError(
+      `Failed to update deal: ${error?.message ?? 'no row'}`
+    );
+  }
+  return { deal: updated as DealRow, changedFields: Object.keys(patch) };
 }

@@ -14,6 +14,13 @@ export const DOMAIN_EVENT = {
   TASK_COMPLETED: 'task_completed',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
   DEAL_STATUS_CHANGED: 'deal_status_changed',
+  DEAL_CREATED: 'deal_created',
+  /**
+   * Emitted on generic deal field updates (title/value/etc). No
+   * trigger consumes it yet — T5.5 owns trigger coverage. Recorded
+   * so the domain fact exists for the debugger + future triggers.
+   */
+  DEAL_UPDATED: 'deal_updated',
   /** Fired by automation_inbound_hooks (n8n, scripts, middleware). */
   EXTERNAL_RECEIVED: 'external.received',
 } as const;

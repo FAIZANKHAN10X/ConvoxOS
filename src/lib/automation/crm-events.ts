@@ -55,12 +55,20 @@ export async function emitTaskCompleted(args: EmitArgs): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.TASK_COMPLETED, args);
 }
 
-export interface EmitDealStageChangedArgs extends EmitArgs {
+export interface EmitDealArgs extends EmitArgs {
   dealId: string;
 }
 
+export async function emitDealCreated(args: EmitDealArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.DEAL_CREATED, args);
+}
+
+export async function emitDealUpdated(args: EmitDealArgs): Promise<void> {
+  await emit(args.db, DOMAIN_EVENT.DEAL_UPDATED, args);
+}
+
 export async function emitDealStageChanged(
-  args: EmitDealStageChangedArgs
+  args: EmitDealArgs
 ): Promise<void> {
   await emit(args.db, DOMAIN_EVENT.DEAL_STAGE_CHANGED, args);
 }

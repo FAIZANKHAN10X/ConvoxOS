@@ -55,7 +55,7 @@ export function DealForm({
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { defaultCurrency } = useAuth();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -172,18 +172,20 @@ export function DealForm({
     };
 
     if (deal) {
-      // Stage moves go through the deals API route so they emit
-      // `deal_stage_changed` (the direct write below cannot fan out
-      // events from the browser). Exclude a changed stage here; the
-      // route owns that write.
+      // Writes go through the deals API routes (not direct Supabase)
+      // so updates emit deal_updated and stage moves emit
+      // deal_stage_changed for automations.
       const stageChanged = stageId !== deal.stage_id;
       const { stage_id: _moved, ...rest } = payload;
       void _moved;
-      const { error } = await supabase
-        .from("deals")
-        .update(stageChanged ? rest : payload)
-        .eq("id", deal.id);
-      if (error) {
+      try {
+        const response = await fetch(`/api/deals/${deal.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rest),
+        });
+        if (!response.ok) throw new Error(await response.text());
+      } catch {
         toast.error(t("toastFailedSave"));
         setSaving(false);
         return;
@@ -203,24 +205,16 @@ export function DealForm({
         }
       }
     } else {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        toast.error(t("toastNotSignedIn"));
-        setSaving(false);
-        return;
-      }
-      if (!accountId) {
-        toast.error(t("toastNotLinked"));
-        setSaving(false);
-        return;
-      }
-      const { error } = await supabase
-        .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
-      if (error) {
+      // Creates go through POST /api/deals so they emit
+      // deal_created for automations.
+      try {
+        const response = await fetch('/api/deals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error(await response.text());
+      } catch {
         toast.error(t("toastFailedCreate"));
         setSaving(false);
         return;
