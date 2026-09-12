@@ -72,6 +72,10 @@ const nextConfig: NextConfig = {
   compress: true,
   typedRoutes: true,
   reactCompiler: true,
+  // T2.3: Cache Components — caching is opt-in via `use cache`
+  // (see lib/dashboard/queries-cached.ts). Routes stay dynamic by
+  // default; nothing is cached unless explicitly marked.
+  cacheComponents: true,
   images: {
     remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],
   },

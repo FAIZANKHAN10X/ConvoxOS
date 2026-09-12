@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { DashboardShell } from "./dashboard-shell";
 
 // Server layout whose only job is to declare "do not index" metadata
@@ -24,5 +25,22 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardShell>{children}</DashboardShell>;
+  // The shell reads usePathname (client hook) and gates on auth —
+  // it can only render at runtime. The boundary lets the route
+  // prerender its static shell while the authed chrome streams in.
+  // No visual change: fallback matches the shell's own loader.
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-background flex h-screen items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+            <p className="text-muted-foreground text-sm">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <DashboardShell>{children}</DashboardShell>
+    </Suspense>
+  );
 }

@@ -22,7 +22,7 @@
 // this page after email verification.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -91,6 +91,17 @@ const FAIL_COPY: Record<PeekFail['reason'], { title: string; body: string }> = {
 };
 
 export default function JoinPage() {
+  // useParams opts out of static prerendering unless under Suspense
+  // (same pattern as /login + /signup) — required since the
+  // cacheComponents model prerenders by default.
+  return (
+    <Suspense fallback={null}>
+      <JoinPageInner />
+    </Suspense>
+  );
+}
+
+function JoinPageInner() {
   const params = useParams<{ token: string }>();
   const token = params?.token;
 
