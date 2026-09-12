@@ -168,6 +168,9 @@ export function ContactsClient({ initialContacts, initialTotalCount, initialTags
         .from('contacts')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
+        // Total ordering: id tiebreak keeps offset pages stable when
+        // rows share a timestamp (T1.5; matches page.tsx + 067).
+        .order('id', { ascending: false })
         .range(from, to);
 
       if (term) {

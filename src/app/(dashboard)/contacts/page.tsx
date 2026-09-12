@@ -12,7 +12,10 @@ export default async function ContactsPage() {
 
   const [{ data: tagsData }, { data: contactsData, count }] = await Promise.all([
     supabase.from('tags').select('*').order('name'),
-    supabase.from('contacts').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(0, 24),
+    // Total ordering (created_at DESC, id DESC) keeps offset pages
+    // stable across ties — CSV imports share one timestamp, and
+    // without the id tiebreak rows shuffle between pages (T1.5).
+    supabase.from('contacts').select('*', { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false }).range(0, 24),
   ])
 
   const tags = (tagsData ?? []) as unknown as import('@/types').Tag[]
