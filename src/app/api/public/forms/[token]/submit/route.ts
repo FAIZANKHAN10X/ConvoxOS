@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
+import { emitFormSubmitted } from '@/lib/automation/crm-events';
 import { findFormByTokenHash, FormWriteError, hashFormToken, ingestSubmission } from '@/lib/forms/write';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -86,6 +87,23 @@ export async function POST(
       attribution,
       submissionKey,
     });
+
+    // T6.2: fresh submissions enter automation. Deduped resubmits
+    // already flowed — no second event. The key is per-submission,
+    // so retries of the same occurrence stay a no-op.
+    if (!result.deduped) {
+      await emitFormSubmitted({
+        db,
+        accountId: form.account_id,
+        contactId: result.contactId,
+        payload: {
+          form_id: form.id,
+          submission_id: (result.submission as { id: string }).id,
+        },
+        idempotencyKey: `form_submitted:${(result.submission as { id: string }).id}`,
+        source: 'crm',
+      });
+    }
 
     return NextResponse.json(
       {

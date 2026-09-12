@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   admin: vi.fn(),
   find: vi.fn(),
   ingest: vi.fn(),
+  emitSubmitted: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/account', () => ({
@@ -30,6 +31,10 @@ vi.mock('@/lib/forms/write', () => ({
   hashFormToken: (t: string) => `hash:${t}`,
   findFormByTokenHash: mocks.find,
   ingestSubmission: mocks.ingest,
+}));
+
+vi.mock('@/lib/automation/crm-events', () => ({
+  emitFormSubmitted: mocks.emitSubmitted,
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -82,8 +87,10 @@ beforeEach(() => {
   mocks.admin.mockReset();
   mocks.find.mockReset();
   mocks.ingest.mockReset();
+  mocks.emitSubmitted.mockReset();
   mocks.admin.mockReturnValue(DB);
   mocks.find.mockResolvedValue(FORM);
+  mocks.emitSubmitted.mockResolvedValue(undefined);
 });
 
 describe('POST /api/forms/[token]/submit', () => {
@@ -108,6 +115,13 @@ describe('POST /api/forms/[token]/submit', () => {
       contact_id: 'contact-1',
       deduped: false,
     });
+    expect(mocks.emitSubmitted).toHaveBeenCalledTimes(1);
+    expect(mocks.emitSubmitted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'account-1',
+        contactId: 'contact-1',
+      })
+    );
   });
 
   it('returns 200 on deduped resubmits', async () => {
@@ -122,6 +136,8 @@ describe('POST /api/forms/[token]/submit', () => {
       params
     );
     expect(response.status).toBe(200);
+    // Already flowed — no second automation event.
+    expect(mocks.emitSubmitted).not.toHaveBeenCalled();
   });
 
   it('404s unknown or inactive forms alike', async () => {

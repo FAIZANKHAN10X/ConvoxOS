@@ -37,6 +37,7 @@ describe('automation catalog', () => {
         'trigger.deal_status_changed',
         'trigger.deal_updated',
         'trigger.deal_won',
+        'trigger.form_submitted',
         'trigger.inbound_webhook',
         'trigger.keyword',
         'trigger.message_received',

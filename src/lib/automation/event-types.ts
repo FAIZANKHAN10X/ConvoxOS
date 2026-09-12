@@ -14,6 +14,8 @@ export const DOMAIN_EVENT = {
   TASK_COMPLETED: 'task_completed',
   TASK_OVERDUE: 'task_overdue',
   NOTE_ADDED: 'note_added',
+  /** T6.2: a lead form was submitted (contact always resolved). */
+  FORM_SUBMITTED: 'form_submitted',
   DEAL_STAGE_CHANGED: 'deal_stage_changed',
   DEAL_STATUS_CHANGED: 'deal_status_changed',
   DEAL_CREATED: 'deal_created',
