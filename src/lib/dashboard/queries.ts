@@ -3,7 +3,6 @@ import {
   daysAgoStart,
   DOW_SHORT_MON_FIRST,
   lastNDayKeys,
-  localDayKey,
   mondayIndex,
   startOfLocalDay,
 } from './date-utils'
@@ -18,83 +17,76 @@ import type {
 } from './types'
 
 // ------------------------------------------------------------
-// All client-side aggregation. RLS scopes every query to the
-// signed-in user automatically, so we never pass user_id explicitly
-// here. Perf is acceptable for the current scale (low thousands of
-// messages) — if a tenant's dataset outgrows this, we'd migrate the
-// heavy aggregations to SQL RPCs. Noted in the PR.
+// Aggregation lives in PostgreSQL (migrations 064/066/068); this
+// module maps RPC rows onto the dashboard's typed bundles. RLS +
+// explicit account predicates scope every query — accountId is
+// always passed, never inferred. loadActivity's small bounded
+// queries stay direct (4 trips, ≤35 rows); consolidating them
+// would trade clarity for nothing measurable.
 // ------------------------------------------------------------
 
 type DB = SupabaseClient
 
+async function accountIdOf(db: DB): Promise<string> {
+  // Dashboard loaders run with a user client; resolve the caller's
+  // account once per call. RLS remains the enforcement boundary.
+  const {
+    data: { user },
+  } = await db.auth.getUser()
+  if (!user) throw new Error('dashboard: not signed in')
+  const { data } = await db
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const accountId = (data as { account_id?: string } | null)?.account_id
+  if (!accountId) throw new Error('dashboard: no account for caller')
+  return accountId
+}
+
 // --- 1. Metric cards ---------------------------------------------------
 
 export async function loadMetrics(db: DB): Promise<MetricsBundle> {
+  const accountId = await accountIdOf(db)
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
 
-  const [
-    openConvCur,
-    newConvToday,
-    newConvYesterday,
-    newContactsToday,
-    newContactsYesterday,
-    openDeals,
-    messagesToday,
-    messagesYesterday,
-  ] = await Promise.all([
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', todayStart),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-    db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('deals').select('value, status').eq('status', 'open'),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', todayStart),
-    db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-  ])
-
-  const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
-  const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
+  // One trip, nine scalars, zero data rows (migration 068).
+  const { data, error } = await db.rpc('dashboard_metrics', {
+    p_account_id: accountId,
+    p_today_start: todayStart,
+    p_yesterday_start: yesterdayStart,
+  })
+  if (error) throw error
+  const m = (Array.isArray(data) ? data[0] : data) as {
+    open_conv: number
+    new_conv_today: number
+    new_conv_yesterday: number
+    new_contacts_today: number
+    new_contacts_yesterday: number
+    open_deals_count: number
+    open_deals_value: string | number
+    msgs_today: number
+    msgs_yesterday: number
+  }
 
   return {
     activeConversations: {
-      current: openConvCur.count ?? 0,
+      current: Number(m.open_conv ?? 0),
       // "vs yesterday" on a current-state count has no clean answer
       // without snapshots — we show the delta in NEW open conversations
       // today vs yesterday. That's the business-meaningful daily signal.
-      previous: (newConvToday.count ?? 0) - (newConvYesterday.count ?? 0),
+      previous: Number(m.new_conv_today ?? 0) - Number(m.new_conv_yesterday ?? 0),
     },
     newContactsToday: {
-      current: newContactsToday.count ?? 0,
-      previous: newContactsYesterday.count ?? 0,
+      current: Number(m.new_contacts_today ?? 0),
+      previous: Number(m.new_contacts_yesterday ?? 0),
     },
-    openDealsValue,
-    openDealsCount: openDealsRows.length,
+    openDealsValue: Number(m.open_deals_value ?? 0),
+    openDealsCount: Number(m.open_deals_count ?? 0),
     messagesSentToday: {
-      current: messagesToday.count ?? 0,
-      previous: messagesYesterday.count ?? 0,
+      current: Number(m.msgs_today ?? 0),
+      previous: Number(m.msgs_yesterday ?? 0),
     },
   }
 }
@@ -104,25 +96,33 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
 export async function loadConversationsSeries(
   db: DB,
   rangeDays: number,
+  tz?: string,
 ): Promise<ConversationsSeriesPoint[]> {
+  const accountId = await accountIdOf(db)
   const start = daysAgoStart(rangeDays - 1).toISOString()
-  const { data, error } = await db
-    .from('messages')
-    .select('created_at, sender_type')
-    .gte('created_at', start)
-    .order('created_at', { ascending: true })
+  // Day buckets in the caller's timezone (migration 068). Server
+  // callers pass UTC (matching prior SSR behavior); the browser
+  // passes its own zone (matching prior client behavior).
+  const zone =
+    tz ?? (typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : 'UTC')
+  const { data, error } = await db.rpc('dashboard_series', {
+    p_account_id: accountId,
+    p_start: start,
+    p_tz: zone,
+  })
   if (error) throw error
 
   const keys = lastNDayKeys(rangeDays)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
-  for (const row of (data ?? []) as { created_at: string; sender_type: string }[]) {
-    const key = localDayKey(row.created_at)
-    const bucket = buckets.get(key)
+  for (const row of (data ?? []) as { day: string; incoming: number; outgoing: number }[]) {
+    const bucket = buckets.get(row.day)
     if (!bucket) continue
-    if (row.sender_type === 'customer') bucket.incoming += 1
-    else bucket.outgoing += 1 // agent + bot both count as outgoing
+    bucket.incoming += Number(row.incoming ?? 0)
+    bucket.outgoing += Number(row.outgoing ?? 0)
   }
 
   return keys.map((day) => ({ day, ...(buckets.get(day) ?? { incoming: 0, outgoing: 0 }) }))
@@ -131,30 +131,28 @@ export async function loadConversationsSeries(
 // --- 3. Pipeline donut -------------------------------------------------
 
 export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
-  const [stagesRes, dealsRes] = await Promise.all([
-    db.from('pipeline_stages').select('id, name, color, pipeline_id, position').order('position'),
-    db.from('deals').select('stage_id, value, status').eq('status', 'open'),
-  ])
+  const accountId = await accountIdOf(db)
+  // Stages + open-deal aggregates in one trip (migration 068).
+  const { data, error } = await db.rpc('dashboard_pipeline', {
+    p_account_id: accountId,
+  })
+  if (error) throw error
 
-  const stages =
-    (stagesRes.data ?? []) as { id: string; name: string; color: string }[]
-  const deals = (dealsRes.data ?? []) as { stage_id: string; value: number | null }[]
-
-  const byStage = new Map<string, { count: number; total: number }>()
-  for (const d of deals) {
-    const row = byStage.get(d.stage_id) ?? { count: 0, total: 0 }
-    row.count += 1
-    row.total += d.value ?? 0
-    byStage.set(d.stage_id, row)
-  }
-
-  const slices: PipelineStageSlice[] = stages
+  const slices: PipelineStageSlice[] = (
+    (data ?? []) as {
+      stage_id: string
+      stage_name: string
+      stage_color: string | null
+      deal_count: number
+      total_value: string | number
+    }[]
+  )
     .map((s) => ({
-      id: s.id,
-      name: s.name,
-      color: s.color || '#64748b',
-      dealCount: byStage.get(s.id)?.count ?? 0,
-      totalValue: byStage.get(s.id)?.total ?? 0,
+      id: s.stage_id,
+      name: s.stage_name,
+      color: s.stage_color || '#64748b',
+      dealCount: Number(s.deal_count ?? 0),
+      totalValue: Number(s.total_value ?? 0),
     }))
     // Hide empty stages from the ring (but we'd still show them in the
     // legend if the user wanted a full breakdown — trimming keeps the
@@ -170,51 +168,33 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 // --- 4. Response time by day of week ----------------------------------
 
 export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
+  const accountId = await accountIdOf(db)
+  // Pairing (first inbound → first subsequent outbound per burst)
+  // runs in SQL (migration 068); only sparse samples cross the
+  // wire. Bucketing/averaging below is byte-for-byte the old logic.
   const fourteenDaysAgo = daysAgoStart(13).toISOString()
-  const { data, error } = await db
-    .from('messages')
-    .select('conversation_id, sender_type, created_at')
-    .gte('created_at', fourteenDaysAgo)
-    .order('conversation_id', { ascending: true })
-    .order('created_at', { ascending: true })
+  const { data, error } = await db.rpc('dashboard_response_samples', {
+    p_account_id: accountId,
+    p_start: fourteenDaysAgo,
+  })
   if (error) throw error
 
-  const rows = (data ?? []) as {
-    conversation_id: string
-    sender_type: string
-    created_at: string
-  }[]
-
-  // Group per conversation, pair unreplied customer messages with the
-  // next outbound message from the agent/bot. A single customer message
-  // can only count once (avoids inflating averages if the customer
-  // double-messages while the agent takes time to reply).
-  interface Sample {
-    customerAt: Date
-    responseAt: Date
-  }
-  const samples: Sample[] = []
-
-  let currentConv = ''
-  let pendingCustomer: Date | null = null
-  for (const row of rows) {
-    if (row.conversation_id !== currentConv) {
-      currentConv = row.conversation_id
-      pendingCustomer = null
-    }
-    const ts = new Date(row.created_at)
-    if (row.sender_type === 'customer') {
-      if (!pendingCustomer) pendingCustomer = ts
-    } else if (pendingCustomer) {
-      samples.push({ customerAt: pendingCustomer, responseAt: ts })
-      pendingCustomer = null
-    }
-  }
+  const samples: { customerAt: Date; responseAt: Date }[] = (
+    (data ?? []) as { customer_at: string; minutes: string | number }[]
+  )
+    .map((r) => {
+      const customerAt = new Date(r.customer_at)
+      const minutes = Number(r.minutes)
+      return {
+        customerAt,
+        responseAt: new Date(customerAt.getTime() + minutes * 60_000),
+      }
+    })
+    .filter(
+      (s) =>
+        Number.isFinite(s.customerAt.getTime()) &&
+        Number.isFinite(s.responseAt.getTime())
+    )
 
   const now = new Date()
   const thisWeekStart = daysAgoStart(mondayIndex(now))
