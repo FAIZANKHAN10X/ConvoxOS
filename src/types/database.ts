@@ -515,6 +515,60 @@ export type Database = {
           },
         ]
       }
+      automation_inbound_hooks: {
+        Row: {
+          account_id: string
+          automation_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_received_at: string | null
+          secret_enc: string
+          token_enc: string | null
+          token_hash: string
+        }
+        Insert: {
+          account_id: string
+          automation_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_received_at?: string | null
+          secret_enc: string
+          token_enc?: string | null
+          token_hash: string
+        }
+        Update: {
+          account_id?: string
+          automation_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_received_at?: string | null
+          secret_enc?: string
+          token_enc?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_inbound_hooks_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_inbound_hooks_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: true
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_run_steps: {
         Row: {
           account_id: string
@@ -1420,6 +1474,56 @@ export type Database = {
           },
         ]
       }
+      integration_endpoints: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string | null
+          failure_count: number
+          id: string
+          is_active: boolean
+          kind: string
+          last_delivery_at: string | null
+          name: string
+          secret_enc: string
+          url: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by?: string | null
+          failure_count?: number
+          id?: string
+          is_active?: boolean
+          kind?: string
+          last_delivery_at?: string | null
+          name: string
+          secret_enc: string
+          url: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string | null
+          failure_count?: number
+          id?: string
+          is_active?: boolean
+          kind?: string
+          last_delivery_at?: string | null
+          name?: string
+          secret_enc?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_endpoints_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_presence: {
         Row: {
           account_id: string
@@ -2176,6 +2280,32 @@ export type Database = {
           id: string
           is_active: boolean
           last_delivery_at: string | null
+      claim_event_wait: {
+        Args: {
+          p_account_id: string
+          p_automation_id: string
+          p_correlation_key: string
+        }
+        Returns: {
+          account_id: string
+          claimed_at: string | null
+          correlation_key: string | null
+          created_at: string
+          id: string
+          kind: string
+          node_id: string
+          resume_at: string
+          resume_node_id: string | null
+          run_id: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "automation_waits"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
           secret: string
           url: string
         }
