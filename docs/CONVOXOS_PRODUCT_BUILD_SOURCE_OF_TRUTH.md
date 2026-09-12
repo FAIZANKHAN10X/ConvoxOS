@@ -160,7 +160,7 @@ After T4–T9 complete and verified: fresh 2026 GHL-docs audit producing capabil
 | T7.2 Email ↔ CRM/Inbox | ✅ COMPLETE | `8ad5a16` | 1183 | Yes (suite+tsc+lint+build; 1 pre-existing date failure) |
 | T7.3 Email Templates+Action | ✅ COMPLETE | `7899530` | 1196 | Yes (suite+tsc+lint+build; 1 pre-existing date failure) |
 | T7.4 Email Events/Triggers | ✅ COMPLETE | `b0bbb32` | 1202 | Yes (suite+tsc+lint+build; 1 pre-existing date failure) |
-| T7.5 | ⬜ NOT STARTED | — | — | — |
+| T7.5 Email Sequences | ✅ COMPLETE | `aa84975` | 1204 | Yes (suite+tsc+lint+build; 1 pre-existing date failure) |
 | T8.1–T8.6 | ⬜ NOT STARTED | — | — | — |
 | T9.1–T9.4 | ⬜ NOT STARTED | — | — | — |
 | T10 | ⬜ DEFERRED | — | — | — |
