@@ -2442,6 +2442,16 @@ export type Database = {
         Returns: undefined
       }
       touch_presence: { Args: { p_status?: string }; Returns: undefined }
+      // Hand-added for migration 064 (regenerate via `npm run db:types`
+      // once T1.7 lands the script to confirm).
+      conversation_channel_summaries: {
+        Args: { p_account_id: string }
+        Returns: {
+          conversation_id: string
+          channels: string[] | null
+          latest_channel: string | null
+        }[]
+      }
       transfer_account_ownership: {
         Args: { p_new_owner_user_id: string }
         Returns: undefined

@@ -78,6 +78,35 @@ export function matchesChannelFilter(
   filter: InboxChannelFilter,
 ): boolean {
   return filter === "all" || summary.channels.includes(filter);
+};
+
+/**
+ * Row shape returned by the `conversation_channel_summaries` RPC
+ * (migration 064): one row per conversation that has messages.
+ */
+export interface ChannelSummaryRow {
+  conversation_id: string;
+  channels: Channel[] | null;
+  latest_channel: Channel | null;
+}
+
+/**
+ * Fold RPC rows into the summary map the inbox list renders from.
+ * Pure — the RPC already aggregated per conversation, so this is a
+ * straight key-by-id with null normalization (conversations whose
+ * messages all predate channel provenance get an empty set).
+ */
+export function toChannelSummaryMap(
+  rows: ChannelSummaryRow[],
+): Map<string, ConversationChannelSummary> {
+  const map = new Map<string, ConversationChannelSummary>();
+  for (const row of rows) {
+    map.set(row.conversation_id, {
+      channels: row.channels ?? [],
+      latestChannel: row.latest_channel,
+    });
+  }
+  return map;
 }
 
 /** Return the outbound identities available for a contact. */

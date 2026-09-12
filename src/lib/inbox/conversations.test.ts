@@ -242,3 +242,39 @@ describe("getAvailableContactChannels", () => {
     expect(getAvailableContactChannels(null)).toEqual([]);
   });
 });
+
+describe("toChannelSummaryMap", () => {
+  it("folds RPC rows by conversation id with null normalization", async () => {
+    const { toChannelSummaryMap } = await import("./conversations");
+    const map = toChannelSummaryMap([
+      {
+        conversation_id: "c1",
+        channels: ["whatsapp", "telegram"],
+        latest_channel: "telegram",
+      },
+      { conversation_id: "c2", channels: null, latest_channel: null },
+    ]);
+    expect(map.get("c1")).toEqual({
+      channels: ["whatsapp", "telegram"],
+      latestChannel: "telegram",
+    });
+    expect(map.get("c2")).toEqual({ channels: [], latestChannel: null });
+  });
+
+  it("handles conversation counts past the old row cap", async () => {
+    const { toChannelSummaryMap } = await import("./conversations");
+    // The old full-scan silently truncated past ~1000 message rows;
+    // the RPC returns one row per conversation regardless of volume.
+    const rows = Array.from({ length: 2500 }, (_, i) => ({
+      conversation_id: `c${i}`,
+      channels: ["whatsapp"] as ("whatsapp" | "telegram")[],
+      latest_channel: "whatsapp" as const,
+    }));
+    const map = toChannelSummaryMap(rows);
+    expect(map.size).toBe(2500);
+    expect(map.get("c2499")).toEqual({
+      channels: ["whatsapp"],
+      latestChannel: "whatsapp",
+    });
+  });
+});

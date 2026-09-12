@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import {
   CONVERSATION_SELECT,
+  type ChannelSummaryRow,
   type ConversationChannelSummary,
   type InboxChannelFilter,
-  summarizeConversationChannels,
   matchesContactFilters,
   normalizeConversations,
+  toChannelSummaryMap,
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus, Message, Tag } from "@/types";
+import type { Conversation, ConversationStatus, Tag } from "@/types";
 import { Search, ChevronDown, MessageCircle, Send, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -46,7 +48,6 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 };
 
 type InboxFilter = ConversationStatus | "all" | "unread";
-type ChannelMessageRow = Pick<Message, "conversation_id" | "channel" | "created_at">;
 
 export function ConversationList({
   activeConversationId,
@@ -78,6 +79,9 @@ export function ConversationList({
   const [channelSummaries, setChannelSummaries] = useState<
     Map<string, ConversationChannelSummary>
   >(new Map());
+  // Account for the channel-summaries RPC. RLS still enforces
+  // tenancy server-side; the account id is a filter, not a boundary.
+  const { accountId } = useAuth();
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -101,15 +105,24 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      const [conversationsResult, messagesResult] = await Promise.all([
+      // Channel badges come from a single aggregated RPC — one row per
+      // conversation that has messages, so rows are bounded by the
+      // conversation count and correct at any message volume. The old
+      // full-table messages scan is gone (it was O(total messages) and
+      // silently truncated past PostgREST's row cap).
+      const [conversationsResult, summariesResult] = await Promise.all([
         supabase
           .from("conversations")
           .select(CONVERSATION_SELECT)
           .order("last_message_at", { ascending: false }),
-        supabase
-          .from("messages")
-          .select("conversation_id, channel, created_at")
-          .order("created_at", { ascending: true }),
+        accountId
+          ? supabase.rpc("conversation_channel_summaries", {
+              p_account_id: accountId,
+            })
+          : Promise.resolve({
+              data: [] as ChannelSummaryRow[],
+              error: null,
+            }),
       ]);
 
       if (cancelled) return;
@@ -126,29 +139,18 @@ export function ConversationList({
         return;
       }
 
-      if (messagesResult.error) {
+      if (summariesResult.error) {
         console.error("Failed to fetch conversation channels:", {
-          message: messagesResult.error.message,
-          details: messagesResult.error.details,
-          hint: messagesResult.error.hint,
-          code: messagesResult.error.code,
+          message: summariesResult.error.message,
+          details: (summariesResult.error as { details?: unknown }).details,
+          hint: (summariesResult.error as { hint?: unknown }).hint,
+          code: (summariesResult.error as { code?: unknown }).code,
         });
       }
 
-      const messagesByConversation = new Map<string, ChannelMessageRow[]>();
-      for (const message of (messagesResult.data ?? []) as ChannelMessageRow[]) {
-        const conversationMessages = messagesByConversation.get(message.conversation_id) ?? [];
-        conversationMessages.push(message);
-        messagesByConversation.set(message.conversation_id, conversationMessages);
-      }
-
-      const nextSummaries = new Map<string, ConversationChannelSummary>();
-      for (const [conversationId, conversationMessages] of messagesByConversation) {
-        nextSummaries.set(
-          conversationId,
-          summarizeConversationChannels(conversationMessages),
-        );
-      }
+      const nextSummaries = toChannelSummaryMap(
+        (summariesResult.data ?? []) as ChannelSummaryRow[],
+      );
 
       setChannelSummaries(nextSummaries);
       onConversationsLoadedRef.current(
@@ -163,7 +165,9 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+    // `accountId` is included so the channel-summaries RPC runs once
+    // auth resolves (before that it resolves to an empty map).
+  }, [resyncToken, accountId]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
