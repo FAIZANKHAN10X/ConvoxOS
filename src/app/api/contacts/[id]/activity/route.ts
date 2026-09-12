@@ -9,10 +9,19 @@ export async function GET(
 ) {
   const { id: contactId } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // T3.5 pilot: local JWT validation instead of a getUser() Auth-API
+  // round trip. getClaims() verifies signature + expiry (asymmetric
+  // keys: fully local; symmetric: same cost as getUser — no worse).
+  // Trust boundary unchanged: sub only resolves profile/account;
+  // every data read below stays RLS-gated, and the feed RPC
+  // re-asserts account_id per branch.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+  const userId = claimsData?.claims?.sub as string | undefined
+  if (claimsError || !userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-  const { data: profile } = await supabase.from('profiles').select('account_id').eq('user_id', user.id).maybeSingle()
+  const { data: profile } = await supabase.from('profiles').select('account_id').eq('user_id', userId).maybeSingle()
   const accountId = (profile as { account_id: string } | null)?.account_id
   if (!accountId) return NextResponse.json({ error: 'No account' }, { status: 400 })
 
