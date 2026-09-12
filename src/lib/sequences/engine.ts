@@ -134,7 +134,11 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
     if (step.step_type === 'send_message') {
       const text = (cfg.text as string) ?? (cfg.body as string) ?? ''
       if (!text.trim()) throw new Error('send_message text required')
-      await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text })
+      // Stable per (enrollment, position): a concurrent or retried
+      // tick reuses the persisted row instead of double-sending.
+      // Position only advances forward, so the key never collides
+      // with a genuinely new send.
+      await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text, idempotencyKey: `seq:${enrollmentId}:${pos}` })
     } else if (step.step_type === 'send_buttons' || step.step_type === 'send_list') {
       // For sequences, send_buttons/send_list are stored as interactive payload same as automations
       // For telegram, dispatchChannelText will handle inline keyboard conversion via dispatchInteractive? For now, use dispatchText with inlineKeyboard if telegram
@@ -151,11 +155,11 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
         }
       }
       if (channel === 'telegram' && inlineKeyboard) {
-        await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel: 'telegram', text: body, inlineKeyboard })
+        await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel: 'telegram', text: body, inlineKeyboard, idempotencyKey: `seq:${enrollmentId}:${pos}` })
       } else {
         // For whatsapp, use dispatchText for buttons? For now, use dispatchChannelText with inlineKeyboard not supported for whatsapp, so use dispatchText
         // For simplicity, send as text with body
-        await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text: body, inlineKeyboard: inlineKeyboard ?? undefined })
+        await dispatchChannelText({ db, accountId: en.account_id, conversationId, channel, text: body, inlineKeyboard: inlineKeyboard ?? undefined, idempotencyKey: `seq:${enrollmentId}:${pos}` })
       }
     }
 
@@ -184,17 +188,28 @@ export async function runSequenceEnrollment(enrollmentId: string): Promise<void>
   }
 }
 
-// Cron helper to resume due enrollments
-export async function resumeDueSequenceEnrollments(): Promise<number> {
+// Cron helper to resume due enrollments.
+//
+// T4.1: discovery + claiming go through the atomic
+// claim_due_sequence_enrollments() RPC (SKIP LOCKED lease-bump,
+// same pattern as the automation claim functions), so overlapping
+// ticks never execute the same step twice. Each claimed id is then
+// run through runSequenceEnrollment(); sends carry stable
+// seq:{enrollment}:{position} idempotency keys as a second guard.
+export async function resumeDueSequenceEnrollments(
+  limit = 50,
+  leaseSeconds = 300
+): Promise<number> {
   const db = supabaseAdmin()
-  const now = new Date().toISOString()
-  const { data: due } = await db
-    .from('sequence_enrollments')
-    .select('id')
-    .eq('status', 'active')
-    .lte('next_run_at', now)
-    .limit(50)
-  if (!due || due.length === 0) return 0
+  const { data: due, error } = await db.rpc('claim_due_sequence_enrollments', {
+    p_limit: limit,
+    p_lease_seconds: leaseSeconds,
+  })
+  if (error) {
+    console.error('[sequences] claim failed:', error.message)
+    return 0
+  }
+  if (!due || (due as unknown[]).length === 0) return 0
   let resumed = 0
   for (const row of due as Array<{ id: string }>) {
     try {

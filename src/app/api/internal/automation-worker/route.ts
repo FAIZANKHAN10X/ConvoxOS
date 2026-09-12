@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createEngineDeps, runAutomationWorker } from '@/lib/automation';
+import { resumeDueSequenceEnrollments } from '@/lib/sequences/engine';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -41,7 +42,16 @@ async function handle(request: Request): Promise<NextResponse> {
   if (!limited.success) return rateLimitResponse(limited);
 
   const result = await runAutomationWorker(createEngineDeps());
-  return NextResponse.json({ ok: true, ...result });
+  // T4.1: sequence sweep rides the same per-minute tick — no second
+  // cron, no new worker. Best-effort: automation results report
+  // even if the sequence sweep throws (it logs internally).
+  let sequencesResumed = 0;
+  try {
+    sequencesResumed = await resumeDueSequenceEnrollments();
+  } catch (e) {
+    console.error('[automation-worker] sequence sweep failed:', e);
+  }
+  return NextResponse.json({ ok: true, ...result, sequencesResumed });
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
