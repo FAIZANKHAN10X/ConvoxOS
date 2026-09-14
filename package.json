@@ -56,7 +56,7 @@
     "lucide-react": "^1.30.0",
     "mammoth": "^1.12.2",
     "next": "^16.3.4",
-    "next-intl": "^4.14.2",
+    "next-intl": "^4.14.3",
     "opus-recorder": "^8.0.5",
     "pdf-parse": "^2.4.5",
     "react": "^19.2.8",
